@@ -220,6 +220,7 @@ struct NikonZ9State {
     uint32_t usb_soc_config[4];
     uint32_t zr_control1782_config[5];
     bool zr_sd_empty_fixture;
+    bool z8_sd_empty_fixture;
     uint32_t zr_display_shared_config[5];
     uint32_t zr_display_output_config[0x414 / 4];
     bool zr_dsi_command_model;
@@ -957,12 +958,20 @@ static bool syscon_retention(NikonZ9State *s, hwaddr addr)
      * them unknown on the Z9 machine; no clock or completion is inferred.
      */
     if (((addr >= 0x0d150158 && addr <= 0x0d150160) ||
-         (addr >= 0x0d150258 && addr <= 0x0d150260) ||
-         /* ZR 40e2d7ec/40e2d830: twelve bounded field selectors in
-          * original table 4184c268 resolve to these four words. */
-         addr == 0x0d152000 || addr == 0x0d152008 ||
-         addr == 0x0d152010 || addr == 0x0d152018) &&
+         (addr >= 0x0d150258 && addr <= 0x0d150260)) &&
         object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-zr-lab"))) {
+        return true;
+    }
+    /* ZR 40e2d7ec/40e2d830 and Z8 C3.11 40c2d100/40c2d144 use
+     * twelve bounded selectors resolving to these four 32-bit words.
+     * Z8 table 4164c1e8 has offsets 0/8/16/24 within d152000; getter
+     * extracts a field and adds its tag, while setter writes a shifted word.
+     * Reuse whole-word retention only, under the caller's bootstrap fixture.
+     * This does not claim physical field-write enables or clock behavior. */
+    if ((addr == 0x0d152000 || addr == 0x0d152008 ||
+         addr == 0x0d152010 || addr == 0x0d152018) &&
+        (object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-zr-lab")) ||
+         object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-z8-bringup")))) {
         return true;
     }
     if (addr == 0x0d150004 || addr == 0x0d150008 ||
@@ -3668,12 +3677,14 @@ static char *get_graphics_state(Object *obj, Error **errp)
 static uint32_t *zr_control1782_word(NikonZ9State *s, hwaddr addr,
                                     unsigned size, uint32_t *mask)
 {
-    /* Original ZR 40290e10..40290e58: bounded enable/configuration only.
+    /* Original ZR 40290e10..40290e58 and Z8 C3.11 40290d4c..40290d94:
+     * bounded enable/configuration only.
      * No media, commands, DMA, readiness or IRQ is supplied by retention.
      * The identity of this controller remains unconfirmed.
      */
+    bool z8 = object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-z8-bringup"));
     if (!s->bootstrap_fixtures || size != 4 ||
-        !object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-zr-lab"))) {
+        (!z8 && !object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-zr-lab")))) {
         return NULL;
     }
     switch (addr) {
@@ -3682,10 +3693,23 @@ static uint32_t *zr_control1782_word(NikonZ9State *s, hwaddr addr,
     case 0x17820230: *mask = 0xf; return &s->zr_control1782_config[2];
     /* 40290eb0..40290ed4 through 402be108/13c and table a02808508,
      * selector3: preserve outside FEECFCFF, supply 01110200. */
-    case 0x17a0000c: *mask = 0x01130301; return &s->zr_control1782_config[3];
+    case 0x17a0000c:
+        /* Z8 40290df0..40290e10 retains configuration bits 01030300,
+         * while 4029156c..402915f4 consumes inverted bit0 as card presence.
+         * Never infer that external input from zero-initialized retention. */
+        if (z8 && !s->z8_sd_empty_fixture) {
+            return NULL;
+        }
+        *mask = z8 ? 0x01030301 : 0x01130301;
+        return &s->zr_control1782_config[3];
     /* ZR 40291728..40291738 selector2 sets 1 before the separate
      * controller/GPIO setup. A retained external gate only; no transfer. */
-    case 0x17a00008: *mask = 1; return &s->zr_control1782_config[4];
+    case 0x17a00008:
+        if (z8) {
+            return NULL;
+        }
+        *mask = 1;
+        return &s->zr_control1782_config[4];
     default: return NULL;
     }
 }
@@ -11343,7 +11367,7 @@ static uint64_t unknown_read(void *opaque, hwaddr addr, unsigned size)
         /* ZR 40291648..402916a4 consumes inverted bit0 as card presence.
          * Empty-slot input is explicit and independent of retained setup;
          * a configuration write cannot attach a card or finish a transfer. */
-        if (addr == 0x17a0000c && s->zr_sd_empty_fixture) {
+        if (addr == 0x17a0000c && (s->zr_sd_empty_fixture || s->z8_sd_empty_fixture)) {
             return (*zr_control & ~1u) | 1;
         }
         return *zr_control;
@@ -11861,7 +11885,8 @@ static void unknown_write(void *opaque, hwaddr addr, uint64_t value,
     uint32_t usb_mask;
     uint32_t *zr_control = zr_control1782_word(s, addr, size, &usb_mask);
     if (zr_control && !(value & ~usb_mask)) {
-        *zr_control = (addr == 0x17a0000c && s->zr_sd_empty_fixture) ? value & ~1u : value;
+        *zr_control = (addr == 0x17a0000c &&
+                       (s->zr_sd_empty_fixture || s->z8_sd_empty_fixture)) ? value & ~1u : value;
         fprintf(stderr, "ZR_1782_CONFIG addr=%" HWADDR_PRIx " value=%x; no transfer/IRQ\n",
                 addr, (uint32_t)value);
         return;
@@ -13205,6 +13230,10 @@ static void nikon_z9_init(MachineState *machine)
         error_report("nand-fixture requires bootstrap-fixtures=on");
         exit(1);
     }
+    if (s->z8_sd_empty_fixture && !s->bootstrap_fixtures) {
+        error_report("z8-sd-empty-fixture requires bootstrap-fixtures=on");
+        exit(1);
+    }
     if (s->multi_io_counter_model && !s->bootstrap_fixtures) {
         error_report("multi-io-counter-model requires bootstrap-fixtures=on");
         exit(1);
@@ -13603,6 +13632,22 @@ static void set_zr_sd_empty_fixture(Object *obj, bool value, Error **errp)
     s->zr_sd_empty_fixture = value;
 }
 
+static bool get_z8_sd_empty_fixture(Object *obj, Error **errp)
+{
+    return NIKON_Z9_LAB(obj)->z8_sd_empty_fixture;
+}
+
+static void set_z8_sd_empty_fixture(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (!object_dynamic_cast(obj, MACHINE_TYPE_NAME("nikon-z8-bringup")) ||
+        s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp, "z8-sd-empty-fixture requires Z8 at machine creation");
+        return;
+    }
+    s->z8_sd_empty_fixture = value;
+}
+
 static void set_nand_fixture(Object *obj, bool value, Error **errp)
 {
     NIKON_Z9_LAB(obj)->nand_fixture = value;
@@ -13958,6 +14003,7 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_str(oc, "engine150d-readback-state", get_engine150d_readback_state, NULL);
     object_class_property_add_bool(oc, "nand-fixture", get_nand_fixture, set_nand_fixture);
     object_class_property_add_bool(oc, "zr-sd-empty-fixture", get_zr_sd_empty_fixture, set_zr_sd_empty_fixture);
+    object_class_property_add_bool(oc, "z8-sd-empty-fixture", get_z8_sd_empty_fixture, set_z8_sd_empty_fixture);
     object_class_property_add_bool(oc, "zr-dsi-command-model", get_zr_dsi_command_model, set_zr_dsi_command_model);
     object_class_property_add_str(oc, "zr-dsi-state", get_zr_dsi_state, NULL);
     object_class_property_add_bool(oc, "zr-lcd-control-fixture", get_zr_lcd_control_fixture, set_zr_lcd_control_fixture);
@@ -14129,8 +14175,26 @@ static const TypeInfo nikon_z9_type = {
     .interfaces = aarch64_machine_interfaces,
 };
 
+/* A separately named early-bring-up target. Inherited mappings are Z9-derived
+ * hypotheses until verified against Z8 evidence. No fixture is enabled here;
+ * unknown accesses retain the parent's strict Z9_UNKNOWN stop and context.
+ * The independent host runner verifies the exact Z8 MAIN before launch. */
+static void nikon_z8_bringup_class_init(ObjectClass *oc, const void *data)
+{
+    MachineClass *mc = MACHINE_CLASS(oc);
+    mc->desc = "Nikon Z8 early bring-up with Z9-derived mappings (menu unverified)";
+    mc->default_ram_id = "z8.bringup-work-ram";
+}
+
+static const TypeInfo nikon_z8_bringup_type = {
+    .name = MACHINE_TYPE_NAME("nikon-z8-bringup"),
+    .parent = TYPE_NIKON_Z9_LAB,
+    .class_init = nikon_z8_bringup_class_init,
+};
+
 static void nikon_z9_register_types(void)
 {
     type_register_static(&nikon_z9_type);
+    type_register_static(&nikon_z8_bringup_type);
 }
 type_init(nikon_z9_register_types)

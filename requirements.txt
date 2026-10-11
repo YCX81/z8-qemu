@@ -1,2 +1,4 @@
 numpy>=1.26,<3
 Pillow>=10,<13
+# Independent parsing oracle for the firmware-free analysis-ELF tests.
+pyelftools==0.33

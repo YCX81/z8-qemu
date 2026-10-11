@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "model": "Nikon Z8",
+  "version": "C3.11",
+  "main_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+  "menu_rgb_sha256": "eade74774105b43ae8aa550800f4854db6cc4288f55a6293f6fae9c5d31036e5",
+  "width": 1024,
+  "height": 682,
+  "observed_view": "Original English PHOTO SHOOTING MENU, Shooting menu bank A, NCZ_8 folder label",
+  "provenance": "Observed original QEMU framebuffer after native MCU MENU press/release on 2026-10-11; image bytes excluded",
+  "scope": "Pinned virtual peripherals and fresh storage; not physical camera acceptance"
+}

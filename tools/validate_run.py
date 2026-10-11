@@ -2,6 +2,7 @@
 """Local firmware-dependent acceptance; no firmware or image assets included."""
 import hashlib
 import json
+import re
 import time
 import numpy as np
 from PIL import Image
@@ -46,13 +47,17 @@ def verify_pixels(g,label,lcd):
 
 class MenuAcceptance:
     """Three original MENU/half-shutter round trips in the same running guest."""
-    def __init__(self,g,peer,progress,*,virtual_clock=False):
+    def __init__(self,g,peer,progress,*,virtual_clock=False,menu_rgb_sha256=MENU_RGB_SHA256):
+        if not isinstance(menu_rgb_sha256,str) or not re.fullmatch(r'[0-9a-f]{64}',menu_rgb_sha256):
+            raise ValueError('A version-specific observed menu RGB SHA256 is required')
+        self.menu_digest=menu_rgb_sha256
         self.g,self.peer,self.progress=g,peer,progress
         self.stage='video';self.cycle=0;self.baseline=0;self.video_baseline=0;self.stable=None
         self.since=time.monotonic();self.done=False;self.menu_presses=0
         self.virtual_clock=virtual_clock
         if virtual_clock:self.since=state(g,'runtime-clock-state')['virtual_ns']/1e9
         self.record=dict(passed=False,cycles=3,stages=[],
+            expected_menu_rgb_sha256=self.menu_digest,
             menu_entry_sequence=['release half-shutter','MENU press/release',
                 'wait for native MENU; one further press/release if needed'],
             menu_attempts=[],
@@ -92,7 +97,7 @@ class MenuAcceptance:
         elif self.stage=='menu':
             with Image.open(screen) as im:digest=hashlib.sha256(im.convert('RGB').tobytes()).hexdigest()
             self.record['last_menu_rgb_sha256']=digest
-            if digest!=MENU_RGB_SHA256:
+            if digest!=self.menu_digest:
                 # Let the original UI and capture drain finish before another
                 # key. Two unconditional presses can leave a menu that has
                 # already opened. Transport retirement alone is not UI readiness.

@@ -1,0 +1,44 @@
+{
+  "model": "Nikon Z8",
+  "version": "C3.11",
+  "bytes": 81807709,
+  "sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+  "entry_prefix_hex": "df4f03d5a2000058420400d15f0000f1c1ffff54030000140100000000000000",
+  "load_address": "0x40160000",
+  "entry_point": "0x40160000",
+  "package": {
+    "name": "Z_8_0311.bin",
+    "bytes": 99051117,
+    "sha256": "d67413c2ede6b9ce8887175f20700bd9fbad2a973a4820968c45503d15d80d96",
+    "source_page": "https://downloadcenter.nikonimglib.com/en/download/fw/606.html",
+    "module": "eg2070_0311b0.bi",
+    "module_body_offset": 581844,
+    "module_bytes_including_crc": 81807711,
+    "all_module_and_package_crcs_verified": true
+  },
+  "cpu_instruction_set": "AArch64, observed from original entry instructions",
+  "independent_key_recovery": {
+    "tool_commit": "33426e892afd329a3b366b73776bcf53b9ac4ee8",
+    "inputs": ["Z_8_0311.bin", "Z7_2_0170.bin", "Z_6_0380.bin", "Z_50_0260.bin"],
+    "module_crcs_passed": 17,
+    "package_crcs_passed": 4,
+    "reextracted_payload_identical": true,
+    "key_material_included": false
+  },
+  "hardware_profile_basis": "Inherited Z9 execution model; Z8 hardware mappings remain hypotheses until independently checked",
+  "load_address_basis": "Z9 initial mapping hypothesis, used only for bounded Z8 bring-up and explicitly declared static analysis",
+  "bus_window_layout": {
+    "z8_query_function": "0x41185b94",
+    "z8_table_address": "0x44b7dcb4",
+    "table_bytes": 408,
+    "table_sha256": "f07fcbfdd7b322afcd91a9cd2522e4d4f7e986d165affb0728a2478f108c71a8",
+    "groups": 17,
+    "paired_groups": [3, 4, 10],
+    "software_register_layout_matches_parent": true,
+    "comparison": "Both window bases, control bases, and effective slots (slot_count << paired) match the inherited model for all 17 groups",
+    "bootloader_initial_window_values_verified": false
+  },
+  "full_boot_verified": false,
+  "menu_verified": false,
+  "camera_acceptance": false
+}

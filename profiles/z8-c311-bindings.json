@@ -1,0 +1,102 @@
+{
+  "model": "Nikon Z8",
+  "version": "C3.11",
+  "main_bytes": 81807709,
+  "main_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+  "classification": "static instruction bindings; native runtime acceptance recorded separately",
+  "bindings": {
+    "tx_request": 1086927084,
+    "gpio_tx_isr": 1086415320,
+    "gpio_rx_isr": 1086415344,
+    "tx_return": 1086927088,
+    "tx_ack_read": 1086927320,
+    "tx_finished": 1086927424,
+    "lens_status_consumer": 1092096968,
+    "serial_before_enable": 1086409312,
+    "serial_prefill": 1086409356,
+    "serial_drain": 1086409424,
+    "serial_rx_isr": 1086410512,
+    "rx_request": 1086928052,
+    "rx_accepted": 1086928328,
+    "rx_after_flag_clear": 1086928344,
+    "mode_reply_consumer": 1092079392,
+    "config_reply_consumer": 1092079324,
+    "tx_state": 42998433080,
+    "config_callback": 43026702184,
+    "serial_objects": 42991650688
+  },
+  "boot": {
+    "points": {
+      "power_status": 1087732368,
+      "system_power_event": 1087795808,
+      "lens_accept": 1090971280,
+      "boot1": 1087791156,
+      "boot2": 1087724960,
+      "boot3": 1087761276,
+      "boot4": 1087533540,
+      "boot5": 1087532412,
+      "boot6": 1087569980,
+      "boot7": 1090177468,
+      "boot8": 1087729944,
+      "rx_start_ready": 1086924612,
+      "lens_request_callback_return": 1092097284
+    },
+    "observe_after_lens": [
+      1087791156,
+      1087724960,
+      1087761276
+    ],
+    "observe_after_half_key": [
+      1087533540,
+      1087532412,
+      1087569980,
+      1090177468,
+      1087729944
+    ],
+    "expected_power_status_event": "0x03040002",
+    "expected_system_power_event": "0x05020101",
+    "status": "static candidates; require native guest validation",
+    "rx_start_ready_semantics": "After original RX task startup flags bit0 enabled GPIO IRQ58 via 0x40c15fec, before returning to task event wait; replaces wall-clock settle to avoid missed early MCU readiness.",
+    "lens_request_callback_return_semantics": "0x41181504 is return from the original lens service send callback after supplied family4/type3 status. This boundary is not evidence of battery health or successful battery validation."
+  },
+  "rx_retirement_semantics": "rx_after_flag_clear is the shared API key; Z8 0x40c935d8 is after original GPIO ACK, not after notification flag-clear calls. Z8 clears RX state at 0x40c935d0 and calls GPIO ACK at 0x40c935d4; it omits the Z9 timer cancellation and flag4/2 clearing.",
+  "evidence": {
+    "reference_main_sha256": "6380ded18395ce11cb327c766721274c85127d2cf1a1e887ee60e3d156810bdd",
+    "method": "Unique full-file masked instruction windows, explicit control-flow recovery for RX, and original dispatch tables; no fixed-offset assumption.",
+    "masked_fields": "branch relocation, ADR/ADRP, 64-bit MOVZ/MOVK address halves; register, opcode, memory offsets and 32-bit enum immediates retained",
+    "frame_decoders": [
+      {
+        "name": "status_type3",
+        "z8": "0x4101bf74",
+        "z9": "0x410205c0",
+        "instructions": 407,
+        "normalized_differences": 0
+      },
+      {
+        "name": "config_type5",
+        "z8": "0x4101c9d8",
+        "z9": "0x41021024",
+        "instructions": 22,
+        "normalized_differences": 0
+      },
+      {
+        "name": "mode_type9",
+        "z8": "0x4101d558",
+        "z9": "0x41021ba4",
+        "instructions": 19,
+        "normalized_differences": 0
+      },
+      {
+        "name": "keys_type1",
+        "z8": "0x41020844",
+        "z9": "0x41024e90",
+        "instructions": 479,
+        "normalized_differences": 0
+      }
+    ],
+    "status_fields": "body[0x1c]!=0 -> abstract payload+0x10 bit0; body[0x68] separately -> payload+0x24 enum; status callback event 0x03040002 replaces Z9 0x03060002",
+    "key_fields": "body[7] half-press read at0x41020a48; body[0x43] menu read at0x41020b7c",
+    "mcu_physical_protocol_verified": false,
+    "camera_acceptance": false
+  }
+}

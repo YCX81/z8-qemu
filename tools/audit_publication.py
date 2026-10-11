@@ -19,6 +19,17 @@ IGNORED = {'.git','.local','.build','.venv','__pycache__'}
 FILES.add('tools/validate_run.py')
 FILES.update({'qemu/arm-service-events.patch','tools/z9_timing_input.py',
               'tools/check_service_events.py','docs/service-events.md'})
+FILES.update({'profiles/z8-c311.json', 'tools/z8_bringup.py', 'tools/z8_elf.py',
+              'tests/test_z8_bringup.py', 'tests/test_z8_elf.py',
+              'tests/check_z8_machine.py', 'docs/z8-status.md'})
+FILES.update({'profiles/z8-c311-bindings.json', 'tools/z8_boot.py', 'tools/z8_guest.py',
+              'tools/z8_resources.py', 'tools/z8_run.py', 'tools/z8-interactive.html',
+              'tools/z8-interactive.js', 'tests/test_z8_boot.py', 'tests/test_z8_guest.py',
+              'tests/test_z8_resources.py', 'tests/test_z8_run.py', 'tests/test_z8_syscon.py',
+              'tests/test_z8_storage_control.py'})
+FILES.update({'profiles/z8-c311-acceptance.json','docs/z8-battery-resources.md',
+              'tests/test_z8_cancellation.py'})
+FILES.update({'Start-Z8.ps1','Test-Z8.ps1','REA.ps1'})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),

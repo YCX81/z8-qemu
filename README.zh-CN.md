@@ -1,4 +1,6 @@
-# WonderLantern Z9 QEMU
+# Z9 上游参考文档
+
+**当前工作区的 Z8 状态、入口、固件身份与限制见 [README.md](README.md)。下面保留的是 Z9 上游说明，不能作为 Z8 已完成这些功能的证据。**
 
 [English](README.md) · [构建](docs/build.md) · [固件输入](docs/firmware.md) · [原理](docs/architecture.md) · [测试边界](docs/testing.md)
 
