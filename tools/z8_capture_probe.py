@@ -20,6 +20,7 @@ from z8_properties import load_model_profile, make_boundary_peer
 from z8_run import PreparedGuest, state
 from z8_capture_bindings import load_bindings as capture_bindings, read_gpio_bindings, observation_points
 from z8_capture_readiness import capture as capture_readiness
+import z8_nvme_evidence
 
 MENU_CONTACTS = {'right': (0x22, 0x80, 0), 'left': (0x23, 0x40, 0),
                  'up': (0x24, 0x20, 0), 'down': (0x25, 0x10, 0),
@@ -102,6 +103,14 @@ def finalize_trace(g, peer, budget, failure=None):
         g.qmp.command('stop')
     except Exception as error:
         errors.append(dict(stage='stop', error=repr(error)))
+    if g.data.get('nvme_trace', {}).get('enabled'):
+        try:
+            receipt = z8_nvme_evidence.collect(g, run_failure=repr(failure) if failure is not None else None)
+            g.data['nvme_evidence'] = receipt
+            if not receipt['collection_complete']:
+                errors.append(dict(stage='nvme_evidence', error='Incomplete collection; see nvme-evidence.json and stderr.log'))
+        except Exception as error:
+            errors.append(dict(stage='nvme_evidence', error=repr(error)))
     names = ['runtime-clock-state', 'raw-pipeline-state', 'engine1548-scanout-state']
     if g.data.get('capture_device_hypotheses'):
         names += ['primary-d980-state', 'engine151-raw-output-state', 'engine15e2-jpeg-state', 'capture-gpio-state',
@@ -585,6 +594,7 @@ class CapturePeer(Peer):
 
 
 def run(args):
+    nvme_trace = z8_nvme_evidence.validate_options(args)
     budget = HostBudget(args.seconds)
     contacts, shutter_start = contact_sequence(args)
     import guest_transport
@@ -611,7 +621,9 @@ def run(args):
         guest.data['private_virtual_card']=create(card,'exfat')
         guest.command[guest.command.index('-M')+1] += ',pcie-link-diagnostic-mask=4,pcie-dbi-model=on,pcie-ram-dma-input=on,pcie-image-ram-dma-input=on,pcie-intx-model=on'
         guest.command += ['-drive',f'file={card},if=none,id=card,format=raw',
-                          '-device','nvme,drive=card,serial=Z8-LAB-CAPTURE,bus=dw-pcie,addr=0']
+                          '-device',z8_nvme_evidence.CARD_DEVICE]
+    if nvme_trace:
+        z8_nvme_evidence.enable_trace(guest)
     if args.tagged_input:
         guest.command[guest.command.index('-M')+1] += ',sensor-frame-tag-model=on'
     if args.capture_selector:
@@ -631,7 +643,8 @@ def run(args):
     source_paths=[Path(__file__), Path(__file__).with_name('service_z9_mcu.py'),
                   Path(__file__).with_name('service_serial8.py'),
                   Path(__file__).with_name('z8_capture_bindings.py'),
-                  Path(__file__).with_name('z8_capture_readiness.py')]
+                  Path(__file__).with_name('z8_capture_readiness.py'),
+                  Path(__file__).with_name('z8_nvme_evidence.py')]
     if args.capture_pixels:source_paths.append(Path(__file__).with_name('z8_capture_pixels.py'))
     if args.capture_properties:source_paths.append(args.capture_properties)
     guest.data['probe_sources']={str(path.resolve()):hashlib.sha256(path.read_bytes()).hexdigest()
@@ -762,6 +775,8 @@ def main():
     p.add_argument('--half-seconds',type=int,default=2,choices=range(1,6))
     p.add_argument('--capture-properties',type=Path)
     p.add_argument('--card',action='store_true')
+    p.add_argument('--nvme-trace',action='store_true',
+                   help='Requires --card; collect passive completion trace and independent end-state, not NEF acceptance')
     p.add_argument('--gpio',action='store_true')
     p.add_argument('--rtc-status',action='store_true')
     p.add_argument('--tagged-input',action='store_true')

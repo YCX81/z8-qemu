@@ -2,6 +2,8 @@
 
 2026年10月12日。当前提供的是有界诊断驱动，**尚未实现 Z8 历史帧到可解码 NEF 的完整链路**。程序正常退出、接点全部消费、RAW 格式门控通过或取得一帧传感器数据，都不作为 NEF 验收结果。
 
+本页保留C08及早期HALF-only的驱动基线。后续单表项时序修正、C15资源修正和独立NEF政策副本的正负对照见[运行进展](z8-raw-runtime.md)；旧卡点已消除与新卡点仍未完成分开记录。
+
 ## 已观察到的链路与卡点
 
 | 阶段 | 实际 Z8 仿真证据 | 尚缺的证据 |
@@ -54,12 +56,27 @@ python tools/z8_capture_probe.py \
 
 `z8_hsfc_controls.py` 只提供释放模式键与单步转轮接点，`mode_dial_sequence` 的末尾释放按键，并禁止不按模式键的转轮输入。独立仿真已从S验证+3为C15、+4为C30；它不是通用曝光拨轮接口，也不能证明已选中预拍窗口。完整C15 HALF-only驱动仍属本地诊断，尚未作为端到端预拍工具提供。
 
+## 可选 NVMe 日志收集
+
+在上述命令增加 `--nvme-trace` 可从控制器创建时启用 `pci_nvme_audit_*`；该开关默认关闭，且必须同时指定 `--card`。虚拟卡控制器使用固定设备名 `z8-recording-card`。需要包含[完成事件与只读末态补丁](z8-nvme-evidence.md)的 QEMU；缺少 trace 或 getter 会留下失败收据，不会自动退化为写卡成功。
+
+驱动停止 CPU 后、清理 MCU peer 和 QEMU 之前，先读独立 `audit-state`，保存当时完整的 `stderr.log` 字节前缀并核对 SHA-256，再读一次独立末态。`nvme-evidence.json` 保留两份原始/解析末态、停止状态、前缀身份、原运行错误和收集错误；`nvme-stderr-prefix.log` 是该范围的原始日志。原 `stderr.log` 继续保留范围之后的清理事件，不能拿前缀替代整个进程日志。已有证据文件不会被覆盖。
+
+两次末态必须相同；事件序号从1连续、请求生命周期编号与独立末态的最大值及总数均须吻合，虚拟时间不能倒退。即使日志正好在一条成功请求之后被截断，也会因为独立计数不符而失败。暂停 CPU 不保证异步块请求已经结束：收集器不排空队列、不重试到成功、不补完成。未完成请求（包括正常可能挂起的管理 AER）、失败状态、Abort/Reset/Delete 边界都保留。
+
+`collection_complete` **仅表示这个暂停范围的日志完整性检查通过**。它不要求所有命令已完成；`all_commands_completed` 也仅指已有 CQ 交付，包括失败。两者都不能证明照片、NEF、历史帧、Flush 持久性或实体卡写入，`nef_accepted` 始终为 `false`。
+
+本次接入的19项无固件契约测试覆盖启动开关、缺失/变化末态、完整请求边界截断、失败/挂起请求及清理顺序；收集模块的 Python 语句/分支覆盖率为100%。底层补丁此前的14项实际队列测试另见上文链接；还离线复核了10份真实QTest日志，保留失败及队列边界。
+
+原Z8固件的独立菜单运行随后通过实际采集：4个接点及返回均匹配、无FULL，正常退出；72请求/259事件与两次独立QOM末态一致，其中10个管理命令、39次Read、19次Write、4次Flush全部交付CQ，无失败。原始前缀871113字节，完整stderr也保留。卡目录及exFAT检查正常，只有NIKON001.DSC和目录，**没有NEF**。本次原固件未发AER，真实挂起AER仍未覆盖，相关拒绝/保留契约仅有合成测试证据。MAIN、RAW、二进制及冻结驱动前后hash一致，拥有的QEMU已停止。
+
 ## 验证层级与下一步
 
-当前驱动39项契约测试通过；原C3.11按键解码器在Unicorn中覆盖4种受支持的模式接点，另有输入范围和按键释放检查。C08实际运行53个接点全部匹配，MAIN未变、拥有的QEMU已关闭；同源单测加该实际运行的Python覆盖率92%，不代表固件或QEMU C代码覆盖率。
+驱动原39项契约测试继续通过；原C3.11按键解码器在Unicorn中覆盖4种受支持的模式接点，另有输入范围和按键释放检查。历史C08实际运行53个接点全部匹配，MAIN未变、拥有的QEMU已关闭；当时同源单测加该实际运行的Python覆盖率92%，不代表后续变更、固件或QEMU C代码的覆盖率。
 
 ```sh
 python -O -m unittest discover -s tests -p test_z8_capture_probe.py -v
+python -O -m unittest discover -s tests -p test_z8_nvme_evidence.py -v
 python -O -m unittest discover -s tests -p test_z8_hsfc_controls.py -v
 # 可选私有原解码器检查，需要Unicorn；不提供MAIN时会明确跳过。
 Z8_MAIN=/private/z8-c311-main.bin python -O -m unittest discover -s tests -p test_z8_hsfc_controls.py -v
