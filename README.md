@@ -2,6 +2,8 @@
 
 基于 [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu) 的 Z8 C3.11 移植工作区，上游基线为 `27498735e3ed202052dfc6306ded6b867af70a58`。
 
+用户功能目标、当前进度及底层依赖见 [功能 TODO](docs/TODO.md)。
+
 **Z8 原厂英文菜单与模拟 RAW 取景已跑通，完成三次 MENU 往返与五次独立像素校验。** 修复了 NAND/存储初始化边界、MCU 绑定和缺失参数引起的初始化长循环及电池保护误触发，原始 MAIN 未修改。新机器名为 `nikon-z8-bringup`，原 `nikon-z9-lab` 保留。Z8 专用入口是 `tools/z8_run.py`；旧 `tools/run.py`、`tools/boot.py` 和原有 Z9 文档仅作参考。
 
 ## 当前证据
