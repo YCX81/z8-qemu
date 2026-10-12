@@ -1,5 +1,7 @@
 # Capture snapshots and card exports
 
+Historical tooling batch: these helpers were later used for the C11 ordinary NEF comparison. The complete RAW sample and packed-strip checks passed; historical-frame capture remains unverified. See the [runtime results](z8-raw-runtime.md).
+
 These tools collect evidence for RAW capture research. They do not create a
 camera image or establish Z8 NEF/pre-capture acceptance. The capture probe and its
 experimental device recipe are separate; neither is added by this batch.

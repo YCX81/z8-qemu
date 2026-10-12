@@ -294,6 +294,7 @@ struct NikonZ9State {
     uint64_t adc_conversions;
     qemu_irq adc_irq;
     uint32_t serial5_config[5][4];
+    uint32_t z8_serial5_config[5][3];
     qemu_irq clock_irq;
     uint32_t engine_config[3];
     uint32_t engine_hold[2], engine_bank[2];
@@ -727,6 +728,7 @@ struct NikonZ9State {
     bool bus_window_fixture;
     bool nand_fixture;
     bool serial_fixture;
+    bool z8_serial5_config_model;
     bool i2c_fixture;
     bool orientation_fixture;
     bool zr_orientation_fixture;
@@ -6912,6 +6914,29 @@ static uint32_t *serial5_config(NikonZ9State *s, hwaddr addr, unsigned size)
     for (unsigned i = 0; i < ARRAY_SIZE(offsets); i++) {
         if ((addr & 255) == offsets[i]) {
             return &s->serial5_config[(addr - 0x0e200100) / 0x100][i];
+        }
+    }
+    return NULL;
+}
+
+static uint32_t *z8_serial5_config(NikonZ9State *s, hwaddr addr,
+                                 unsigned size, uint32_t *mask)
+{
+    /* C3.11 40c17824: mode bits30..31 at +10, bit8 at +40 and a
+     * low-halfword parameter at +48. Configuration retention only;
+     * Other fields, FIFO, DMA, enable and completion remain unmodeled.
+     */
+    static const unsigned offsets[] = {0x10, 0x40, 0x48};
+    static const uint32_t masks[] = {0xc0000000, 0x100, 0xffff};
+    if (!s->bootstrap_fixtures || !s->z8_serial5_config_model || size != 4 ||
+        addr < 0x0e200100 || addr >= 0x0e200600 ||
+        !object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-z8-bringup"))) {
+        return NULL;
+    }
+    for (unsigned i = 0; i < ARRAY_SIZE(offsets); i++) {
+        if ((addr & 255) == offsets[i]) {
+            *mask = masks[i];
+            return &s->z8_serial5_config[(addr - 0x0e200100) / 0x100][i];
         }
     }
     return NULL;
@@ -15039,6 +15064,11 @@ static uint64_t unknown_read(void *opaque, hwaddr addr, unsigned size)
     if (serial_config) {
         return *serial_config;
     }
+    uint32_t serial5_mask;
+    uint32_t *serial5_extra = z8_serial5_config(s, addr, size, &serial5_mask);
+    if (serial5_extra) {
+        return *serial5_extra;
+    }
     if (s->bootstrap_fixtures && size == 4 &&
         (addr == 0x0e001000 || addr == 0x0e00100c || addr == 0x0e001010)) {
         return s->multi_io_control[addr == 0x0e001000 ? 0 :
@@ -16057,6 +16087,12 @@ static void unknown_write(void *opaque, hwaddr addr, uint64_t value,
     uint32_t *serial_config = serial5_config(s, addr, size);
     if (serial_config && !((addr & 255) == 8 && (value & 0x3000))) {
         *serial_config = value;
+        return;
+    }
+    uint32_t serial5_mask;
+    uint32_t *serial5_extra = z8_serial5_config(s, addr, size, &serial5_mask);
+    if (serial5_extra && !(value & ~((uint64_t)serial5_mask))) {
+        *serial5_extra = value;
         return;
     }
     if (s->bootstrap_fixtures && size == 4 &&
@@ -17207,6 +17243,10 @@ static void nikon_z9_init(MachineState *machine)
         error_report("serial-fixture requires bootstrap-fixtures and bus-window-fixture");
         exit(1);
     }
+    if (s->z8_serial5_config_model && !s->bootstrap_fixtures) {
+        error_report("z8-serial5-config-model requires bootstrap-fixtures=on");
+        exit(1);
+    }
     if ((s->adc_fixture && !s->bootstrap_fixtures) ||
         (s->adc_input_valid && !s->adc_fixture)) {
         error_report("adc-input requires adc-fixture, which requires bootstrap-fixtures");
@@ -17567,6 +17607,22 @@ static void set_z8_sd_empty_fixture(Object *obj, bool value, Error **errp)
         return;
     }
     s->z8_sd_empty_fixture = value;
+}
+
+static bool get_z8_serial5_config_model(Object *obj, Error **errp)
+{
+    return NIKON_Z9_LAB(obj)->z8_serial5_config_model;
+}
+
+static void set_z8_serial5_config_model(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (!object_dynamic_cast(obj, MACHINE_TYPE_NAME("nikon-z8-bringup")) ||
+        s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp, "z8-serial5-config-model requires Z8 at machine creation");
+        return;
+    }
+    s->z8_serial5_config_model = value;
 }
 
 static void set_nand_fixture(Object *obj, bool value, Error **errp)
@@ -18063,6 +18119,7 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_bool(oc, "nor-model", get_nor_model, set_nor_model);
     object_class_property_add_str(oc, "nor-state", get_nor_state, NULL);
     object_class_property_add_bool(oc, "serial-fixture", get_serial_fixture, set_serial_fixture);
+    object_class_property_add_bool(oc, "z8-serial5-config-model", get_z8_serial5_config_model, set_z8_serial5_config_model);
     object_class_property_add_bool(oc, "i2c-fixture", get_i2c_fixture, set_i2c_fixture);
     object_class_property_add_bool(oc, "orientation-fixture", get_orientation_fixture, set_orientation_fixture);
     object_class_property_add_str(oc, "orientation-state", get_orientation_state, NULL);

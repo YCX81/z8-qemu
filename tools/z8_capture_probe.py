@@ -21,6 +21,7 @@ from z8_run import PreparedGuest, state
 from z8_capture_bindings import load_bindings as capture_bindings, read_gpio_bindings, observation_points
 from z8_capture_readiness import capture as capture_readiness
 import z8_nvme_evidence
+import z8_capture_resources
 
 MENU_CONTACTS = {'right': (0x22, 0x80, 0), 'left': (0x23, 0x40, 0),
                  'up': (0x24, 0x20, 0), 'down': (0x25, 0x10, 0),
@@ -417,6 +418,7 @@ class CapturePeer(Peer):
         for pc,name in observation_points(self.capture_profile).items():
             if pc != self.consumer:
                 self.trace_points.setdefault(pc,name)
+        self.trace_points.update(z8_capture_resources.observation_points(guest))
         self.journal = journal
         self.active_contact = None
         self.return_contact = None
@@ -521,6 +523,8 @@ class CapturePeer(Peer):
                     ('X00','X01','X02','X03','X08','X09','X10','X12','X19','X20','X21','X22','X24','X25','X26','X27','X30','SP')})
             if pc in SCHEDULING_POINTS:
                 fields['scheduling'] = scheduling_observation(self.g, pc, regs)
+            if pc in z8_capture_resources.observation_points(self.g):
+                fields['resource_input'] = z8_capture_resources.observe(self.g, pc, regs, cpu=cpu, t_ns=self.now())
             if pc == 0x40F4FBC0:
                 fields['command_caller'] = command_caller(self.g, regs)
             if label == 'capture_cseq_dispatch':
@@ -595,6 +599,7 @@ class CapturePeer(Peer):
 
 def run(args):
     nvme_trace = z8_nvme_evidence.validate_options(args)
+    z8_capture_resources.options(args)
     budget = HostBudget(args.seconds)
     contacts, shutter_start = contact_sequence(args)
     import guest_transport
@@ -636,6 +641,7 @@ def run(args):
         guest.command += ['-device',f'loader,file={selector},addr=0x47f5af42,force-raw=on']
         guest.data['capture_selector_input']=dict(address='0x47f5af42',selector=2,record=1,
             scope='explicit missing ROM placeholder; coefficients and physical geometry unverified')
+    z8_capture_resources.attach(guest, args)
     guest.data['raw_precapture_verified']=False
     guest.data['capture_pixels_enabled']=bool(args.capture_pixels)
     guest.data['probe_arguments']={key:str(value) if isinstance(value,Path) else value
@@ -644,7 +650,8 @@ def run(args):
                   Path(__file__).with_name('service_serial8.py'),
                   Path(__file__).with_name('z8_capture_bindings.py'),
                   Path(__file__).with_name('z8_capture_readiness.py'),
-                  Path(__file__).with_name('z8_nvme_evidence.py')]
+                  Path(__file__).with_name('z8_nvme_evidence.py'),
+                  Path(__file__).with_name('z8_capture_resources.py')]
     if args.capture_pixels:source_paths.append(Path(__file__).with_name('z8_capture_pixels.py'))
     if args.capture_properties:source_paths.append(args.capture_properties)
     guest.data['probe_sources']={str(path.resolve()):hashlib.sha256(path.read_bytes()).hexdigest()
@@ -781,6 +788,10 @@ def main():
     p.add_argument('--rtc-status',action='store_true')
     p.add_argument('--tagged-input',action='store_true')
     p.add_argument('--capture-selector',action='store_true')
+    p.add_argument('--capture-timing-input',action='store_true',
+                   help='Supply synthetic ROM coefficient1200 only at 0x47f63022; native lookup guard, not calibration')
+    p.add_argument('--hsfc-processing-input',action='store_true',
+                   help='Supply synthetic ROM selector15=1 only at 0x47f5af4f; does not select HSFC or change RAW policy')
     p.add_argument('--menu-actions',default='')
     p.add_argument('--menu-only',action='store_true')
     p.add_argument('--wait-liveview',action='store_true')

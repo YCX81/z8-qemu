@@ -1,5 +1,7 @@
 # RAW capture foundations
 
+Historical foundation batch: later C11 produced an independently decoded ordinary Z8 NEF with every RAW sample matching the guest buffers. Historical-frame capture remains unverified. See the [current runtime results](z8-raw-runtime.md).
+
 This batch adds source and test infrastructure for tracing ordinary RAW capture
 and, later, RAW pre-capture on the pinned Z8 C3.11 image. **It does not establish a
 saved Z8 NEF or RAW pre-capture.** The Z8 shutter/menu probe and its evolving
