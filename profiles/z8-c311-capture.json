@@ -1,0 +1,361 @@
+{
+  "schema": 1,
+  "model": "Nikon Z8",
+  "version": "C3.11",
+  "main_bytes": 81807709,
+  "main_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+  "classification": "Static interfaces rechecked on the pinned original MAIN; passive trace targets, not runtime capture acceptance",
+  "native_capture_runtime_verified": false,
+  "nef_output_verified": false,
+  "physical_hardware_verified": false,
+  "bindings": {
+    "key_consumer": 1087533540,
+    "changed_status_callback": 1087533100,
+    "key_decoder": 1090652228,
+    "capture_half_application": 1087707388,
+    "capture_full_application": 1087707464,
+    "capture_half_request": 1090225816,
+    "capture_full_request": 1090226012,
+    "capture_full_backend": 1090362980,
+    "capture_full_worker": 1090363184,
+    "capture_full_worker_gate": 1090363264,
+    "capture_input_initializer": 1090359220,
+    "capture_gpio_callback": 1090360144,
+    "capture_gpio_half_worker": 1090387012,
+    "capture_gpio_full_worker": 1090374088,
+    "ccomp_command_reply_callback": 1092070628,
+    "ccomp_gpio_request": 1092072348,
+    "ccomp_gpio_callback": 1092072792,
+    "ccomp_command_wait_return": 1089797056,
+    "ccomp_completion_wait_return": 1089760084,
+    "ccomp_type2_serializer": 1090650796,
+    "ccomp_type3_decoder": 1090651120,
+    "native_nef_raw_descriptor": 1090903580,
+    "native_nef_raw_descriptor_done": 1090903756,
+    "native_nef_encoder_bridge": 1089118708,
+    "native_nef_supplier_bridge": 1089118800,
+    "native_nef_result_forward": 1087067668,
+    "native_nef_raw_length_store": 1088966792,
+    "source_control": 1086502964,
+    "source_command": 1086503132,
+    "hsfc_frame_callback": 1089922208,
+    "hsfc_history_append": 1089929200,
+    "hsfc_history_submit": 1089928848,
+    "backend_matrix_selected": 1089063768,
+    "raw_stage_input_gate": 1089125648,
+    "nef_tag_submit": 1089148848,
+    "nef_writer_submit": 1089091128,
+    "file_write_call": 1080877320,
+    "file_write_return": 1080877324,
+    "sd_block_write": 1076753024,
+    "xqd_block_write": 1076755616,
+    "rtc_abstract_consumer": 1087145456,
+    "rtc_native_status": 1087144000,
+    "primary_isr": 1086453748,
+    "primary_before_w1c": 1086453820,
+    "primary_after_w1c": 1086453844,
+    "engine151_isr": 1086379516,
+    "engine151_before_w1c": 1086379524,
+    "engine151_after_w1c": 1086379528,
+    "engine15e2_isr": 1086375320,
+    "engine15e2_before_w1c": 1086375332,
+    "engine15e2_after_w1c": 1086375336,
+    "source_channel_isr": 1086501520,
+    "source_channel_before_w1c": 1086501596,
+    "processing_index_lookup": 1092029788,
+    "app_key_event": 1087740320,
+    "state_key_event": 1087744900,
+    "key_ready_gate": 1087562264,
+    "key_inhibit_gate": 1087562288,
+    "key_controller_dispatch": 1087562360,
+    "controller_indirect": 1086325032,
+    "controller_preprocess_return": 1077942488,
+    "controller_contact_return": 1077942508,
+    "controller_aux_return": 1077942568,
+    "ui_key_code_return": 1077843132,
+    "screen_dispatch": 1078183120,
+    "screen_indirect": 1078183136,
+    "primary_irq_subscribe_logical": 1087036268,
+    "primary_irq_subscribe_d980": 1087036648,
+    "primary_irq_enable_write": 1086456196,
+    "primary_irq_group1_scan": 1087033336,
+    "primary_irq_d980_notify": 1087034132
+  },
+  "key_state": {
+    "bytes": 44,
+    "pointer_register": "X00",
+    "return_address_register": "X30",
+    "latch": 43002107548,
+    "body_half_offset": 7,
+    "body_full_offset": 8,
+    "decoded_half_bit": 31,
+    "decoded_full_bit": 30,
+    "evidence": "0x41020a48..0x41020a7c tests nonzero input; 0x40d271f8..0x40d27204 copies 44 bytes. 0x40d51974 directly calls 0x40fb875c, distinguishing the otherwise similar 0x40fb88c8 candidate."
+  },
+  "gpio": {
+    "logical_table_pointer": 42994749416,
+    "logical_table_rom": 1152900684,
+    "logical_table_getter": 1092115976,
+    "object_table": 42994745344,
+    "input_register_table": 42996428160,
+    "contacts": [
+      {
+        "logical_id": 35,
+        "index": 35,
+        "bank": 3,
+        "bit": 4,
+        "irq_bank": 0,
+        "irq_bit": 4,
+        "intid": 59,
+        "callback": 1090360144,
+        "input_register": 219484172
+      },
+      {
+        "logical_id": 36,
+        "index": 36,
+        "bank": 3,
+        "bit": 5,
+        "irq_bank": 0,
+        "irq_bit": 5,
+        "intid": 60,
+        "callback": 1090360144,
+        "input_register": 219484172
+      },
+      {
+        "logical_id": 39,
+        "index": 39,
+        "bank": 3,
+        "bit": 8,
+        "irq_bank": 0,
+        "irq_bit": 8,
+        "intid": 63,
+        "callback": 1090360144,
+        "input_register": 219484172
+      },
+      {
+        "logical_id": 40,
+        "index": 40,
+        "bank": 3,
+        "bit": 9,
+        "irq_bank": 1,
+        "irq_bit": 0,
+        "intid": 64,
+        "callback": 1090360144,
+        "input_register": 219484172
+      },
+      {
+        "logical_id": 38,
+        "index": 38,
+        "bank": 3,
+        "bit": 7,
+        "irq_bank": 0,
+        "irq_bit": 7,
+        "intid": 62,
+        "callback": 1092072792,
+        "input_register": 219484172
+      },
+      {
+        "logical_id": 43,
+        "index": 43,
+        "bank": 3,
+        "bit": 12,
+        "irq_bank": 1,
+        "irq_bit": 3,
+        "intid": 67,
+        "callback": null,
+        "input_register": 219484172
+      }
+    ],
+    "evidence": "Z8 getter and 341-entry GPIO initialization table at ROM 0x44c73bf8, relocated to 0xa02808bf8. Runtime callback slots must be checked after original registration; no fixed Z9 RAM offset is used."
+  },
+  "ccomp": {
+    "family": 9,
+    "request_type": 2,
+    "request_selector": 243,
+    "request_argument": 1,
+    "ack_type": 3,
+    "ack_abstract_kind": 3,
+    "ack_payload_present": false,
+    "command_flag_object": 43026701432,
+    "gpio_request_pointer": 43026701728,
+    "gpio_feedback_pointer": 43026701736,
+    "gpio_state": 43026701744,
+    "evidence": "0x410202ac serializes original command enum10 (table0x440c3750) through 0x41020378 as selectorF3; enum11 instead emitsF4. Payload+0xc reaches body+8. 0x410203f0 accepts raw type3 and creates kind3 with a null payload. 0x4117b128 binds logical2b output and logical26 feedback. ACK must be matched to an actually observed request and is not image completion.",
+    "instruction_slice_checks": {
+      "contact_cases": 9,
+      "ack_type_cases": 3,
+      "f3_argument1_cases": 1,
+      "f3_body_sha256": "84e5369c5f7ff75031b729b451d238923d7d6043a14ca5225e37090ac6084127",
+      "scope": "Original instructions with synthetic local memory; ordinary memset replaced for serializer only; no full RX scheduler or capture completion claim"
+    }
+  },
+  "objects": {
+    "capture_input": 43012392192,
+    "capture_input_bytes": 288,
+    "hsfc_history_queue": 43012333064,
+    "hsfc_history_mutex": 43012331836,
+    "key_state_latch": 43002107548
+  },
+  "fields": {
+    "capture_job_state": 68,
+    "capture_job_actual_info": 2528,
+    "actual_info_format": 968,
+    "metadata_format": 660,
+    "metadata_raw_input_kind": 10348,
+    "history_primary_descriptor": 928,
+    "history_secondary_descriptor": 1008,
+    "history_input_d8": 1672,
+    "history_input_e0": 1864,
+    "history_metadata": 1936,
+    "history_raw_output": 1704,
+    "raw_output_descriptor": 88
+  },
+  "evidence": {
+    "reference_z9_main_sha256": "6380ded18395ce11cb327c766721274c85127d2cf1a1e887ee60e3d156810bdd",
+    "method": "Whole-file normalized A64 windows give candidates; explicit Z8 caller/branch/table inspection resolves full request and GPIO initialization. RAW/HSFC/NEF points also rechecked against docs/z8-raw-precapture-chain.md. Static correspondence is not runtime acceptance.",
+    "private_instruction_checks": "Local protocol and GPIO evidence retained separately; no original instructions or firmware arrays included in this profile."
+  },
+  "unresolved": [
+    "Actual runtime capture job, matrix and RAW descriptor ownership until observed on Z8",
+    "Sensor geometry, physical timing and compression semantics",
+    "Capture readiness bitmaps and application gates whose Z9 shapes differ",
+    "Successful ordinary NEF output and historical-frame NEF causality",
+    "Z8 original RAW quality/compression menu navigation; Z9 dial/down counts must not be assumed portable"
+  ],
+  "producer_observation": {
+    "primary": {
+      "intid": 262,
+      "registration_pc": 1086453628,
+      "driver": 42991670952,
+      "before_first_w1c": 1086453820,
+      "base_register": "X08",
+      "status_registers": {
+        "W10": 516,
+        "W11": 528,
+        "W09": 540
+      },
+      "saved_status_stack_offsets": [
+        0,
+        4,
+        8
+      ],
+      "native_callback_event": 1090715649
+    },
+    "engine151": {
+      "intids": [
+        269,
+        270
+      ],
+      "before_w1c": 1086379524,
+      "base_register": "X08",
+      "status_register": "W01",
+      "status_offset": 68,
+      "callback_slots": [
+        42996427064,
+        42996427072
+      ],
+      "callback_events": [
+        1090846721,
+        1090846722
+      ],
+      "reference_z9_events_differ": true
+    },
+    "engine15e2": {
+      "before_w1c": 1086375332,
+      "base_register": "X15",
+      "status_register": "W08",
+      "status_offset": 1152
+    },
+    "source_channel": {
+      "before_w1c": 1086501596,
+      "base_register": "X23",
+      "status_register": "W19",
+      "clear_mask_register": "W08",
+      "status_offset": 72,
+      "callback_event": 1090654208,
+      "reference_z9_event_different": true
+    },
+    "scope": "Original ISR boundaries before acknowledgement. A hit is not proof of a particular D980 or RAW frame: correlate actual model frame_id, timestamp, address, geometry and producer bytes before accepting a pixel snapshot."
+  },
+  "processing_index": {
+    "resource_id": 92,
+    "resource_descriptor": 42992786056,
+    "resource_bank": 38,
+    "resource_bank_descriptor": 42992787624,
+    "resource_bank_rom_source": 1155043496,
+    "rom_base": 1206386688,
+    "runtime_base_pointer": 43026675360,
+    "setter": 1091988820,
+    "selector_lookup": 1092029788,
+    "selector_offset": 896832,
+    "record_offset": 896864,
+    "record_stride": 32,
+    "capture_selector": 2,
+    "capture_selector_rom_address": 1207283522,
+    "synthetic_record_index": 1,
+    "hardware_calibration_verified": false,
+    "geometry_verified": false,
+    "evidence": "ID0x5c is queried at 0x40f5893c..44 and installed through 0x411540f4. Getter0x40d712c8 resolves the 0x30-byte resource table; bank getter0x40d712ac uses 0x28-byte records. Original lookup reads base+selector+0xdaf40, then indexes record(index-1)*0x20. Observe the actual runtime base/copy; record coefficients remain missing."
+  },
+  "readiness_observation": {
+    "key_dispatch_ready": {
+      "address": 43002225849,
+      "bytes": 1,
+      "reader": 1087561576,
+      "gate": 1087562264,
+      "condition": "bit0 must be set"
+    },
+    "key_dispatch_inhibit": {
+      "address": 43002226700,
+      "bytes": 1,
+      "gate": 1087562288,
+      "condition": "nonzero skips dispatch"
+    },
+    "key_dispatch_deferred": {
+      "address": 43002226720,
+      "bytes": 1,
+      "gate": 1087562312,
+      "condition": "nonzero uses additional application-state path"
+    },
+    "full_worker_permission": {
+      "address": 43012391980,
+      "bytes": 1,
+      "reader": 1090354508,
+      "scope": "bit0 consumed by original full worker; semantic readiness not inferred"
+    },
+    "full_worker_hold": {
+      "addresses": [
+        43012392460,
+        43012392472
+      ],
+      "bytes_each": 4,
+      "gate": 1090363240,
+      "condition": "nonzero union skips request handling"
+    },
+    "gpio_full_worker_hold": {
+      "address": 43012392468,
+      "bytes": 4,
+      "gate": 1090374112,
+      "condition": "zero enters original notification path; nonzero has a pending branch"
+    },
+    "d980": {
+      "logical_mask": 16384,
+      "group": 1,
+      "cause_mask": 67108864,
+      "mapping_pc": 1087036648,
+      "enable_register": 353108492,
+      "status_w1c_register": 353108496,
+      "software_mask": 42999101448,
+      "scan_pc": 1087033336,
+      "notify_pc": 1087034132,
+      "notify_object": 42999093088,
+      "notify_mask": 1073741824,
+      "intid": 262,
+      "scope": "Independent Z8 instruction confirmation agrees with the inherited group1 bit26 mapping; pending alone does not prove subscription or delivery",
+      "raw_pending_register": 353108500,
+      "status_note": "0x210 is enabled pending (raw & 0x20c); 0x214 is unmasked pending. An unacknowledged disabled cause is not proof of a broken IRQ route."
+    },
+    "api": "tools/z8_capture_readiness.py capture(guest, primary_mmio=False) returns numeric observations only; explicit primary_mmio=True reads whitelisted non-FIFO status registers",
+    "unknown": "No mapping of a generic physical camera-ready state; Z9 readiness struct offsets are not copied"
+  }
+}

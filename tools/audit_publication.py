@@ -60,6 +60,19 @@ FILES.update({'docs/z8-c32.md', 'tools/z8_slots_acceptance.py',
               'tests/test_z8_slots_core.py', 'tests/test_z8_slots_gui.py',
               'tests/test_z8_slots_image.py', 'tests/test_z8_slots_layout.py',
               'tests/test_z8_slots_main_menu.py', 'tests/test_z8_slots_media.py'})
+FILES.update({'requirements-capture.txt', 'docs/z8-raw-foundation.md',
+              'qemu/designware-dma.patch', 'qemu/nikon-sensor-tag.h',
+              'qemu/nikon-z9-pcie.h', 'qemu/nikon-z9-d980.h',
+              'qemu/nikon-z9-jpeg.h', 'qemu/nikon-z9-capture-nv16.h',
+              'qemu/nikon-z9-thumbnail-nv16.h', 'tests/test_sensor_tag.c',
+              'tests/test_capture_contracts.py', 'tools/virtual_recording_card.py',
+              'tools/ccomp_command_peer.py', 'tools/capture_workflow_ready.py',
+              'tools/inspect_virtual_exfat.py', 'tools/extract_virtual_exfat.py',
+              'tools/private_bounded_qmp.py', 'tools/rtc_mcu_input.py',
+              'profiles/z8-c311-capture.json', 'tools/z8_capture_bindings.py',
+              'tools/z8_capture_readiness.py', 'tests/test_z8_capture_bindings.py',
+              'tests/test_z8_capture_readiness.py', 'tools/z8_precapture_audit.py',
+              'tests/test_z8_precapture_audit.py', 'docs/z8-precapture-audit.md'})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),
@@ -68,7 +81,9 @@ SECRET_PATTERNS = [
 
 def validate(path, data):
     if path not in FILES | {MANIFEST}: raise ValueError('Unreviewed public path: '+path)
-    if len(data)>(640*1024 if path == 'qemu/nikon-z9-lab.c' else 512*1024) or b'\0' in data: raise ValueError('Unexpected binary/large content: '+path)
+    # Reviewed functional capture/peripheral code grows this one model. All
+    # other files retain the 512-KiB ceiling; binary/hex guards still apply.
+    if len(data)>(896*1024 if path == 'qemu/nikon-z9-lab.c' else 512*1024) or b'\0' in data: raise ValueError('Unexpected binary/large content: '+path)
     text = data.decode('utf-8')
     if any(pattern.search(text) for pattern in SECRET_PATTERNS): raise ValueError('Credential pattern in '+path)
     if re.search(r"['\"][0-9a-fA-F]{512,}['\"]",text): raise ValueError('Large embedded hex data needs review: '+path)

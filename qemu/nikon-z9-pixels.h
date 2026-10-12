@@ -26,6 +26,61 @@ static bool raw_pipeline_address(NikonZ9State *s, uint64_t encoded,
     return dma_ram_range(s, encoded, bytes);
 }
 
+/* Input timing is independent of IMPRSZ destination setup. Original ZR
+ * 412aa7a0 maps primary subgroup1 bit29 to source wait400000; Z9 uses the
+ * same cause at410b6ae8. No OS state is written by the device. This source
+ * model produces no guest DMA, resize completion or saved RAW file. */
+static void raw_source_boundary_receive(NikonZ9State *s, bool single_input)
+{
+    if (!s->raw_source_boundary_model || !s->raw_pixels ||
+        (!single_input && !s->event_timing_active) || s->primary_reset_stage) {
+        return;
+    }
+    uint32_t active = s->engine150c_active &
+        ~(s->engine150c_stop_requested | s->engine150c_stop_done |
+          s->engine_150c_init[0x18 / 4]);
+    uint32_t causes = ((active & 2) ? 0x20000000 : 0) |
+                      ((active & 0x10000) ? 0x40000000 : 0);
+    if (!causes) {
+        return;
+    }
+    s->raw_source_boundaries++;
+    s->raw_source_notifications += !!(causes & ~s->raw_source_pending);
+    s->raw_source_pending |= causes;
+    engine150c_stop_irq_update(s);
+}
+
+static void raw_source_boundary_tick(NikonZ9State *s)
+{
+    raw_source_boundary_receive(s, false);
+}
+
+static bool get_raw_source_boundary_model(Object *obj, Error **errp)
+{
+    return NIKON_Z9_LAB(obj)->raw_source_boundary_model;
+}
+
+static void set_raw_source_boundary_model(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp, "raw-source-boundary-model is immutable after realization");
+        return;
+    }
+    s->raw_source_boundary_model = value;
+}
+
+static char *get_raw_source_boundary_state(Object *obj, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    return g_strdup_printf("{\"enabled\":%s,\"pending\":%u,\"boundaries\":%" PRIu64
+        ",\"notifications\":%" PRIu64 ",\"acks\":%" PRIu64 ",\"cancelled\":%" PRIu64
+        ",\"pixel_dma_bytes\":0,\"physical_timing_verified\":false}",
+        s->raw_source_boundary_model ? "true" : "false", s->raw_source_pending,
+        s->raw_source_boundaries, s->raw_source_notifications, s->raw_source_acks,
+        s->raw_source_cancelled);
+}
+
 static void raw_pipeline_tick(void *opaque)
 {
     NikonZ9State *s = opaque;
@@ -35,12 +90,40 @@ static void raw_pipeline_tick(void *opaque)
     bool halves[3];
     if (!s->raw_pipeline_model) { return; }
     timer_mod(s->raw_pipeline_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 33333333);
+    /* Stopped-source reset profile: input clock and primary source unit
+     * own new pixel work. Holding/resetting primary cancels future work,
+     * without acknowledging a completed downstream frame on its behalf. */
+    if (s->primary_stopped_source_reset_model &&
+        (s->primary_reset_stage || !(s->engine150c_active & 2) ||
+         (s->engine_150c_init[0x18 / 4] & 2))) {
+        return;
+    }
     /* Wait for the original parameter and source-gate submissions. Holding
      * a pending frame prevents overwriting buffers before the ISR accepts it. */
     if (!s->raw_pixels || !s->engine1543_active[0] || s->engine1543_held[0] ||
         !s->engine151_active[1] || !s->engine1518[2].config[0x30 / 4] ||
         s->engine1542_pending[0] || s->engine1542_pending[10] || s->raw_primary_pending ||
+        (s->raw_pipeline_1514_completion_model && (s->engine151_pending[1] & 8)) ||
+        (s->raw_pipeline_151c_completion_model && (s->engine1518[2].pending & 0x08100000)) ||
         (s->event1508_global1_model && (s->event_global1_pending & 0x10))) { return; }
+    /* Request the following batch separately, before its final frame.
+     * The original callback wakes the frame task before storing its refill
+     * byte. Combining bits0/3 can race that task on another CPU. Giving the
+     * refill its own IRQ before the next frame preserves the original
+     * software ordering without touching task flags or firmware code. */
+    if (row == 3 && !s->raw_pipeline_refill_notified) {
+        s->raw_pipeline_refill_notified = true;
+        s->engine1542_pending[10] |= 8;
+        raw_pipeline_irq_update(s);
+        return;
+    }
+    /* A watermark for completed buffers may outlive the input trigger.
+     * Native ZR293/295 stop that trigger at row3. Requiring another input
+     * clock before requesting its next descriptor bank stranded the owner.
+     * New DMA remains strictly gated by the original source control. */
+    if (s->primary_stopped_source_reset_model && !s->event_timing_active) {
+        return;
+    }
     /* 40c26780 selects one of two banks. 40c26790/26824 then write four
      * rows at +200 + bank*200. Original40e9b928 refills the other bank
      * only after C0 bit3, via40e8b0e8. Keep batch ownership until all
@@ -66,17 +149,6 @@ static void raw_pipeline_tick(void *opaque)
         }
     }
     const uint32_t *ring = s->engine1543_latched[0];
-    /* Request the following batch separately, before its final frame.
-     * The original callback wakes the frame task before storing its refill
-     * byte. Combining bits0/3 can race that task on another CPU. Giving the
-     * refill its own IRQ before the next frame preserves the original
-     * software ordering without touching task flags or firmware code. */
-    if (row == 3 && !s->raw_pipeline_refill_notified) {
-        s->raw_pipeline_refill_notified = true;
-        s->engine1542_pending[10] |= 8;
-        raw_pipeline_irq_update(s);
-        return;
-    }
     for (unsigned ch = 0; ch < 3; ch++) {
         const uint32_t *b = s->engine1542_config[3 + ch];
         const uint32_t *f = s->engine1542_config[15 + ch];
@@ -119,6 +191,28 @@ static void raw_pipeline_tick(void *opaque)
         s->raw_pipeline_y[ch] = ys[ch]; s->raw_pipeline_uv[ch] = uvs[ch];
         total += ybytes + uvbytes;
     }
+    /* Native ZR40e0db5c -> 40eac290 dispatches event410b0002.
+     * Registered consumer4107eaa8 tests bit3 and wakes the stream worker;
+     * bit1 only sets a generic driver flag and is ignored by that consumer.
+     * Bit3 follows all actual RAW-derived plane writes. W1C owns reuse and
+     * continuous mode retains its request. Physical line timing unverified. */
+    if (s->raw_pipeline_1514_completion_model) {
+        s->engine151_pending[1] |= 8;
+        s->raw_pipeline_1514_completions++;
+        engine151_update_irq(s, 1);
+    }
+    /* Functional combined-ISP completion after all three real Y/UV
+     * transfers. Original ZR40e0ae38 W1C,40e9c8a8 and4107ae48 deliver
+     * these bits to the native graph. No guest references, task flags or
+     * callbacks are written. Both causes must be acknowledged before reuse.
+     * Disabled masks retain status; reset cancels ownership normally.
+     * Physical latency and exact silicon processing remain unverified. */
+    if (s->raw_pipeline_151c_completion_model) {
+        Z9Engine1518 *e = &s->engine1518[2];
+        e->pending |= 0x08100000;
+        e->stream_frames++;
+        engine1518_update_irq(e);
+    }
     s->raw_pipeline_frames++;
     s->raw_pipeline_bytes += total;
     s->raw_pipeline_row = (row + 1) & 3;
@@ -144,7 +238,7 @@ static void raw_pipeline_tick(void *opaque)
     uint32_t primary = ((s->engine150c_active & 2) ? 0x20000000 : 0) |
                        ((s->engine150c_active & 0x10000) ? 0x40000000 : 0);
     primary &= s->engine_150c_init[0x20c / 4];
-    if (primary) {
+    if (primary && !s->raw_source_boundary_model) {
         s->raw_primary_pending |= primary;
         s->raw_primary_events++;
         engine150c_stop_irq_update(s);
@@ -203,4 +297,58 @@ static char *get_raw_pipeline_state(Object *obj, Error **errp)
     }
     g_string_append(out, "],\"scope\":\"functional streamed Bayer, simplified ISP, input boundaries and output completion; physical sensor protocol unproved\"}");
     return g_string_free(out, false);
+}
+
+static bool get_raw_pipeline_1514_completion_model(Object *obj, Error **errp)
+{
+    return NIKON_Z9_LAB(obj)->raw_pipeline_1514_completion_model;
+}
+
+static void set_raw_pipeline_1514_completion_model(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (s->engine1542_irq) {
+        error_setg(errp, "raw-pipeline-1514-completion-model is immutable after realization");
+        return;
+    }
+    s->raw_pipeline_1514_completion_model = value;
+}
+
+static char *get_raw_pipeline_1514_completion_state(Object *obj, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    return g_strdup_printf("{\"enabled\":%s,\"completions\":%" PRIu64
+        ",\"acks\":%" PRIu64 ",\"pending\":%u,\"camera_acceptance\":false,"
+        "\"scope\":\"optional streaming ISP completion after real pixel DMA; physical timing unverified\"}",
+        s->raw_pipeline_1514_completion_model ? "true" : "false",
+        s->raw_pipeline_1514_completions, s->raw_pipeline_1514_acks,
+        s->engine151_pending[1] & 8);
+}
+
+static bool get_raw_pipeline_151c_completion_model(Object *obj, Error **errp)
+{
+    return NIKON_Z9_LAB(obj)->raw_pipeline_151c_completion_model;
+}
+
+static void set_raw_pipeline_151c_completion_model(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp, "raw-pipeline-151c-completion-model is immutable after realization");
+        return;
+    }
+    s->raw_pipeline_151c_completion_model = value;
+}
+
+static char *get_raw_pipeline_151c_completion_state(Object *obj, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    Z9Engine1518 *e = &s->engine1518[2];
+    return g_strdup_printf("{\"enabled\":%s,\"completions\":%" PRIu64
+        ",\"acks\":%" PRIu64 ",\"cancelled\":%" PRIu64 ",\"pending\":%u,"
+        "\"scope\":\"functional combined ISP source boundary after actual pixel DMA\","
+        "\"physical_timing_verified\":false}",
+        s->raw_pipeline_151c_completion_model ? "true" : "false",
+        e->stream_frames, e->stream_acks, e->stream_cancelled,
+        e->pending & 0x08100000);
 }

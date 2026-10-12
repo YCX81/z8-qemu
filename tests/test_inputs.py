@@ -73,7 +73,7 @@ class Inputs(unittest.TestCase):
         for raw in (menu,half,up):self.assertEqual(sum(frames(raw,family=2)[0])&255,255)
 
     def test_invalid_input_rejected(self):
-        for w,h in ((3,4),(0,4),(8194,4),(8192,8192)):
+        for w,h in ((3,4),(0,4),(16386,4),(16384,16384)):
             with self.assertRaises(ValueError):generate(w,h)
         with self.assertRaises(ValueError):frames(bytes(241),channel=1)
         with self.assertRaises(ValueError):frames(b'')
