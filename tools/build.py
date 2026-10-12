@@ -22,6 +22,8 @@ SOURCES.append('qemu/arm-service-events.patch')
 SOURCES.append('qemu/nikon-persistent-media.h')
 SOURCES.append('qemu/nikon-sensor-tag.h')
 SOURCES.append('qemu/designware-dma.patch')
+SOURCES.append('qemu/nvme-completion-trace.patch')
+SOURCES.append('qemu/nvme-audit-state.patch')
 SOURCES.extend('qemu/' + name for name in (
     'nikon-z9-pcie.h', 'nikon-z9-d980.h', 'nikon-z9-jpeg.h',
     'nikon-z9-capture-nv16.h', 'nikon-z9-thumbnail-nv16.h'))

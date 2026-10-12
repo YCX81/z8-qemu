@@ -1,0 +1,31 @@
+--- a/hw/nvme/ctrl.c
++++ b/hw/nvme/ctrl.c
+@@ -9469,6 +9469,20 @@
+     DEFINE_PROP_BOOL("ocp", NvmeCtrl, params.ocp, false),
+ };
+ 
++/* Independent end-of-scope counters. Reading does not emit an event, drain
++ * I/O, reset a counter or change guest-visible state. Collect while paused and
++ * compare before/after snapshots if backend work may still complete. */
++static char *nvme_get_audit_state(Object *obj, Error **errp)
++{
++    NvmeCtrl *n = NVME(obj);
++
++    return g_strdup_printf("{\"schema\":1,\"instance\":%" PRIu64
++        ",\"last_request_id\":%" PRIu64 ",\"last_event_seq\":%" PRIu64
++        ",\"virtual_ns\":%" PRId64 "}",
++        n->audit_instance, qatomic_read(&n->audit_next_request),
++        qatomic_read(&n->audit_next_event), qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
++}
++
+ static void nvme_get_smart_warning(Object *obj, Visitor *v, const char *name,
+                                    void *opaque, Error **errp)
+ {
+@@ -9597,6 +9611,7 @@
+     object_property_add(obj, "smart_critical_warning", "uint8",
+                         nvme_get_smart_warning,
+                         nvme_set_smart_warning, NULL, NULL);
++    object_property_add_str(obj, "audit-state", nvme_get_audit_state, NULL);
+ }
+ 
+ static const TypeInfo nvme_info = {
