@@ -22,6 +22,8 @@ from z8_capture_bindings import load_bindings as capture_bindings, read_gpio_bin
 from z8_capture_readiness import capture as capture_readiness
 import z8_nvme_evidence
 import z8_capture_resources
+import z8_writer_integration
+from z8_writer_integration import WriterSession, RESERVED, without_reserved
 
 MENU_CONTACTS = {'right': (0x22, 0x80, 0), 'left': (0x23, 0x40, 0),
                  'up': (0x24, 0x20, 0), 'down': (0x25, 0x10, 0),
@@ -104,6 +106,13 @@ def finalize_trace(g, peer, budget, failure=None):
         g.qmp.command('stop')
     except Exception as error:
         errors.append(dict(stage='stop', error=repr(error)))
+    if peer is not None and getattr(peer, 'writer_session', None) is not None:
+        try:
+            writer = peer.writer_session.close(reason='probe finally', failure=failure)
+            if writer.get('enabled') and not writer.get('interval_closed'):
+                errors.append(dict(stage='native_writer_observer', error='Incomplete writer observation interval'))
+        except Exception as error:
+            errors.append(dict(stage='native_writer_observer.close', error=repr(error)))
     if g.data.get('nvme_trace', {}).get('enabled'):
         try:
             receipt = z8_nvme_evidence.collect(g, run_failure=repr(failure) if failure is not None else None)
@@ -427,6 +436,15 @@ class CapturePeer(Peer):
         self.last_raw_job = 0
         self.cseq = CseqObserver()
         self.flag8_predecessor = None
+        self.writer_session = None
+        if getattr(guest, '_native_writer_observer_enabled', False):
+            self.trace_points = without_reserved(self.trace_points)
+            self.writer_session = WriterSession(self, journal, guest._writer_host_check)
+
+    def arm(self, pc, label):
+        if getattr(self, 'writer_session', None) is not None and pc in RESERVED:
+            raise RuntimeError('Parent observer attempted to arm a reserved writer PC')
+        return super().arm(pc, label)
 
     def queue_reply(self, wire):
         from ccomp_command_peer import queue_reply
@@ -449,6 +467,8 @@ class CapturePeer(Peer):
         self.journal.add('cseq_repeated_observation_enabled' if repeat else
                          'cseq_repeated_observation_disabled', self.now(),
                          binding_verified=True, **self.cseq.snapshot())
+        if getattr(self, 'writer_session', None) is not None:
+            self.writer_session.enable()
 
     def begin(self, label, body, expected):
         if not isinstance(expected, bytes) or len(expected) != 44:
@@ -480,6 +500,8 @@ class CapturePeer(Peer):
         self.enqueue_external(body, 2)
 
     def handle(self):
+        writer_session = getattr(self, 'writer_session', None)
+        writer_handled = writer_session.handle() if writer_session else False
         if self.g.data.get('capture_pixels_enabled'):
             from z8_capture_pixels import capture_d980, capture_raw_output
             d980=state(self.g,'primary-d980-state')
@@ -594,7 +616,7 @@ class CapturePeer(Peer):
                               effective_gate=regs['X12']&0xffffffff,
                               result=regs['X19']&0xffffffff)
             self.journal.add(label.removeprefix('capture_'), self.now(), **fields)
-        return handled or bool(observations)
+        return handled or bool(observations) or writer_handled
 
 
 def run(args):
@@ -608,6 +630,7 @@ def run(args):
     journal = TraceJournal(args.output.name)
     guest = PreparedGuest(args.firmware,args.qemu,args.raw,args.output,
                           properties=load_model_profile()['properties'].copy())
+    writer_enabled=z8_writer_integration.configure(guest,args,lambda: budget.check('native writer observation'))
     # Additional peripheral model opt-ins are recorded separately from the
     # established assisted-menu profile. No implicit Z9 firmware binding.
     if args.capture_properties:
@@ -653,6 +676,10 @@ def run(args):
                   Path(__file__).with_name('z8_nvme_evidence.py'),
                   Path(__file__).with_name('z8_capture_resources.py')]
     if args.capture_pixels:source_paths.append(Path(__file__).with_name('z8_capture_pixels.py'))
+    if writer_enabled:
+        source_paths += [Path(__file__).with_name(name) for name in
+                        ('z8_writer_observer.py','z8_writer_integration.py',
+                         'z8_writer_code_reader.py','z8_writer_code_policy.py')]
     if args.capture_properties:source_paths.append(args.capture_properties)
     guest.data['probe_sources']={str(path.resolve()):hashlib.sha256(path.read_bytes()).hexdigest()
                                 for path in source_paths}
@@ -801,6 +828,8 @@ def main():
     p.add_argument('--wait-capture-work',action='store_true')
     p.add_argument('--skip-cseq-repeat',action='store_true',
                    help='Use first-hit-per-contact CSEQ sampling; keep identity guards and the 4096 total bound')
+    p.add_argument('--native-writer-observer',action='store_true',
+                   help='Default off; observe bounded original mode0/format1 writer calls with pinned MAIN/0ff runtime guards; no NEF acceptance')
     run(p.parse_args())
 
 

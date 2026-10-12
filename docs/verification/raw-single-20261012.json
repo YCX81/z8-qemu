@@ -166,5 +166,182 @@
     "post_capture_lcd_visually_rechecked": false,
     "physical_hardware_verified": false,
     "runtime_artifacts_distributed": false
+  },
+  "native_writer_control": {
+    "run": "C16",
+    "scope": "One actual original Z8 ordinary NEF with observed native writer lifecycle and RAW RAM transport; no historical-frame acceptance",
+    "private_observer_runtime_verified": true,
+    "public_observer_integration_runtime_verified": false,
+    "public_observer_scope": "Explicit default-off research observer; private C16 proof is not a public CLI run",
+    "original_main_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+    "qemu_sha256": "0ff25311649a43d8691d60e5da02160cf71ea68d0d2725df0ad7f06f49ddce27",
+    "private_probe_sha256": "1b847be5ab3f0ce53a1c0d238bf2c96270abc9e4e53f63fa31a2adcb58157d4b",
+    "private_core_sha256": "c25c510a4e8464998228b57b290dc911238b12a950145c5e53dbf4f24617613e",
+    "run_error": null,
+    "owned_qemu_stopped": true,
+    "frozen_sources_and_inputs": 121,
+    "sources_and_inputs_unchanged": true,
+    "original_mcu_contacts": 137,
+    "trace_complete": true,
+    "actual_code_guards": 212,
+    "actual_code_guards_verified": 212,
+    "writer_events": 92,
+    "nef_files": 1,
+    "nef": {
+      "bytes": 80790528,
+      "sha256": "e6bcbf0fa3651d3864f454bf8234deb16a8d703ca7d8af712ff7f6d023086e09"
+    },
+    "raw": {
+      "rawpy": "0.27.1",
+      "libraw": [
+        0,
+        22,
+        1
+      ],
+      "samples_compared": 45705600,
+      "mismatches": 0,
+      "shape": [
+        5520,
+        8280
+      ],
+      "white_level": 16383,
+      "marker_id": 1,
+      "whole_raw_equal": true,
+      "tiff_compression": [
+        34713
+      ],
+      "raw_strip_bytes": 80017920,
+      "raw_strip_sha256": "040bdd8e5ed31f2cfb24d7c1df20fc080b4e67dd12480981523b5895c5d31a99",
+      "packed_guest_raw_sha256": "040bdd8e5ed31f2cfb24d7c1df20fc080b4e67dd12480981523b5895c5d31a99",
+      "whole_packed_raw_equal": true
+    },
+    "embedded_jpeg_sizes": [
+      [
+        160,
+        120
+      ],
+      [
+        8256,
+        5504
+      ],
+      [
+        1620,
+        1080
+      ]
+    ],
+    "all_embedded_jpegs_decoded": true,
+    "separate_codec_snapshots_compared": false,
+    "writer_binding": {
+      "interval_closed": true,
+      "observed_lifetimes": 1,
+      "file_id": 52428834,
+      "file_object": 43025301440,
+      "native_ascii_path_matches_catalog": true,
+      "declared_length": 80790528,
+      "writes": 9,
+      "actual_success_bytes": 80790528,
+      "full_positions_contiguous": true,
+      "final_reset": {
+        "before": {
+          "address": 43025301440,
+          "path_pointer": 43025301556,
+          "mode": 769,
+          "handle": 0,
+          "position": 80790528,
+          "length": 80790528,
+          "propagated_length": 89538048,
+          "file_id": 52428834,
+          "state": 3,
+          "path_length": 29,
+          "path_bytes_hex": "413a5c4443494d5c3130304e435a5f385c4453435f303030312e4e4546000000",
+          "encoding_verified": false,
+          "name_level": 2,
+          "reference_bytes_hex": "0100"
+        },
+        "after": {
+          "address": 43025301440,
+          "path_pointer": 43025301556,
+          "mode": 0,
+          "handle": -1,
+          "position": 0,
+          "length": 80790528,
+          "propagated_length": 0,
+          "file_id": 52428834,
+          "state": 1,
+          "path_length": 29,
+          "path_bytes_hex": "413a5c4443494d5c3130304e435a5f385c4453435f303030312e4e4546000000",
+          "encoding_verified": false,
+          "name_level": 2,
+          "reference_bytes_hex": "0100"
+        },
+        "status_scope": "4085b6d4 translated result of 402db308; 4085b430 return is ignored",
+        "internal_close_success_verified": false,
+        "media_durability_verified": false
+      },
+      "result_store_observed": true,
+      "stored_result": 0,
+      "raw_writer_source_span": {
+        "cpu": 1,
+        "va": 38563481088,
+        "size": 80017920,
+        "pages_checked": 19536,
+        "segments": [
+          {
+            "va": 38563481088,
+            "pa": 38563481088,
+            "size": 80017920
+          }
+        ]
+      },
+      "actual1540_transfer": {
+        "source": 37836606976,
+        "target": 38563481088,
+        "bytes": 80017920,
+        "frame": 1,
+        "fnv64": "86bfa82e2a44fc37"
+      },
+      "independent1540_full_fnv_matches": true,
+      "allocation_generation_verified": false,
+      "thread_identity_verified": false,
+      "complete_buffer_lifetime_verified": false,
+      "physical_hardware_verified": false,
+      "media_durability_verified": false
+    },
+    "nvme": {
+      "events": 1141,
+      "requests_claimed": 251,
+      "pending_request_ids": [],
+      "pending_aer_request_ids": [],
+      "ordinary_write_done": 190,
+      "ordinary_write_cqe_posted": 190,
+      "failed_event_sequences": [],
+      "boundary_events": [],
+      "all_commands_completed": true,
+      "complete_meaning": "CQ delivery only, including failures; no durability or NEF acceptance",
+      "nef_accepted": false
+    },
+    "nef_extents_covered_after_writer": true,
+    "virtual_times_ns": {
+      "full_gpio_worker_ns": 190406969421,
+      "full_mcu_consumer_ns": 190407033500,
+      "dma_ns": 190412688784,
+      "writer_call_ns": 193638742470,
+      "writer_return_ns": 193675988332,
+      "writer_result_store_ns": 193676054151,
+      "sole_trigger_route_verified": false
+    },
+    "raw_precapture_verified": false,
+    "physical_hardware_verified": false,
+    "independent_local_oracle_sha256": "41d0d229748ab7a99145f06a26362c03ffcf357c675cac273b66389f88ef73f2",
+    "independent_local_oracle_receipt_sha256": "f147bcb5df1dece95a4dc71b28b7eaae1e0c08d10edb5f3dc6eb434323ed180f",
+    "prior_failed_C15": {
+      "observer_stopped_at_final_return": true,
+      "changed_handle_value_retained": false,
+      "actual_success_write_bytes": 80790528,
+      "run_accepted": false,
+      "filesystem_read_only_clean": true,
+      "complete_catalog_nef_files": 0,
+      "scope": "No file acceptance from a byte-count-only prefix; no card repair or carved NEF"
+    }
   }
 }
