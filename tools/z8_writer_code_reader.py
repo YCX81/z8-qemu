@@ -121,9 +121,16 @@ class RuntimeCodeReader:
             self._paused()
             data = self.g.read_bytes(before['exact']['pa'], 4)
             row['read_skipped'] = False
+            # Preserve malformed transport results before rejecting them. Do
+            # not stringify or coerce arbitrary objects, or retain an
+            # unbounded response when the requested span was only four bytes.
+            row['actual_type'] = type(data).__name__[:128]
+            row['actual_length'] = (len(data) if isinstance(data, (bytes, bytearray)) or
+                                    type(data) in (str, list, tuple, dict, set, frozenset, memoryview) else None)
+            row['actual_hex'] = data[:64].hex() if isinstance(data, (bytes, bytearray)) else None
+            row['actual_bytes_truncated'] = isinstance(data, (bytes, bytearray)) and len(data) > 64
             if not isinstance(data, bytes) or len(data) != 4:
                 raise ObservationError('Short or invalid code read')
-            row['actual_hex'] = data.hex()
             row['opcode_matches'] = data == EXPECTED[va]
             # Record post-read evidence even on a wrong opcode.
             after = self._sample(row, 'after', cpu, va)

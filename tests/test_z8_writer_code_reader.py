@@ -64,6 +64,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(row['before']['exact']['raw_reply'],f'gpa: {RAM_PA:#x}\r\n')
         self.assertEqual(row['before']['exact']['pa'],RAM_PA)
         self.assertEqual(row['safe_region_before']['name'],'z8.bringup-work-ram')
+        self.assertEqual(row['actual_type'],'bytes');self.assertEqual(row['actual_length'],4)
+        self.assertEqual(row['actual_hex'],EXPECTED[VA].hex());self.assertFalse(row['actual_bytes_truncated'])
         self.assertTrue(row['verified']);self.assertEqual(self.g.reads,[(RAM_PA,4)])
     def test_identity_romd_still_requires_current_type(self):
         self.assertEqual(self.r.read(3,VA,phase='hit'),EXPECTED[VA])
@@ -136,6 +138,55 @@ class Tests(unittest.TestCase):
         self.g.pas[0]=0x8adf8d9ff
         with self.assertRaises(ObservationError):self.r.read(0,VA,phase='hit')
         self.assertEqual(self.g.reads,[])
+    def rejected_read(self,data):
+        g=Guest(self.tmp.name)
+        def read_bytes(pa,n):
+            g.reads.append((pa,n));return data
+        g.read_bytes=read_bytes
+        r=RuntimeCodeReader(g,GEOMETRY,lambda:None)
+        with self.assertRaisesRegex(ObservationError,'Short or invalid code read'):
+            r.read(2,VA,phase='hit')
+        saved=json.loads((g.out/'native-code-guards.json').read_text())
+        row=saved['reads'][0]
+        self.assertEqual(row['cpu'],2);self.assertEqual(row['va'],VA)
+        self.assertEqual(row['before']['exact']['pa'],g.pas[2])
+        self.assertEqual(row['before']['exact']['raw_reply'],f'gpa: {g.pas[2]:#x}\r\n')
+        self.assertFalse(row['verified']);self.assertFalse(row['read_skipped'])
+        self.assertEqual(row['last_action'],'physical-read4')
+        self.assertNotIn('after',row);self.assertNotIn('opcode_matches',row)
+        self.assertEqual(saved['first_failure']['index'],0)
+        self.assertEqual(g.reads,[(g.pas[2],4)])
+        with self.assertRaisesRegex(ObservationError,'invalidated'):
+            r.read(2,VA,phase='hit')
+        self.assertEqual(len(r.receipt['reads']),1)
+        self.assertEqual(json.loads((g.out/'native-code-guards.json').read_text()),saved)
+        return row
+    def test_short_bytes_preserve_all_returned_bytes_before_rejection(self):
+        for data in (b'',b'\x00',b'xy',b'xyz'):
+            with self.subTest(length=len(data)):
+                row=self.rejected_read(data)
+                self.assertEqual(row['actual_type'],'bytes')
+                self.assertEqual(row['actual_length'],len(data))
+                self.assertEqual(row['actual_hex'],data.hex())
+                self.assertFalse(row['actual_bytes_truncated'])
+    def test_nonbytes_never_coerce_or_accept_original_opcode(self):
+        class Unprintable:
+            def __repr__(self):raise AssertionError('Do not stringify invalid transport results')
+            def __len__(self):raise AssertionError('Do not call arbitrary container methods')
+        for data in (None,17,'abcd',[1,2,3,4],bytearray(EXPECTED[VA]),Unprintable()):
+            with self.subTest(kind=type(data).__name__):
+                row=self.rejected_read(data)
+                self.assertEqual(row['actual_type'],type(data).__name__)
+                self.assertEqual(row['actual_length'],len(data) if type(data) in (str,list,bytearray) else None)
+                self.assertEqual(row['actual_hex'],data.hex() if type(data) is bytearray else None)
+                self.assertFalse(row['actual_bytes_truncated'])
+    def test_oversized_bytes_preserve_bounded_prefix_and_full_length(self):
+        data=EXPECTED[VA]+b'\xff'*4096
+        row=self.rejected_read(data)
+        self.assertEqual(row['actual_type'],'bytes')
+        self.assertEqual(row['actual_length'],len(data))
+        self.assertEqual(row['actual_hex'],data[:64].hex())
+        self.assertTrue(row['actual_bytes_truncated'])
 
 
 if __name__=='__main__':unittest.main()
