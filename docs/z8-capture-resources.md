@@ -19,8 +19,29 @@
 - HSFC输入核对 mode14的原表值15、原资源基址、slot15的ROM/RAM值及原 `LDRB` 地址；读取后W14必须为1。另检查原减1运算后的record1地址，仍不把全零或缺失的record内容当作有效校准。
 - 适用目标的模式选择、指针、值或原读取结果不符，保存失败观察并停止；不通过改寄存器、补中断或更改任务状态来继续。
 
-原私有对照曾分别观察到这两个资源单元解除各自的上游阻点；不能把那次成功自动带入新运行。公开接入的16项无固件测试覆盖默认关闭、固定身份、独占文件、无重叠、原读取前后区别、错误地址/索引/值、无关模式及probe接入。该helper的Python语句/分支覆盖率为100%；公开组合运行仍须保留自己的动态收据。它们没有增加实体相机或刷机证据。
+原私有对照曾分别观察到这两个资源单元解除各自的上游阻点；不能把那次成功自动带入新运行。公开接入的16项无固件测试覆盖默认关闭、固定身份、独占文件、无重叠、原读取前后区别、错误地址/索引/值、无关模式及probe接入。该helper的Python语句/分支覆盖率为100%。公开C12普通RAW对照已实际核对时序输入的ROM、RAM及原LDRH结果1200，并从原固件卡内取得可解码NEF；HSFC选项的公开整条运行仍待验证。它们没有增加实体相机或刷机证据。
 
 ```sh
 python -O -m unittest discover -s tests -p test_z8_capture_resources.py -v
 ```
+
+## 公开普通 RAW 对照配方
+
+`capture-public-12` 使用提交 `2974e14` 的公开工具与默认拍摄profile，不启用 `z8-serial5-config-model`。原菜单关闭快门声并选RAW、Lossless；137次接点和原返回全部匹配。原writer生成的80,790,528字节NEF经LibRaw解码，45,705,600个样本零差异，完整packed RAW及NVMe写入范围也通过核对。数值见[收据的 public_cli_control](verification/raw-single-20261012.json)。这是一帧触发后对照，不是历史帧或完整缓冲寿命验收；本轮未另外进行最终LCD视觉复核。
+
+以下命令在仓库根目录运行。`QEMU` 指向由公开源码构建的仿真器，`RAW` 指向自备的有效8256×5504、14位NZ9RAW1输入。须使用新输出目录、初始菜单状态及未保存过其它菜单位置的虚拟机；这套按键序列不适用于任意运行中的相机状态。MAIN须匹配本文固定版本，所有卡与资源均为本地虚拟文件。
+
+```sh
+MENU_ACTIONS='menu,left,down,down,down,down,right,down,down,down,down,down,down,down,down,down,down,down,down,down,down,down,down,down,down,down,down,down,down,down,down,right,j,left,right,left,left,up,up,up,up,right,down,down,down,down,down,down,down,down,right,right,up,up,up,up,j,left,down,down,right,up,j,right'
+python tools/z8_capture_probe.py \
+  --firmware .local/firmware/z8-c311-main.bin --qemu "$QEMU" --raw "$RAW" \
+  --output .local/runs/ordinary-raw-control-01 \
+  --capture-properties profiles/z8-capture-properties.json \
+  --seconds 600 --settle 10 --half-seconds 2 \
+  --navigation-press-ms 400 --navigation-release-ms 2000 \
+  --menu-actions "$MENU_ACTIONS" --capture-timing-input --capture-selector \
+  --capture-pixels --tagged-input --nvme-trace --card --gpio --rtc-status \
+  --skip-cseq-repeat
+```
+
+启动前的输入和二进制哈希、原资源读取观察、实际DMA/RAW快照、原writer事件、NVMe完成记录和停止结果必须属于同一次运行。实际证据缺失或首个未知访问出现时停止调查，不沿用C12的通过状态。

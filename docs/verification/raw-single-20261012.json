@@ -34,7 +34,20 @@
     "equals_actual_guest_packed_raw_including_padding": true,
     "physical_packing_or_compression_verified": false
   },
-  "embedded_jpeg_sizes": [[160, 120], [8256, 5504], [1620, 1080]],
+  "embedded_jpeg_sizes": [
+    [
+      160,
+      120
+    ],
+    [
+      8256,
+      5504
+    ],
+    [
+      1620,
+      1080
+    ]
+  ],
   "all_embedded_jpegs_decoded": true,
   "separate_codec_snapshots_compared": false,
   "nvme": {
@@ -60,5 +73,98 @@
   "pre_trigger_frames_verified": 0,
   "post_trigger_frames_verified": 1,
   "raw_precapture_acceptance_requirement": "At least two retained pre-trigger frames and one post-trigger frame, complete identity/order/lifetime/NEF evidence",
-  "runtime_artifacts_distributed": false
+  "runtime_artifacts_distributed": false,
+  "public_cli_control": {
+    "run_id": "capture-public-12",
+    "scope": "Public CLI ordinary post-trigger NEF control; no historical acceptance",
+    "source_commit": "2974e140985004fd63c6031b7315c8130b040b08",
+    "original_main_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+    "qemu_sha256": "0ff25311649a43d8691d60e5da02160cf71ea68d0d2725df0ad7f06f49ddce27",
+    "probe_sha256": "551358ff6c4968aae1c15b9cb29cfbfaf2683a55f182b11cc8a4c25707247bd7",
+    "resources_helper_sha256": "54f0c764b0580aa2c1920fe1d291ce73a5b6a3e410ae9b0486de12d9f2b30981",
+    "capture_profile_sha256": "2efc062128db85aef2cb359c1751b8bf23f3671e27cd9a48da31aca0196e4042",
+    "serial5_config_model_enabled": false,
+    "capture_timing_original_load_verified": true,
+    "original_mcu_contacts": 137,
+    "original_mcu_returns": 137,
+    "all_contacts_matched": true,
+    "error": null,
+    "owned_qemu_stopped": true,
+    "original_inputs_and_watched_sources_unchanged": true,
+    "nef_files": 1,
+    "nef": {
+      "bytes": 80790528,
+      "sha256": "51f11c113bb7198d924679a5c9e07cc204ac3cd2ead69bf652d7382893b3b458"
+    },
+    "decoded_raw": {
+      "rawpy": "0.27.1",
+      "libraw": [
+        0,
+        22,
+        1
+      ],
+      "samples_compared": 45705600,
+      "mismatches": 0,
+      "shape": [
+        5520,
+        8280
+      ],
+      "white_level": 16383,
+      "marker_id": 1,
+      "whole_raw_equal": true,
+      "tiff_compression": [
+        34713
+      ],
+      "raw_strip_bytes": 80017920,
+      "raw_strip_sha256": "040bdd8e5ed31f2cfb24d7c1df20fc080b4e67dd12480981523b5895c5d31a99",
+      "packed_guest_raw_sha256": "040bdd8e5ed31f2cfb24d7c1df20fc080b4e67dd12480981523b5895c5d31a99",
+      "whole_packed_raw_equal": true
+    },
+    "embedded_jpeg_sizes": [
+      [
+        160,
+        120
+      ],
+      [
+        8256,
+        5504
+      ],
+      [
+        1620,
+        1080
+      ]
+    ],
+    "all_embedded_jpegs_decoded": true,
+    "nvme": {
+      "events": 1141,
+      "requests_claimed": 251,
+      "pending_request_ids": [],
+      "pending_aer_request_ids": [],
+      "ordinary_write_done": 190,
+      "ordinary_write_cqe_posted": 190,
+      "failed_event_sequences": [],
+      "boundary_events": [],
+      "all_commands_completed": true,
+      "complete_meaning": "CQ delivery only, including failures; no durability or NEF acceptance",
+      "nef_accepted": false
+    },
+    "nef_extents_covered_after_writer": true,
+    "virtual_times_ns": {
+      "full_gpio_worker_ns": 190361806177,
+      "full_mcu_consumer_ns": 190361875003,
+      "dma_ns": 190376346981,
+      "writer_call_ns": 193535317944,
+      "writer_return_ns": 193600206112,
+      "sole_trigger_route_verified": false
+    },
+    "ordinary_file_decode_passed": true,
+    "raw_precapture_verified": false,
+    "pre_trigger_frames_verified": 0,
+    "post_trigger_frames_verified": 1,
+    "writer_file_object_identity_verified": false,
+    "bayer_buffer_lifetime_verified": false,
+    "post_capture_lcd_visually_rechecked": false,
+    "physical_hardware_verified": false,
+    "runtime_artifacts_distributed": false
+  }
 }
