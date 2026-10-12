@@ -3,7 +3,6 @@
   "version": "C3.11",
   "bytes": 81807709,
   "sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
-  "entry_prefix_hex": "df4f03d5a2000058420400d15f0000f1c1ffff54030000140100000000000000",
   "load_address": "0x40160000",
   "entry_point": "0x40160000",
   "package": {
@@ -40,5 +39,12 @@
   },
   "full_boot_verified": false,
   "menu_verified": false,
-  "camera_acceptance": false
+  "camera_acceptance": false,
+  "verification_scope": {
+    "bare_model_full_boot_verified": false,
+    "external_mcu_assisted_menu_verified": true,
+    "complete_camera_verified": false,
+    "physical_hardware_verified": false
+  },
+  "verification_scope_basis": "Historical local external-MCU-assisted menu regression recorded in docs/z8-status.md; legacy full_boot_verified and menu_verified describe bare bring-up only. New runs initialize their own evidence to false."
 }

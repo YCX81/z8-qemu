@@ -19,7 +19,7 @@ from validate_run import MenuAcceptance,verify_pixels
 from z8_boot import boot,load_bindings
 from z8_guest import Guest,ROOT
 from z8_resources import attach
-from z9_global1_boundary_input import Peer as BoundaryPeer
+from z8_properties import load_model_profile, make_boundary_peer, verification_scope
 
 
 class Session:
@@ -53,15 +53,14 @@ def menu_profile(guest):
 
 def worker(args,session):
     try:
-        properties=json.loads((ROOT/'tools/model-properties.json').read_text())['properties']
-        properties.append('z8-sd-empty-fixture=on')
+        properties=load_model_profile()['properties']
         guest=Guest(args.firmware,args.qemu,args.raw,args.output,properties=properties)
         guest.cancel_event=session.stop
         with guest as g:
             boot(g,session.progress)
             peer=Peer(g,bindings=load_bindings(g),limit_frames=1024,config_reply=True,all_mode_replies=True)
             peer.record['next_rx_scope']='after_original_Z8_RX_state_clear_and_GPIO_ack'
-            clock=BoundaryPeer(g,33,auxiliary_masked=True)
+            clock=make_boundary_peer(g)
             spi8=WritePeer(g)
             spi9=WritePeer(g,channel=9,wire_bits=9,allow_dummy_rx=True)
             profile=menu_profile(g)
@@ -106,11 +105,12 @@ def worker(args,session):
                     if liveview_ready(raw,lcd) and not g.data['liveview_verified']:
                         verify_pixels(g,'z8-liveview',lcd)
                         g.data['liveview_verified']=True
-                        session.progress('Original Z8 video passed the independent pixel check')
+                        session.progress('Z8 scanout matches independent decoding; no physical-camera comparison')
                     if acceptance:
                         acceptance.tick(now,raw,lcd,target)
                         g.data['menu_verified'] = g.data['menu_verified'] or any(
                             row['label'].startswith('menu-') for row in acceptance.record['stages'])
+                    g.data['verification_scope']=verification_scope(menu_verified=g.data['menu_verified'])
                     session.status=dict(phase='Running' if liveview_ready(raw,lcd) else 'Waiting for original video',
                         liveview_verified=g.data['liveview_verified'],menu_verified=g.data['menu_verified'],
                         raw_frames=raw['frames'],lcd_frames=lcd['frames'],lcd_video_frames=lcd.get('video_frames',0),
@@ -147,7 +147,7 @@ def worker(args,session):
             if acceptance and not acceptance.done:
                 raise AssertionError('Run ended before three original Z8 MENU round trips passed')
             if args.require_liveview and not g.data['liveview_verified']:
-                raise AssertionError('Original Z8 liveview has not passed the independent pixel check')
+                raise AssertionError('Z8 scanout has not passed independent decoding consistency checks')
         session.progress('Stopped')
     except InterruptedError:
         session.progress('Stopped during startup')

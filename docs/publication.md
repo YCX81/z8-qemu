@@ -1,6 +1,6 @@
 # Publication boundary
 
-The public repository must start with fresh Git history. Do not push a branch
+An initial publication must start with reviewed Git history. Do not push a branch
 of the private research repository, even if its latest tree excludes binaries.
 Every reachable commit and staged blob belongs in the review.
 
@@ -25,3 +25,19 @@ The allowlist/manifest audit is an additional guard, not an automatic origin
 or licensing determination. Maintainers must manually inspect new arrays,
 fixtures, documentation and imports before refreshing it. A `.py` or `.c`
 extension alone does not establish that a file is safe to publish.
+
+## Known history residual and review categories
+
+The Z8 profile at public commit `950dff15817d14849bdcb921965fb46af0228c5d`
+contains `entry_prefix_hex`, a copied 32-byte program prefix. The current-tree
+cleanup removes the field and relies on the full MAIN length and SHA-256.
+Older reachable commits still contain the field. The existing audit's large-hex
+threshold did not detect it; its previous success must not be described as a
+complete content-origin review. No history rewrite or force-push is performed
+as part of this cleanup.
+
+Review interface addresses and behavior descriptions, instruction-level
+explanations, copied original bytes, and key-recovery descriptions separately.
+An allowlisted path or a research purpose does not settle all questions about
+the content. Do not attach raw firmware or private runtime material to document
+the residual. Record the path, field name and affected commit identity instead.

@@ -12,6 +12,7 @@ from http.server import ThreadingHTTPServer
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
 from z8_run import Session,handler,liveview_ready,worker,menu_profile
 from validate_run import MenuAcceptance,MENU_RGB_SHA256
+from z8_properties import load_model_profile
 
 
 class RuntimeContract(unittest.TestCase):
@@ -33,8 +34,9 @@ class RuntimeContract(unittest.TestCase):
         session=Session()
         entered=threading.Event()
         closed=threading.Event()
+        supplied = []
         class Owner:
-            def __init__(self,*args,**kwargs):pass
+            def __init__(self,*args,**kwargs):supplied.extend(kwargs['properties'])
             def __enter__(self):return self
             def __exit__(self,*args):closed.set()
         def pending_boot(guest,progress):
@@ -50,6 +52,7 @@ class RuntimeContract(unittest.TestCase):
             self.assertFalse(task.is_alive())
             self.assertTrue(closed.is_set())
             self.assertNotIn('error',session.status)
+            self.assertEqual(supplied, load_model_profile()['properties'])
 
     def test_raw_or_black_lcd_does_not_establish_liveview(self):
         raw={'frames':10}

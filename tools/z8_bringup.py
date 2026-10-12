@@ -43,11 +43,6 @@ def validate_profile(profile):
         raise ValueError('Invalid profile SHA-256')
     if any(address(profile.get(field, 0)) != ENTRY for field in ('load_address', 'entry_point')):
         raise ValueError('Inherited board requires load and entry at 0x40160000')
-    prefix = profile.get('entry_prefix_hex', '')
-    if not isinstance(prefix, str) or not re.fullmatch(r'(?:[0-9a-fA-F]{8})+', prefix):
-        raise ValueError('Profile requires a nonempty aligned entry fingerprint')
-    if len(prefix) // 2 > profile['bytes']:
-        raise ValueError('Profile entry fingerprint exceeds payload')
     return profile
 
 
@@ -64,10 +59,6 @@ def validate_firmware(path, profile):
     digest = sha256(path)
     if digest != profile['sha256']:
         raise ValueError('Firmware SHA-256 differs from the pinned Z8 MAIN')
-    expected = bytes.fromhex(profile['entry_prefix_hex'])
-    with path.open('rb') as stream:
-        if stream.read(len(expected)) != expected:
-            raise ValueError('Firmware entry fingerprint differs from the profile')
     return dict(bytes=path.stat().st_size, sha256=digest)
 
 

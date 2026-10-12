@@ -11,8 +11,8 @@ ROOT=Path(__file__).resolve().parents[1]
 
 class Guest(Transport):
     def __init__(self,firmware,binary,raw,out):
-        if os.name=='nt' or os.environ.get('WSL_DISTRO_NAME')=='ubuntu-noble':
-            raise ValueError('Use Linux or the explicitly selected Nikon WSL distribution')
+        if os.name=='nt':
+            raise ValueError('Use Linux or an explicitly selected WSL distribution')
         self.firmware=Path(firmware).resolve()
         if self.firmware.stat().st_size!=81823629 or sha(self.firmware)!=MAIN_SHA:
             raise ValueError('Expected the user-supplied Z9 C5.32 MAIN payload; see docs/firmware.md')

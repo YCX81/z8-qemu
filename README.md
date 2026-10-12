@@ -4,11 +4,13 @@
 
 用户功能目标、当前进度及底层依赖见 [功能 TODO](docs/TODO.md)。
 
-**Z8 原厂英文菜单与模拟 RAW 取景已跑通，完成三次 MENU 往返与五次独立像素校验。** 修复了 NAND/存储初始化边界、MCU 绑定和缺失参数引起的初始化长循环及电池保护误触发，原始 MAIN 未修改。新机器名为 `nikon-z8-bringup`，原 `nikon-z9-lab` 保留。Z8 专用入口是 `tools/z8_run.py`；旧 `tools/run.py`、`tools/boot.py` 和原有 Z9 文档仅作参考。
+**外部 MCU 对端和显式虚拟参数辅助下，Z8 原厂英文菜单与模拟 RAW 取景通过三次 MENU 往返。** 五次扫描输出检查使用独立解码实现，未与真机图像对照；菜单哈希是回归基线。原始 MAIN 未修改，裸模型完整启动、完整相机功能和实体硬件仍未验证。新机器名为 `nikon-z8-bringup`，原 `nikon-z9-lab` 保留。Z8 专用入口是 `tools/z8_run.py`；旧 `tools/run.py`、`tools/boot.py` 和原有 Z9 文档仅作参考。
 
 ## 当前证据
 
 工具安装、REA Evidence、验证结果与剩余工作详见 [实施记录](docs/z8-status.md)。
+
+[Z8 独立参数配置](docs/z8-parameters.md)逐类说明来源和假设。`BoundaryPeer` 的 33 是诊断间隔毫秒数，不是相机帧率或已测得的 Z8 硬件时序。
 
 最终有界验收：RAW 1743 帧、LCD 2547 帧，其中 731 帧包含取景；未知 MMIO 为 0。
 五次独立解码的平均 RGB 误差为 0.149–0.151（8-bit 像素单位）。这验证功能性虚拟外设和模拟 Bayer 输入，不代表实机时序、真实 CMOS 或拍照写卡已实现。

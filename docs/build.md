@@ -12,6 +12,13 @@ It writes `.local/build-manifest.json` with the binary and source hashes.
 For an existing upstream archive use `--archive /path/qemu-10.2.4.tar.xz`.
 The required archive SHA-256 is
 `821b545b92f165e57dddccac5077d76d4d436a226595b8813ad59306bbfd0746`.
+Every cached archive is checked again before extraction. Automatic downloads use
+a 30-second socket timeout, a 120-second deadline checked between reads, and
+at most three attempts with bounded backoff. A temporary file replaces the
+cache only after its complete SHA-256 matches. Failed attempts remove their
+temporary file; an invalid old cache is never accepted. An explicit `--archive`
+is checked without downloading over or modifying that file. The deadline is
+not a hard process timer: an active read can run until its socket timeout.
 No Nikon file is downloaded. Configuration may need network access for
 QEMU's Python build dependencies; an archive alone does not guarantee a fully
 offline first build. Subsequent builds reuse the verified source/build tree.
@@ -20,13 +27,16 @@ Use an ext4 Linux path for builds and long runs. Windows-mounted paths can be
 slower for the many small files produced by diagnostic peers. On Windows:
 
 ```powershell
-wsl -d ubuntu-noble-nikon --exec bash
+wsl --list --quiet
+wsl -d <your-distribution-name> --exec bash
 ```
 
-Then enter the cloned directory under `/mnt/d/...` and run the Linux commands.
-The tools neither create nor select a default WSL distribution. They explicitly
-reject `ubuntu-noble`, reserved for unrelated coursework in the development
-environment. Linux installations without WSL work normally.
+Replace the placeholder with an installed distribution that has the dependencies
+above. Enter your clone and run the Linux commands. Prefer a Linux filesystem
+path for `--work-dir` even when the clone is on a Windows-mounted drive.
+The tools neither create nor select a default WSL distribution and impose no
+personal distribution-name restrictions. Linux installations without WSL work
+normally; native Windows execution remains unsupported.
 
 Start with two build jobs if host memory is tight. Stop only the emulator
 process you own before replacing its binary. Do not kill unrelated workloads.

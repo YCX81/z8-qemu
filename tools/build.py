@@ -7,11 +7,16 @@ import os
 from pathlib import Path
 import subprocess
 import tarfile
+import tempfile
+import time
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = '10.2.4'
 SHA256 = '821b545b92f165e57dddccac5077d76d4d436a226595b8813ad59306bbfd0746'
+DOWNLOAD_TIMEOUT_SECONDS = 30
+DOWNLOAD_DEADLINE_SECONDS = 120
+DOWNLOAD_ATTEMPTS = 3
 SOURCES = ['qemu/nikon-z9-lab.c','qemu/nikon-z9-pixels.h','qemu/nikon-raw-pixels.h','qemu/prepare_source.py']
 SOURCES.append('qemu/arm-service-events.patch')
 
@@ -21,6 +26,47 @@ def digest(path):
         while chunk := f.read(1024*1024): h.update(chunk)
     return h.hexdigest()
 
+
+def verified_archive(work, supplied=None):
+    """Never use an unverified cache or replace an explicit user archive."""
+    archive = supplied.resolve() if supplied else work / f'qemu-{VERSION}.tar.xz'
+    if archive.exists() and digest(archive) == SHA256:
+        return archive
+    if supplied:
+        if not archive.exists():
+            raise FileNotFoundError('Requested archive does not exist')
+        raise RuntimeError('Upstream QEMU archive SHA-256 mismatch')
+    url = f'https://download.qemu.org/qemu-{VERSION}.tar.xz'
+    for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+        print(f'Downloading original upstream QEMU ({attempt}/{DOWNLOAD_ATTEMPTS})', flush=True)
+        temporary = None
+        try:
+            # Keep a previous cache untouched until a complete replacement is verified.
+            with tempfile.NamedTemporaryFile(dir=archive.parent, prefix=archive.name + '.',
+                                             suffix='.part', delete=False) as output:
+                temporary = Path(output.name)
+                deadline = time.monotonic() + DOWNLOAD_DEADLINE_SECONDS
+                with urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
+                    while True:
+                        chunk = response.read(1024 * 1024)
+                        if time.monotonic() > deadline:
+                            raise TimeoutError('QEMU archive download exceeded its time budget')
+                        if not chunk:
+                            break
+                        output.write(chunk)
+            if digest(temporary) != SHA256:
+                raise RuntimeError('Upstream QEMU archive SHA-256 mismatch')
+            temporary.replace(archive)
+            return archive
+        except (OSError, RuntimeError) as exc:
+            if attempt == DOWNLOAD_ATTEMPTS:
+                raise RuntimeError(f'Unable to obtain verified QEMU archive after {attempt} attempts') from exc
+            time.sleep(attempt)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--work-dir',type=Path,default=ROOT/'.build')
@@ -28,17 +74,10 @@ def main():
     p.add_argument('--jobs',type=int,default=4)
     a = p.parse_args()
     if os.name == 'nt': p.error('Build in Linux or an explicitly selected WSL distribution')
-    if os.environ.get('WSL_DISTRO_NAME') == 'ubuntu-noble':
-        p.error('This coursework distribution is excluded; use ubuntu-noble-nikon')
     if not 1 <= a.jobs <= 64: p.error('--jobs must be 1..64')
     work = a.work_dir.resolve()
     work.mkdir(parents=True,exist_ok=True)
-    archive = a.archive.resolve() if a.archive else work/f'qemu-{VERSION}.tar.xz'
-    if not archive.exists():
-        if a.archive: p.error('Requested archive does not exist')
-        print('Downloading original upstream QEMU',flush=True)
-        urllib.request.urlretrieve(f'https://download.qemu.org/qemu-{VERSION}.tar.xz',archive)
-    if digest(archive) != SHA256: raise RuntimeError('Upstream QEMU archive SHA-256 mismatch')
+    archive = verified_archive(work, a.archive)
     source = work/f'qemu-{VERSION}'
     marker = source/'.wonderlantern-extracted'
     if not marker.exists() or marker.read_text().strip() != SHA256:

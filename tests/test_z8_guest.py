@@ -29,7 +29,7 @@ class GuestIdentity(unittest.TestCase):
             binary = root / 'qemu'; binary.write_bytes(b'synthetic-binary')
             profile = dict(model='Nikon Z8',version='C3.11',bytes=16,
                            sha256=hashlib.sha256(firmware.read_bytes()).hexdigest(),
-                           entry_prefix_hex='1f2003d5',load_address='0x40160000',entry_point='0x40160000')
+                           load_address='0x40160000',entry_point='0x40160000')
             with patch.object(z8_guest, 'load_profile', return_value=profile):
                 guest = z8_guest.Guest(firmware,binary,raw,root/'out',
                                       properties=['bootstrap-fixtures=on'],instruction_clock=False)
@@ -41,10 +41,16 @@ class GuestIdentity(unittest.TestCase):
                 self.assertFalse(guest.data['menu_verified'])
                 self.assertFalse(guest.data['liveview_verified'])
                 self.assertFalse(guest.data['runtime_profile']['instruction_clock'])
+                self.assertFalse(any(guest.data['verification_scope'].values()))
                 self.assertEqual(guest.command[guest.command.index('-kernel')+1],str(firmware))
+                guest.data['menu_verified'] = True
             finally:
                 guest.__exit__(None,None,None)
-            self.assertTrue(json.loads((root/'out/result.json').read_text())['owned_qemu_stopped'])
+            result = json.loads((root/'out/result.json').read_text())
+            self.assertTrue(result['owned_qemu_stopped'])
+            scope = result['verification_scope']
+            self.assertTrue(scope.pop('external_mcu_assisted_menu_verified'))
+            self.assertFalse(any(scope.values()))
             self.assertEqual(firmware.read_bytes(),bytes.fromhex('1f2003d5')*4)
             with patch.object(z8_guest,'load_profile',return_value=profile),self.assertRaises(ValueError):
                 z8_guest.Guest(firmware,binary,raw,root/'invalid,output',properties=[])

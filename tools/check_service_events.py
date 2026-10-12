@@ -49,8 +49,8 @@ def program():
 
 class SyntheticGuest(Transport):
     def __init__(self,binary,out):
-        if os.name=='nt' or os.environ.get('WSL_DISTRO_NAME')=='ubuntu-noble':
-            raise ValueError('Use Linux or the explicitly selected Nikon distribution')
+        if os.name=='nt':
+            raise ValueError('Use Linux or an explicitly selected WSL distribution')
         binary=Path(binary).resolve()
         self.out=Path(out).resolve()
         self.out.mkdir(parents=True,exist_ok=False)

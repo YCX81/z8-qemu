@@ -31,6 +31,8 @@ FILES.update({'profiles/z8-c311-bindings.json', 'tools/z8_boot.py', 'tools/z8_gu
 FILES.update({'profiles/z8-c311-acceptance.json','docs/z8-battery-resources.md',
               'tests/test_z8_cancellation.py'})
 FILES.update({'Start-Z8.ps1','Test-Z8.ps1','REA.ps1'})
+FILES.update({'tools/z8_properties.py', 'profiles/z8-model-properties.json',
+              'tests/test_z8_properties.py', 'docs/z8-parameters.md', 'tests/test_build.py'})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),

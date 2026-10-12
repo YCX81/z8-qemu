@@ -24,8 +24,7 @@ class BringupTests(unittest.TestCase):
         self.firmware.write_bytes(self.code)
         self.profile = dict(model='Nikon Z8', version='synthetic test only',
                             bytes=len(self.code), sha256=hashlib.sha256(self.code).hexdigest(),
-                            load_address='0x40160000', entry_point='0x40160000',
-                            entry_prefix_hex=self.code[:16].hex())
+                            load_address='0x40160000', entry_point='0x40160000')
         self.profile_path = self.root / 'profile.json'
         self.profile_path.write_text(json.dumps(self.profile))
 
@@ -44,10 +43,19 @@ class BringupTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'SHA-256'):
             bringup.validate_firmware(self.firmware, self.profile)
 
-    def test_entry_fingerprint_is_independently_checked(self):
-        self.profile['entry_prefix_hex'] = 'ff' * 16
-        with self.assertRaisesRegex(ValueError, 'entry'):
-            bringup.validate_firmware(self.firmware, self.profile)
+    def test_public_identity_uses_full_digest_and_length_without_raw_bytes(self):
+        profile = bringup.load_profile()
+        self.assertNotIn('entry_prefix_hex', profile)
+        self.assertEqual(profile['bytes'], 81807709)
+        self.assertEqual(profile['sha256'],
+                         '2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853')
+
+    def test_missing_identity_fields_never_disable_validation(self):
+        for field in ('bytes', 'sha256'):
+            profile = dict(self.profile)
+            del profile[field]
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                bringup.validate_firmware(self.firmware, profile)
 
     def test_other_load_or_entry_addresses_are_rejected(self):
         for field in ('load_address', 'entry_point'):
@@ -75,7 +83,7 @@ class BringupTests(unittest.TestCase):
     def test_fixed_profile_is_validated(self):
         with patch.object(bringup, 'PROFILE', self.profile_path):
             self.assertEqual(bringup.load_profile()['model'], 'Nikon Z8')
-            for field, value in (('sha256', 'wrong'), ('entry_prefix_hex', ''),
+            for field, value in (('sha256', 'wrong'), ('sha256', None),
                                  ('bytes', -1), ('version', '')):
                 malformed = dict(self.profile, **{field: value})
                 self.profile_path.write_text(json.dumps(malformed))

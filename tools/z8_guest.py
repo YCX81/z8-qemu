@@ -4,7 +4,6 @@
 Device properties are explicit functional hypotheses. This owner neither
 loads Z9 resource fixtures nor patches firmware, task flags or CPU registers.
 """
-import json
 import os
 from pathlib import Path
 import re
@@ -13,14 +12,13 @@ import tempfile
 from guest import Guest as SharedOwner
 from probe import sha
 from z8_bringup import load_profile, validate_firmware
+from z8_properties import load_model_profile, verification_scope
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def validate_properties(properties):
-    supported = {item.split('=', 1)[0] for item in
-                 json.loads((ROOT / 'tools/model-properties.json').read_text())['properties']}
-    supported.add('z8-sd-empty-fixture')
+    supported = {item.split('=', 1)[0] for item in load_model_profile()['properties']}
     seen = set()
     result = []
     for item in properties:
@@ -75,6 +73,8 @@ class Guest(SharedOwner):
                          classification='z8_functional_guest_with_explicit_device_hypotheses',
                          cpu_register_redirection=False, ram_patches=[],
                          menu_verified=False, liveview_verified=False, physical_hardware_verified=False)
+        self.data['verification_scope'] = verification_scope()
+        self.data['functional_properties_profile'] = 'profiles/z8-model-properties.json'
         self.data['runtime_profile'] = dict(instruction_clock=bool(instruction_clock),
                                             service_core_events='service-core-event-model=on' in properties,
                                             cycle_accurate=False, firmware_timeouts_changed=False)
@@ -84,6 +84,7 @@ class Guest(SharedOwner):
         self._fault = False
 
     def __exit__(self, kind, error, traceback):
+        self.data['verification_scope'] = verification_scope(menu_verified=self.data['menu_verified'])
         cancelled=getattr(self,'cancel_event',None)
         if kind is not None and issubclass(kind,InterruptedError) and cancelled is not None and cancelled.is_set():
             self.data['cancelled']=True
