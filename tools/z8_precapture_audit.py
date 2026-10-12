@@ -176,6 +176,10 @@ def _trace(manifest, frames, report):
     consumer = _integer(_need(run, 'full_consumer_pc'), 'original FULL consumer PC', 1)
     history, pre, post, submissions = [], [], [], []
     dma, entered, evicted, writers, nvme = {}, set(), set(), {}, []
+    # Submission only transfers queue ownership. Without an independently
+    # observed final source read, conservatively retain the producer through
+    # native writer completion. Do not infer release from leaving the FIFO.
+    owned = set()
     ids, previous_time, trigger, end = set(), -1, None, None
     kinds = {'dma_complete', 'enqueue', 'evict', 'full_press_consumed', 'submit',
              'writer_complete', 'nvme_write_complete', 'capture_end'}
@@ -200,11 +204,12 @@ def _trace(manifest, frames, report):
             if fid in dma:
                 raise AuditError('duplicate_dma', 'A frame has multiple producer completions')
             f = frames[fid]
-            for retained in history:
+            for retained in owned:
                 other = frames[retained]
                 if f['address'] < other['address'] + other['span'] and other['address'] < f['address'] + f['span']:
-                    raise AuditError('buffer_ownership', 'DMA overwrites a retained history buffer')
+                    raise AuditError('buffer_ownership', 'DMA overwrites a producer before eviction or native writer completion')
             dma[fid] = tick
+            owned.add(fid)
             if trigger is not None:
                 if tick <= trigger:
                     raise AuditError('post_time', 'Current DMA must complete strictly after FULL consumption')
@@ -218,6 +223,7 @@ def _trace(manifest, frames, report):
                     or not history or history[0] != fid):
                 raise AuditError('queue_eviction', 'Eviction must remove the oldest full-queue entry')
             history.pop(0); evicted.add(fid)
+            owned.remove(fid)
         elif kind == 'full_press_consumed':
             if (trigger is not None or event.get('origin') != 'original_firmware'
                     or type(event.get('consumer_pc')) is not int
@@ -246,6 +252,7 @@ def _trace(manifest, frames, report):
                 raise AuditError('writer', 'Unbound or duplicate native NEF writer completion')
             writers[file_id] = dict(frame_id=fid, output_index=_integer(_need(event, 'output_index'), 'output_index'),
                                     bytes=_integer(_need(event, 'bytes'), 'writer bytes', 1, MAX_FILE_BYTES), t_ns=tick)
+            owned.discard(fid)
         elif kind == 'nvme_write_complete':
             if trigger is None or type(event.get('status')) is not int or event['status'] != 0:
                 raise AuditError('nvme', 'Expected successful post-trigger native NVMe write completion')
@@ -267,7 +274,8 @@ def _trace(manifest, frames, report):
     expected = pre + post
     if submissions != expected or history:
         raise AuditError('submit_order', 'Selected frame set/order differs from queue prediction')
-    report.update(predicted_pre=pre, predicted_post=post, evicted_frames=sorted(evicted), output_frames=expected)
+    report.update(predicted_pre=pre, predicted_post=post, evicted_frames=sorted(evicted), output_frames=expected,
+                  buffer_release_boundary='capacity eviction or native writer completion')
     return writers, nvme
 
 

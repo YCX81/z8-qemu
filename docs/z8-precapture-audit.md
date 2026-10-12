@@ -109,9 +109,15 @@ different saved frames. The optional marker occupies a 16×64 sample region with
 never replaces it.
 
 The declared address/span must describe the actual retained DMA buffer, not an
-invented nonoverlapping address. The checker detects a subsequent DMA overlapping
-a buffer still retained in the history FIFO. It does not reconstruct unrecorded
-buffer lifetimes after submission. If native producer storage is packed14, an
+invented nonoverlapping address. The checker reserves each buffer at its DMA
+completion and rejects overlapping subsequent DMA until capacity eviction or the
+matching native writer completion. Leaving the history FIFO at submission does
+not release it. This is a conservative acceptance condition: the current schema
+cannot accept earlier reuse based on an unrecorded source-read completion, even
+when the actual implementation could safely reuse the buffer. The receipt names
+this release boundary. It checks recorded completion events, not unobserved DMA
+start intervals or arbitrary guest writes; those require separate native lifetime
+instrumentation. If native producer storage is packed14, an
 adapter must explicitly preserve the original snapshot, packing/stride and
 conversion provenance when producing the normalized `u16le` comparison artifact;
 do not rename packed bytes or claim the normalized file was a literal RAM dump.

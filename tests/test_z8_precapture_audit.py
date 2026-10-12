@@ -220,6 +220,35 @@ class PrecaptureTests(unittest.TestCase):
         self.manifest['frames'][2]['producer']['address'] = self.manifest['frames'][1]['producer']['address']
         self.assert_rejected(self.manifest, 'buffer_ownership')
 
+    def test_submitted_buffer_remains_owned_until_native_writer_returns(self):
+        # Both history items have left the FIFO at ticks41/42. Submission is
+        # not evidence that their source reads have already finished.
+        self.manifest['frames'][3]['producer']['address'] = self.manifest['frames'][1]['producer']['address']
+        self.assert_rejected(self.manifest, 'buffer_ownership')
+
+    def test_pre_enqueue_gap_does_not_release_a_completed_producer(self):
+        self.manifest['frames'][1]['producer']['address'] = self.manifest['frames'][0]['producer']['address']
+        self.manifest['events'][1]['t_ns'] = 20
+        self.manifest['events'][1], self.manifest['events'][2] = self.manifest['events'][2], self.manifest['events'][1]
+        for seq, event in enumerate(self.manifest['events']):
+            event['seq'] = seq
+        self.assert_rejected(self.manifest, 'buffer_ownership')
+
+    def test_evicted_buffer_can_be_reused(self):
+        self.manifest['frames'][3]['producer']['address'] = self.manifest['frames'][0]['producer']['address']
+        self.assertEqual(self.check()['status'], 'synthetic_checks_passed')
+
+    def test_completed_writer_buffer_can_be_reused(self):
+        self.manifest['frames'][3]['producer']['address'] = self.manifest['frames'][1]['producer']['address']
+        events = self.manifest['events']
+        events[10]['t_ns'] = events[11]['t_ns'] = 60
+        # Native writer f1 returns before the new DMA at the same virtual tick.
+        writer = events.pop(12)
+        events.insert(10, writer)
+        for seq, event in enumerate(events):
+            event['seq'] = seq
+        self.assertEqual(self.check()['status'], 'synthetic_checks_passed')
+
     def test_path_escape_shape_depth_and_unfinished_run_fail_closed(self):
         for change, code in ((lambda m: m['frames'][0]['producer'].update(path='../outside'), 'path'),
                              (lambda m: m['frames'][0]['producer'].update(width=True), 'schema'),
