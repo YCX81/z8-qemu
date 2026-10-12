@@ -404,6 +404,8 @@ struct NikonZ9State {
     bool raw_pipeline_uv_half[3];
     bool engine1543_capture_control_model;
     bool engine1543_control_model;
+    bool z8_c0_stop_model, z8_c0_stop_owned;
+    uint64_t z8_c0_stops, z8_c0_stop_acks;
     uint32_t engine1543_valid[3];
     uint64_t engine1543_buffer_valid[3];
     uint32_t engine1543_latched[3][0x1000 / 4];
@@ -12430,6 +12432,32 @@ static bool engine1543_capture_ready(NikonZ9State *s, unsigned j)
            s->engine1543_buffer_valid[j] == UINT64_C(0x000f000f000f000f);
 }
 
+static bool get_z8_c0_stop_model(Object *obj, Error **errp)
+{
+    return NIKON_Z9_LAB(obj)->z8_c0_stop_model;
+}
+
+static void set_z8_c0_stop_model(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (!object_dynamic_cast(obj, MACHINE_TYPE_NAME("nikon-z8-bringup")) ||
+        s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp, "z8-1543-c0-stop-model requires Z8 at machine creation");
+        return;
+    }
+    s->z8_c0_stop_model = value;
+}
+
+static char *get_z8_c0_stop_state(Object *obj, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    return g_strdup_printf("{\"enabled\":%s,\"owned\":%s,\"stops\":%" PRIu64
+        ",\"acks\":%" PRIu64 ",\"pixel_bytes\":0,\"frame_events\":0,"
+        "\"scope\":\"C0 active101 to stop100 acknowledgement through status20/mask/W1C; no image/source completion\"}",
+        s->z8_c0_stop_model ? "true" : "false", s->z8_c0_stop_owned ? "true" : "false",
+        s->z8_c0_stops, s->z8_c0_stop_acks);
+}
+
 static bool engine1543_ready(NikonZ9State *s, unsigned j)
 {
     /* Observed bank0: four configuration words and four rows of eight
@@ -12444,9 +12472,16 @@ static bool engine1543_control_write(NikonZ9State *s, unsigned i,
                                     hwaddr addr, uint64_t value)
 {
     unsigned j = i - 10, mode = value & 3;
+    bool c0_stop = s->z8_c0_stop_model && j == 0 && mode == 0 &&
+                   s->engine1543_active[0];
     if (value & ~0x103u ||
         (mode == 1 && (!engine1543_ready(s, j) || s->engine1543_active[j])) ||
-        (mode == 3 && s->engine1543_active[j])) {
+        (mode == 3 && s->engine1543_active[j]) ||
+        (s->z8_c0_stop_model && j == 0 && mode == 1 && s->z8_c0_stop_owned) ||
+        (c0_stop && (value != 0x100 || s->engine1542_config[10][1] != 0x101 ||
+         s->engine1543_latched[0][1] != 0x101 || s->engine1543_latched[0][4] != 0x29 ||
+         !engine1543_ready(s, 0) || s->engine1543_held[0] || s->z8_c0_stop_owned ||
+         (s->engine1542_pending[10] & 0x20)))) {
         unknown_access(s, addr, value, 4, true);
         return true;
     }
@@ -12472,6 +12507,20 @@ static bool engine1543_control_write(NikonZ9State *s, unsigned i,
             s->engine1543_stops[j]++;
         }
         s->engine1543_active[j] = s->engine1543_held[j] = false;
+        if (c0_stop) {
+            /* Z8 C3.11: original40c26820 clears low2, then the ring worker
+             * awaits C0 status bit5 through IRQ6a/W1C. Modeled RAM writes
+             * are synchronous; active=false now prevents future callbacks.
+             * Retain prior frame/refill causes. C1's pixel bit5 is separate. */
+            s->z8_c0_stop_owned = true;
+            s->z8_c0_stops++;
+            s->engine1542_pending[10] |= 0x20;
+            raw_pipeline_irq_update(s);
+            fprintf(stderr, "Z8_C0_STOP t_ns=%" PRId64 " generation=%" PRIu64
+                " pending=%x mask=%x; control acknowledgement, no pixels\n",
+                qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL), s->z8_c0_stops,
+                s->engine1542_pending[10], s->engine1542_config[10][4]);
+        }
     } else if (mode == 2 && s->engine1543_active[j]) {
         s->engine1543_held[j] = true;
         s->engine1543_holds[j]++;
@@ -12623,6 +12672,11 @@ static bool engine1542_write(NikonZ9State *s, hwaddr addr, uint64_t value,
         return false;
     }
     if (off == engine1542_status(i)) {
+        if (i == 10 && s->z8_c0_stop_model && s->z8_c0_stop_owned &&
+            (value & s->engine1542_pending[i] & 0x20)) {
+            s->z8_c0_stop_owned = false;
+            s->z8_c0_stop_acks++;
+        }
         s->engine1542_pending[i] &= ~value;
         s->engine1542_acks[i]++;
         raw_pipeline_irq_update(s);
@@ -17580,6 +17634,11 @@ static void nikon_z9_init(MachineState *machine)
         error_report("z8-primary-f04f-stop-model requires internal start and primary parameter models");
         exit(1);
     }
+    if (s->z8_c0_stop_model && (!s->bootstrap_fixtures ||
+        !s->engine1543_control_model || !s->raw_pipeline_model)) {
+        error_report("z8-1543-c0-stop-model requires bootstrap,1543 control and raw-pipeline IRQ");
+        exit(1);
+    }
     if (s->primary20_empty_reset_model && !s->bootstrap_fixtures) {
         error_report("primary20-empty-reset-model requires explicit bootstrap fixtures"); exit(1);
     }
@@ -18459,6 +18518,8 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_bool(oc, "raw-source-boundary-model", get_raw_source_boundary_model, set_raw_source_boundary_model);
     object_class_property_add_str(oc, "raw-source-boundary-state", get_raw_source_boundary_state, NULL);
     object_class_property_add_bool(oc, "engine1543-control-model", get_engine1543_control_model, set_engine1543_control_model);
+    object_class_property_add_bool(oc, "z8-1543-c0-stop-model", get_z8_c0_stop_model, set_z8_c0_stop_model);
+    object_class_property_add_str(oc, "z8-1543-c0-stop-state", get_z8_c0_stop_state, NULL);
     object_class_property_add_str(oc, "engine1543-control-state", get_engine1543_control_state, NULL);
     object_class_property_add_bool(oc, "engine1543-capture-control-model", get_engine1543_capture_control_model, set_engine1543_capture_control_model);
     object_class_property_add_bool(oc, "stream154c-stop-model", get_stream154c_stop_model, set_stream154c_stop_model);
