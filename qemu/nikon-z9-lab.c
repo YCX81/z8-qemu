@@ -318,6 +318,7 @@ struct NikonZ9State {
     uint32_t engine1548_ratio_fields[2][2][6];
     uint32_t engine1548_small_triplets[2][18];
     uint32_t engine1548_points[2][64];
+    uint32_t z8_display_records[2][4][32];
     uint32_t engine1548_geometry[2][6];
     uint32_t engine1548_layout[2][8];
     uint32_t engine1548_layer_request[2][2];
@@ -4379,6 +4380,19 @@ static uint32_t *engine1548_field_word(NikonZ9State *s, hwaddr addr,
     if (off == 0x1620) {
         *mask = 1;
         return &s->engine1548_layout[unit][7];
+    }
+    /* Z8 C3.11 402ac5a4/402ac688 retain four fields for each of 32
+     * indexed display records. The caller supplies coordinate/span pairs,
+     * a six-bit pair and three color components. This is configuration
+     * retention only: no drawing, DMA, IRQ or +1b14 command is modeled. */
+    if (off >= 0x1800 && off < 0x1a00 &&
+        object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-z8-bringup"))) {
+        static const uint32_t masks[] = {
+            0x3fffffff, 0x3fffffff, 0x003f003f, 0x00ffffff,
+        };
+        unsigned bank = (off - 0x1800) / 0x80;
+        *mask = masks[bank];
+        return &s->z8_display_records[unit][bank][(off & 0x7f) / 4];
     }
     /* 402ac980/c9d8: 64 pairs of 16/14-bit fields. The getter bounds
      * the index; the setter only truncates to one byte, so index 64

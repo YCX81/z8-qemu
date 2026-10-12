@@ -61,6 +61,22 @@ display activity, but have not yet supplied an accepted Z8 NEF or the complete
 pre-capture event/file set. Merely consuming a shutter/menu input does not prove
 that its application action occurred.
 
+## Z8普通RAW推进（2026-10-12）
+
+本地 `capture-03` 已通过原MCU/UI实际选择 **RAW + Lossless compressed**，
+退出菜单后LCD恢复取景，记录到414帧带视频的扫描输出。未修改的原格式门控
+实际为 `candidate=1 / gate=0 / result=1`。全按后的首个未建模访问是
+CPU1在 `0x402ac5f8` 向 `0x15485800` 写入4字节参数 `0x000a016a`；
+这属于1548显示记录配置，尚不能据此宣称普通NEF已生成。
+
+本批为该路径增加仅限Z8、显式config/bootstrap启用的有界参数保留：
+两个单元、四组各32项，共256个独立32位word，保留原setter/getter的字段掩码。
+18项实际QTest通过，覆盖全部word、边界与保留位拒绝、Z9隔离和无扫描输出副作用。
+测试二进制SHA-256为
+`43519b1be3de828f7b1a39397e55bd04a827a382affcdbca3fe097d8451d749b`。
+这些测试不加载尼康固件、不执行CPU指令；`+0x1b14`索引命令保持严格未实现。
+**尚无通过验收的Z8 NEF，更无RAW预拍端到端结果**；完整拍摄复跑另行记录。
+
 ## Source-only reproduction
 
 On Linux or an explicitly selected WSL distribution, install the build
@@ -90,9 +106,9 @@ The limit change is not permission to include firmware-derived data.
 
 ## Remaining Z8 chain
 
-1. Establish original menu transitions from a rendered LCD and verify the actual
-   ordinary RAW quality and compression selections. A remembered key sequence or
-   a 1×1 startup screenshot is insufficient.
+1. Preserve and reproduce the observed native RAW/lossless menu selection and
+   restored LCD baseline on subsequent changes. The current capture-03 evidence
+   establishes this preparation step, not the later capture/writer chain.
 2. Follow original FULL consumption through application permission, capture
    scheduling, producer completion, the original NEF writer and completed NVMe
    writes. Verify a fully decoded ordinary Z8 NEF before claiming pre-capture.
