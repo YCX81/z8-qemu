@@ -3,6 +3,19 @@
  * Packed12 little-endian pairs and CFA-cell resampling are explicit lab
  * assumptions. Native format2/stride values alone do not prove the physical
  * wire packing, optical margins or actual sensor precision. */
+/* Exact Z8 observed internal-port configuration, not an image producer.
+ * In particular height low16=2 and control118=3 are NOT RAM packing modes.
+ * These scalar MMIO observations do not recover ROI or sensor calibration. */
+static bool z8_d980_internal_profile(NikonZ9State *s, const uint32_t *c)
+{
+    static const uint32_t observed[] = {
+        1, 0x102c0000, 0x0ac40002, 0, 7264, 1, 1, 0, 1, 0, 3, 0,
+        0xe0000000, 0, 0xe0000000, 0, 0xe0000000, 0, 0xe0000000, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+    };
+    return s->z8_d980_internal_model && !memcmp(c, observed, sizeof(observed));
+}
+
 static bool primary_d980_description(NikonZ9State *s, const uint32_t *c,
     unsigned slot, unsigned *width, unsigned *height, unsigned *stride,
     uint64_t *encoded, uint64_t *physical)
@@ -94,6 +107,14 @@ static uint8_t *primary_d980_pack14(const NikonRawPixels *p,
 
 static bool primary_d980_receive(NikonZ9State *s, bool single_input)
 {
+    /* Guard both periodic and single entry before bank indexing, packing,
+     * tag generation, RAM translation, DMA and completion publication. */
+    if (z8_d980_internal_profile(s, s->primary_d980_latched)) {
+        if (s->z8_d980_internal_waiting) {
+            s->z8_d980_internal_blocked_inputs++;
+        }
+        return false;
+    }
     if (!s->primary_d980_stream_model || (!single_input && !s->event_timing_active) ||
         s->primary_reset_stage || !(s->engine150c_active & 0x4000) ||
         (s->engine_150c_init[0x18 / 4] & 0x4000) || s->primary_d980_pending) {
@@ -170,6 +191,10 @@ static void primary_d980_tick(NikonZ9State *s)
 
 static void primary_d980_single_cancel(NikonZ9State *s)
 {
+    /* Existing control stop/reset semantics (including their stop IRQ) are
+     * unchanged. Cancelling this wait is not a pixel completion. */
+    s->z8_d980_internal_cancels += s->z8_d980_internal_waiting;
+    s->z8_d980_internal_waiting = false;
     s->primary_d980_prepare_cancelled += s->primary_d980_prepared;
     s->primary_d980_prepared = false;
     s->primary_d980_single_cancelled += s->primary_d980_single_armed;
@@ -181,6 +206,10 @@ static void primary_d980_single_tick(void *opaque)
 {
     NikonZ9State *s = opaque;
     if (!s->primary_d980_single_armed) { return; }
+    if (z8_d980_internal_profile(s, s->primary_d980_latched)) {
+        primary_d980_single_cancel(s);
+        return;
+    }
     if (s->primary_reset_stage || !(s->engine150c_active & 0x4000) ||
         s->event_timing_active || ++s->primary_d980_single_attempts > 64) {
         primary_d980_single_cancel(s);
@@ -222,6 +251,7 @@ static void primary_d980_single_tick(void *opaque)
 
 static void primary_d980_single_arm(NikonZ9State *s)
 {
+    if (z8_d980_internal_profile(s, s->primary_d980_latched)) { return; }
     s->primary_d980_single_armed = true;
     s->primary_d980_single_attempts = 0;
     s->primary_d980_single_requests++;
@@ -232,6 +262,10 @@ static void primary_d980_single_arm(NikonZ9State *s)
 static void primary_d980_single_mode(NikonZ9State *s, unsigned channel,
                                     uint32_t previous, uint32_t value)
 {
+    /* A stopped old latch must not suppress preparation for a later RAM
+     * configuration which the original program has not submitted yet. */
+    if ((s->z8_d980_internal_waiting || (s->engine150c_active & 0x4000)) &&
+        z8_d980_internal_profile(s, s->primary_d980_latched)) { return; }
     if (!s->primary_d980_single_model || channel || previous != 2 || value != 3 ||
         s->primary_reset_stage || s->event_timing_active) {
         return;

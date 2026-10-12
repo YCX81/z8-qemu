@@ -538,6 +538,9 @@ struct NikonZ9State {
     bool primary_d980_channel_boundary_model;
     uint64_t primary_d980_channel_boundaries, primary_d980_channel_coalesced;
     bool primary_d980_stream_model;
+    bool z8_d980_internal_model, z8_d980_internal_waiting;
+    uint64_t z8_d980_internal_starts, z8_d980_internal_cancels;
+    uint64_t z8_d980_internal_blocked_inputs;
     bool sensor_tag_model;
     char *sensor_tag_sha256;
     int64_t sensor_tag_virtual_ns;
@@ -9447,6 +9450,33 @@ static bool get_primary_d980_stream_model(Object *obj, Error **errp)
     return NIKON_Z9_LAB(obj)->primary_d980_stream_model;
 }
 
+static bool get_z8_d980_internal_model(Object *obj, Error **errp)
+{
+    return NIKON_Z9_LAB(obj)->z8_d980_internal_model;
+}
+
+static void set_z8_d980_internal_model(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (!object_dynamic_cast(obj, MACHINE_TYPE_NAME("nikon-z8-bringup")) ||
+        s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp, "z8-d980-internal-start-model requires Z8 at machine creation");
+        return;
+    }
+    s->z8_d980_internal_model = value;
+}
+
+static char *get_z8_d980_internal_state(Object *obj, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    return g_strdup_printf("{\"enabled\":%s,\"waiting\":%s,\"starts\":%" PRIu64
+        ",\"control_cancels\":%" PRIu64 ",\"blocked_inputs\":%" PRIu64
+        ",\"supplier_implemented\":false,\"scope\":\"exact internal FIFO start only; no DMA, frame, tag or frame-completion/source/channel notification; existing stop/reset protocol unchanged\"}",
+        s->z8_d980_internal_model ? "true" : "false",
+        s->z8_d980_internal_waiting ? "true" : "false", s->z8_d980_internal_starts,
+        s->z8_d980_internal_cancels, s->z8_d980_internal_blocked_inputs);
+}
+
 static bool get_sensor_tag_model(Object *obj, Error **errp)
 {
     return NIKON_Z9_LAB(obj)->sensor_tag_model;
@@ -10209,6 +10239,7 @@ static char *get_primary_parameter_control_state(Object *obj, Error **errp)
 }
 
 static bool primary_d980_ready(NikonZ9State *s);
+static bool z8_d980_internal_profile(NikonZ9State *s, const uint32_t *c);
 
 static bool engine150c_control_write(NikonZ9State *s, hwaddr addr,
                                      uint64_t value, unsigned size)
@@ -10252,6 +10283,17 @@ static bool engine150c_control_write(NikonZ9State *s, hwaddr addr,
         return true;
     }
     if (addr == 0x150c0064) {
+        /* Do not let an active RAM/internal profile change its supplier by
+         * relatching. Identical internal configuration is harmless; a real
+         * stop/reset must precede a different profile. Check before ANY latch. */
+        if ((value & 0x4000) && (s->engine150c_active & 0x4000) &&
+            (s->z8_d980_internal_waiting ||
+             z8_d980_internal_profile(s, s->primary_d980_submitted)) &&
+            (!s->z8_d980_internal_waiting ||
+             !z8_d980_internal_profile(s, s->primary_d980_submitted))) {
+            unknown_access(s, addr, value, size, true);
+            return true;
+        }
         /* Native 40c1fb60 also submits shadow
          * tables while the engine is active. Functional immediate latch;
          * no extra start, input, frame boundary or completion inferred. */
@@ -10414,14 +10456,26 @@ static bool engine150c_control_write(NikonZ9State *s, hwaddr addr,
         s->engine150c_latched |= value;
         s->engine150c_commits++;
     } else {
+        bool internal = (value & 0x4000) &&
+            z8_d980_internal_profile(s, s->primary_d980_latched);
         if ((value & ~s->engine150c_latched) ||
-            ((value & 0x4000) && !primary_d980_ready(s))) {
+            ((value & 0x4000) && !internal && !primary_d980_ready(s)) ||
+            (internal && (value != 0xff00 || !s->primary_d980_submits ||
+                (s->primary_d980_valid & 0xfffff) != 0xfffff ||
+                s->primary_d980_frames || s->primary_d980_bytes ||
+                s->primary_d980_pending || s->primary_d980_single_armed ||
+                s->primary_d980_prepared))) {
             unknown_access(s, addr, value, size, true);
             return true;
         }
         s->primary_reset_previous_units &= ~value;
         s->engine150c_active |= value;
-        if (s->primary_d980_single_model && (value & 0x4000)) {
+        if (internal) {
+            /* Admission is not an input epoch or a single-frame preparation.
+             * No supplier exists for this port; receive stays blocked. */
+            s->z8_d980_internal_waiting = true;
+            s->z8_d980_internal_starts++;
+        } else if (s->primary_d980_single_model && (value & 0x4000)) {
             bool prepared = s->primary_d980_prepared;
             s->primary_d980_prepared = false;
             primary_d980_single_cancel(s);
@@ -17450,6 +17504,10 @@ static void nikon_z9_init(MachineState *machine)
         error_report("primary-d980-stream-model requires D980 config, RAW, primary stop and source timing/aux/channel models");
         exit(1);
     }
+    if (s->z8_d980_internal_model && !s->primary_d980_stream_model) {
+        error_report("z8-d980-internal-start-model requires the existing D980 stream prerequisites");
+        exit(1);
+    }
     if (s->primary20_empty_reset_model && !s->bootstrap_fixtures) {
         error_report("primary20-empty-reset-model requires explicit bootstrap fixtures"); exit(1);
     }
@@ -18203,6 +18261,8 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_bool(oc, "primary-stopped-source-reset-model", get_primary_stopped_source_reset_model, set_primary_stopped_source_reset_model);
     object_class_property_add_bool(oc, "primary-d980-config-model", get_primary_d980_model, set_primary_d980_model);
     object_class_property_add_bool(oc, "primary-d980-stream-model", get_primary_d980_stream_model, set_primary_d980_stream_model);
+    object_class_property_add_bool(oc, "z8-d980-internal-start-model", get_z8_d980_internal_model, set_z8_d980_internal_model);
+    object_class_property_add_str(oc, "z8-d980-internal-state", get_z8_d980_internal_state, NULL);
     object_class_property_add_bool(oc, "sensor-frame-tag-model", get_sensor_tag_model, set_sensor_tag_model);
     object_class_property_add_str(oc, "sensor-frame-tag-state", get_sensor_tag_state, NULL);
     object_class_property_add_bool(oc, "primary-d980-packed14-model", get_primary_d980_packed14_model, set_primary_d980_packed14_model);
