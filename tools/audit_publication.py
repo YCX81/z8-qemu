@@ -89,6 +89,7 @@ FILES.update({'requirements-capture.txt', 'docs/z8-raw-foundation.md',
               'tools/z8_capture_readiness.py', 'tests/test_z8_capture_bindings.py',
               'tests/test_z8_capture_readiness.py', 'tools/z8_precapture_audit.py',
               'tests/test_z8_precapture_audit.py', 'docs/z8-precapture-audit.md'})
+FILES.update({'docs/z8-primary-f04f-stop.md', 'tests/test_z8_f04f_stop.py'})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),

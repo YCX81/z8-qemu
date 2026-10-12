@@ -48,3 +48,5 @@ python tests/test_z8_d980_internal.py --qemu /path/to/qemu-system-aarch64 --outp
 需要区分首故障日志与暂停快照：`0xff00` 启动日志的 active 为 `0xff5f`；首个未知访问后、所有CPU实际停止前，原程序又执行了既有独立 stop `0x10`，暂停快照的 active 因而为 `0xff4f`。其 group0 stop pending 来自该控制取消，不能解释成 D980 帧完成。首故障现场是在清理前获取，不是未知指令执行前的原子快照。
 
 这次对照仅证明能越过已知内部端口启动阻点并暴露下一个原生停止协议缺口。当前模型仍没有内部 FIFO 图像供应者，不证明高速拍摄、历史缓存、有效 NEF 或 RAW 预拍成功。
+
+后续的精确 `0xf04f` 组合停止事务由另一个[独立停止选项](z8-primary-f04f-stop.md)提供，须单独启用；本启动选项自身不添加该事务。
