@@ -82,13 +82,33 @@ class PrecaptureTests(unittest.TestCase):
                               output_index=sequence, extents=[dict(offset=offset, length=len(content))]))
         event('capture_end', 70, dma_count=4, submit_count=3, writer_count=3, nvme_count=3)
         (self.root / 'card.raw').write_bytes(card)
-        self.manifest = dict(schema='z8-precapture-audit-v1', run=dict(
+        self.manifest = dict(schema=audit.SCHEMA, run=dict(
             run_id='synthetic-contract', model='Nikon Z8', firmware_sha256='a' * 64,
             clock_id='virtual-0', clock_kind='qemu_virtual_ns', stopped=True,
             full_consumer_pc=0x40123450,
             error=None, evidence_kind='synthetic'), queue=dict(capacity=2), frames=frames,
             events=events, storage=dict(kind='guest_nvme_export', card_path='card.raw',
                                        sector_size=512, catalog_complete=True, nef_files=files))
+        self.manifest['run'].update(input_routes=['mcu_frame', 'gpio'], full_action_id='full-1',
+            full_route_bindings={'mcu_frame': {'consumer_pc': 0x40123450},
+                                 'gpio': {'consumer_pc': 0x40fd9350, 'full_channel_id': 60}})
+        keys = struct.pack('<11I', 1 << 30, *([0] * 10)).hex()
+        self.manifest['full_input_evidence'] = [
+            dict(route_id='mcu_frame', action_id='full-1',
+                 request=dict(event_id='mcu-request', clock_id='virtual-0', t_ns=35,
+                              kind='input_queued', full_state=1, expected_keys_hex=keys),
+                 consumer=dict(event_id='e7', clock_id='virtual-0', t_ns=40,
+                               kind='key_consumer', origin='original_firmware', request_event_id='mcu-request',
+                               consumer_pc=0x40123450, matched=True, full_key_state=True,
+                               expected_hex=keys, keys_hex=keys)),
+            dict(route_id='gpio', action_id='full-1',
+                 request=dict(event_id='gpio-request', clock_id='virtual-0', t_ns=35,
+                              kind='gpio_input_set', full_state=1, levels=3),
+                 consumer=dict(event_id='gpio-consumer', clock_id='virtual-0', t_ns=38,
+                               kind='gpio_input_callback', origin='original_firmware',
+                               request_event_id='gpio-request', consumer_pc=0x40fd9350,
+                               matched=True, channel_id=60, state=1))]
+        self.manifest['events'][7]['route_id'] = 'mcu_frame'
 
     def decode(self, path):
         i = int(path.stem[4:])
@@ -119,11 +139,152 @@ class PrecaptureTests(unittest.TestCase):
         self.assertFalse(result['accepted'])
         self.assertFalse(result['native_accepted'])
 
+    def test_v2_retains_both_route_bounds_without_claiming_unique_cause(self):
+        result = self.check()
+        self.assertEqual(result['status'], 'synthetic_checks_passed')
+        self.assertEqual(result['trigger_bounds']['pre_cutoff_ns'], 35)
+        self.assertEqual(result['trigger_bounds']['post_cutoff_ns'], 40)
+        self.assertFalse(result['trigger_bounds']['sole_trigger_verified'])
+
+    def test_legacy_v1_never_silently_keeps_native_acceptance(self):
+        m = copy.deepcopy(self.manifest); m['schema'] = 'z8-precapture-audit-v1'
+        result = self.check(m)
+        self.assertEqual(result['status'], 'incomplete')
+        self.assertEqual(result['issues'][0]['code'], 'trigger_routes_upgrade_required')
+
+    def test_enabled_route_missing_request_or_consumer_is_incomplete(self):
+        mutations = [lambda m: m.pop('full_input_evidence'),
+                     lambda m: m['full_input_evidence'].pop(),
+                     lambda m: m['full_input_evidence'][0].pop('request'),
+                     lambda m: m['full_input_evidence'][1].pop('consumer')]
+        for mutate in mutations:
+            m = copy.deepcopy(self.manifest); mutate(m)
+            result = self.check(m)
+            self.assertEqual(result['status'], 'incomplete', result)
+            self.assertFalse(result['native_accepted'])
+
+    def test_unknown_duplicate_or_disabled_route_evidence_is_rejected(self):
+        mutations = [lambda m: m['run']['input_routes'].append('remote'),
+                     lambda m: m['run']['input_routes'].append('gpio'),
+                     lambda m: m['run']['input_routes'].remove('gpio'),
+                     lambda m: m['full_input_evidence'].append(copy.deepcopy(m['full_input_evidence'][0])),
+                     lambda m: m['full_input_evidence'][1].update(route_id='remote')]
+        for mutate in mutations:
+            m = copy.deepcopy(self.manifest); mutate(m)
+            self.assert_rejected(m, 'trigger_routes')
+
+    def test_wrong_matched_full_state_channel_and_bytes_cannot_be_a_consumer(self):
+        mutations = [lambda m: m['full_input_evidence'][0]['consumer'].update(matched=False),
+                     lambda m: m['full_input_evidence'][0]['consumer'].update(full_key_state=False),
+                     lambda m: m['full_input_evidence'][0]['consumer'].update(keys_hex='00' * 44),
+                     lambda m: m['full_input_evidence'][1]['consumer'].update(state=0),
+                     lambda m: m['full_input_evidence'][1]['consumer'].update(channel_id=59),
+                     lambda m: m['full_input_evidence'][1]['request'].update(levels=1)]
+        for mutate in mutations:
+            m = copy.deepcopy(self.manifest); mutate(m)
+            self.assert_rejected(m, 'trigger_state')
+
+    def test_trigger_numeric_booleans_do_not_count_as_native_values(self):
+        for route, part, key in ((0, 'request', 't_ns'), (1, 'consumer', 'consumer_pc'),
+                                 (1, 'consumer', 'channel_id'), (1, 'consumer', 'state'),
+                                 (1, 'request', 'levels'), (0, 'request', 'full_state')):
+            m = copy.deepcopy(self.manifest); m['full_input_evidence'][route][part][key] = True
+            self.assert_rejected(m, 'schema')
+
+    def test_mixed_clock_wrong_request_link_and_reversed_causality_are_rejected(self):
+        mutations = [lambda m: m['full_input_evidence'][1]['consumer'].update(clock_id='host-clock'),
+                     lambda m: m['full_input_evidence'][0]['consumer'].update(request_event_id='gpio-request'),
+                     lambda m: m['full_input_evidence'][1]['request'].update(t_ns=39),
+                     lambda m: m['full_input_evidence'][1].update(action_id='another-full')]
+        for mutate in mutations:
+            m = copy.deepcopy(self.manifest); mutate(m)
+            result = self.check(m); self.assertFalse(result['accepted']); self.assertNotEqual(result['status'], 'synthetic_checks_passed')
+
+    def test_dma_between_gpio_and_mcu_cannot_be_historical(self):
+        m = copy.deepcopy(self.manifest)
+        m['events'][4]['t_ns'] = 24  # Valid capacity eviction before either input.
+        m['full_input_evidence'][1]['request']['t_ns'] = 25
+        m['full_input_evidence'][1]['consumer']['t_ns'] = 28
+        result = self.check(m)
+        self.assertEqual(result['status'], 'incomplete')
+        self.assertEqual(result['issues'][0]['code'], 'ambiguous_trigger_interval')
+
+    def test_pre_dma_but_late_enqueue_does_not_enter_retained_fifo(self):
+        m = copy.deepcopy(self.manifest)
+        m['events'][6]['t_ns'] = 36
+        result = self.check(m)
+        self.assertEqual(result['status'], 'incomplete')
+        self.assertEqual(result['issues'][0]['code'], 'late_history_change')
+
+    def test_request_tick_equal_dma_or_enqueue_is_not_strict_history(self):
+        for tick, code in ((30, 'ambiguous_trigger_interval'), (31, 'late_history_change')):
+            m = copy.deepcopy(self.manifest); m['full_input_evidence'][1]['request']['t_ns'] = tick
+            result = self.check(m); self.assertEqual(result['status'], 'incomplete')
+            self.assertEqual(result['issues'][0]['code'], code)
+
+    def test_canonical_full_must_name_a_latest_actual_route_consumer(self):
+        m = copy.deepcopy(self.manifest); m['events'][7]['event_id'] = 'invented-late-consumer'
+        self.assert_rejected(m, 'trigger_binding')
+        m = copy.deepcopy(self.manifest); m['full_input_evidence'][1]['consumer']['t_ns'] = 42
+        self.assert_rejected(m, 'trigger_binding')
+
+    def test_tied_consumer_times_use_event_identity_not_arbitrary_time_matching(self):
+        m = copy.deepcopy(self.manifest); m['full_input_evidence'][1]['consumer']['t_ns'] = 40
+        self.assertEqual(self.check(m)['status'], 'synthetic_checks_passed')
+        m['events'][7]['route_id'] = 'gpio'
+        self.assert_rejected(m, 'trigger_binding')
+
+    def test_single_declared_route_is_allowed_with_its_complete_binding(self):
+        m = copy.deepcopy(self.manifest)
+        m['run']['input_routes'] = ['mcu_frame']; del m['run']['full_route_bindings']['gpio']
+        m['full_input_evidence'].pop()
+        self.assertEqual(self.check(m)['status'], 'synthetic_checks_passed')
+
+    def test_gpio_can_be_latest_consumer_and_tied_times_keep_distinct_ids(self):
+        for latest in (40, 41):
+            m = copy.deepcopy(self.manifest)
+            m['full_input_evidence'][1]['consumer']['t_ns'] = latest
+            m['run']['full_consumer_pc'] = 0x40fd9350
+            m['events'][7].update(route_id='gpio', event_id='gpio-consumer',
+                                  consumer_pc=0x40fd9350, t_ns=latest)
+            m['events'][8]['t_ns'] = 42; m['events'][9]['t_ns'] = 43
+            result = self.check(m)
+            self.assertEqual(result['status'], 'synthetic_checks_passed', result)
+            self.assertEqual(result['trigger_bounds']['post_cutoff_ns'], latest)
+
+    def test_route_event_identity_and_native_origin_cannot_be_reused(self):
+        mutations = [lambda m: m['full_input_evidence'][1]['consumer'].update(event_id='e7'),
+                     lambda m: m['full_input_evidence'][0]['consumer'].update(origin='host_queued'),
+                     lambda m: m['full_input_evidence'][0]['consumer'].update(consumer_pc=0x40123451),
+                     lambda m: m['events'][0].update(event_id='gpio-request')]
+        for mutate in mutations:
+            m = copy.deepcopy(self.manifest); mutate(m)
+            self.assertNotEqual(self.check(m)['status'], 'synthetic_checks_passed')
+
+    def test_clock_ids_reject_bool_and_float_even_when_run_clock_is_integer(self):
+        for location in ('request', 'consumer', 'capture'):
+            for invalid in (True, 1.0):
+                m = copy.deepcopy(self.manifest); m['run']['clock_id'] = 1
+                for event in m['events']: event['clock_id'] = 1
+                for route in m['full_input_evidence']:
+                    route['request']['clock_id'] = route['consumer']['clock_id'] = 1
+                self.assertEqual(self.check(m)['status'], 'synthetic_checks_passed')
+                target = m['events'][0] if location == 'capture' else m['full_input_evidence'][0][location]
+                target['clock_id'] = invalid
+                self.assert_rejected(m, 'schema')
+
+    def test_extra_full_edge_in_scoped_events_is_never_ignored(self):
+        m = copy.deepcopy(self.manifest)
+        m['events'].insert(7, dict(kind='gpio_input_set', seq=7, event_id='unbound-full',
+                                 clock_id='virtual-0', t_ns=35, levels=3))
+        for i, row in enumerate(m['events']): row['seq'] = i
+        self.assert_rejected(m, 'event_kind')
+
     def test_post_frame_at_trigger_tick_cannot_prove_post_trigger_time(self):
         m = copy.deepcopy(self.manifest)
         for position in (8, 9, 10):
             m['events'][position]['t_ns'] = 40
-        self.assert_rejected(m, 'post_time')
+        self.assert_rejected(m, 'ambiguous_trigger_interval')
 
     def test_full_consumer_address_requires_an_integer_observation(self):
         m = copy.deepcopy(self.manifest)
@@ -284,23 +445,27 @@ class PrecaptureTests(unittest.TestCase):
         self.assert_rejected(self.manifest, 'marker')
 
     def test_equal_virtual_tick_is_not_strictly_pre_trigger(self):
-        self.manifest['events'][6]['t_ns'] = 30
-        self.manifest['events'][7]['t_ns'] = 30
-        self.assert_rejected(self.manifest, 'pre_time')
+        self.manifest['events'][5]['t_ns'] = 35
+        self.manifest['events'][6]['t_ns'] = 35
+        self.assert_rejected(self.manifest, 'ambiguous_trigger_interval')
 
     def test_at_least_two_pre_and_one_post_are_not_relaxed(self):
         # Moving the FULL observation before the second enqueue cannot create
         # a second historical frame from a later timestamp.
         m = copy.deepcopy(self.manifest)
-        m['events'][7], m['events'][6] = m['events'][6], m['events'][7]
-        for i, e in enumerate(m['events']): e.update(seq=i, t_ns=i*10)
-        self.assert_rejected(m, 'queue_enqueue')
+        late = m['events'].pop(6); late['t_ns'] = 40; m['events'].insert(7, late)
+        for i, e in enumerate(m['events']): e['seq'] = i
+        self.assert_rejected(m, 'late_history_change')
 
     def test_complete_one_pre_or_no_post_trace_still_fails_minimum_count(self):
         m = copy.deepcopy(self.manifest)
         trigger = m['events'].pop(7)
         m['events'].pop(6)  # f2 is now a current frame, never a history enqueue.
         trigger['t_ns'] = 29
+        m['events'][4]['t_ns'] = 24
+        for route in m['full_input_evidence']: route['request']['t_ns'] = 25
+        m['full_input_evidence'][0]['consumer']['t_ns'] = 29
+        m['full_input_evidence'][1]['consumer']['t_ns'] = 28
         m['events'].insert(5, trigger)
         for index, event in enumerate(m['events']):
             event['seq'] = index

@@ -7,8 +7,9 @@ or write to a card. A passing unit test or ordinary single-shot decode is **not*
 evidence that Z8 RAW pre-capture works.
 
 The minimum accepted experiment contains two distinct retained frames whose DMA
-completed strictly before the original FULL-consumer event, plus at least one
-distinct frame whose DMA completed strictly after it. Retained frames must reach
+and FIFO enqueue both completed strictly before the earliest possible FULL input
+request on every declared enabled route, plus at least one distinct frame whose
+DMA completed strictly after all bound original FULL consumers. Retained frames must reach
 the original writer in FIFO order before current frames. Every scoped candidate
 DMA, submission, writer result and NVMe completion must be accounted for.
 
@@ -46,7 +47,9 @@ native acceptance. The CLI always uses the fixed `decode_rawpy` implementation.
 
 ## Manifest schema
 
-The required schema name is `z8-precapture-audit-v1`. All IDs must be bounded
+The required schema name is `z8-precapture-audit-v2`. A v1 manifest returns
+`incomplete` with `trigger_routes_upgrade_required`; choosing one consumer does
+not upgrade old evidence. All IDs must be bounded
 strings or nonnegative 32-bit integers; digests are lowercase SHA-256 strings.
 Numeric values are integers, not booleans or floating-point substitutes.
 
@@ -54,7 +57,7 @@ The following is a structural example, **not a runnable or accepted experiment**
 
 ```json
 {
-  "schema": "z8-precapture-audit-v1",
+  "schema": "z8-precapture-audit-v2",
   "run": {
     "run_id": "capture-01",
     "model": "Nikon Z8",
@@ -64,10 +67,17 @@ The following is a structural example, **not a runnable or accepted experiment**
     "stopped": true,
     "error": null,
     "full_consumer_pc": 0,
+    "full_action_id": "one-full-action",
+    "input_routes": ["gpio", "mcu_frame"],
+    "full_route_bindings": {
+      "gpio": {"consumer_pc": 0, "full_channel_id": 0},
+      "mcu_frame": {"consumer_pc": 0}
+    },
     "evidence_kind": "native_guest_capture"
   },
   "queue": {"capacity": 2},
   "frames": [],
+  "full_input_evidence": [],
   "events": [],
   "storage": {
     "kind": "guest_nvme_export",
@@ -84,6 +94,66 @@ consumer address must be nonzero and instruction-aligned, and the trigger event
 must name exactly that address. `stopped` must be the Boolean `true`, and `error`
 must be null. `evidence_kind=synthetic` is admitted only with an injected test
 decoder and never establishes native capture.
+
+### All enabled FULL routes and conservative timing
+
+`run.input_routes` must enumerate every enabled route in this bounded action,
+without duplicates. This version supports only `gpio` and `mcu_frame`. The keys
+of `run.full_route_bindings` must match that set. The GPIO binding names the
+original callback PC and the actual registered **FULL** channel ID, not the HALF
+ID or an arbitrary worker entry argument. MCU binding names the actual original
+key-consumer PC. Bindings and `full_action_id` come from the collector's retained
+original records and immutable input/source evidence.
+
+`full_input_evidence` contains exactly one object per enabled route:
+
+- `route_id` and `action_id` bind that route to `run.full_action_id`.
+- `request` has unique `event_id`, observed `clock_id` and integer `t_ns`,
+  `full_state=1`. MCU uses `kind=input_queued` and `expected_keys_hex` (exactly44
+  bytes, lowercase hex). GPIO uses `kind=gpio_input_set` and integer `levels`
+  in0..3, with FULL bit1 asserted.
+- `consumer` has a distinct unique `event_id`, the same `clock_id`, integer
+  `t_ns`, `request_event_id` binding its own request, `origin=original_firmware`,
+  `consumer_pc` matching its route binding, and Boolean `matched=true`.
+  MCU uses `kind=key_consumer`, Boolean `full_key_state=true`, and `keys_hex` and
+  `expected_hex` both identical to the request's full44-byte expectation; bit30
+  of its first little-endian word must be set. GPIO uses
+  `kind=gpio_input_callback`, integer `state=1`, and integer `channel_id` matching
+  the registered FULL channel. A label or `matched=true` alone is insufficient.
+
+Every route's request must be no later than its own consumer. The auditor derives
+`pre_cutoff_ns=min(request times)` and `post_cutoff_ns=max(consumer times)`;
+callers do not supply these bounds directly. Equal timestamps are allowed for
+different actual observations. The canonical `full_press_consumed` in `events`
+must identify one **latest** consumer by all of route ID, event ID, PC and time.
+If consumers tie, either tied consumer can be canonical, but their identities
+remain distinct; a timestamp alone never selects an event.
+
+The request time is a conservative lower bound, not a substitute for an observed
+consumer or a claim of unique trigger causality. It must be recorded no later
+than the input could affect guest execution. For the current paused input driver,
+GPIO is changed before the MCU frame is queued while guest CPUs remain paused;
+the collector must retain that ordering and clock/paused provenance. A timestamp
+collected after resuming execution cannot be relabeled as this lower bound. If
+the old run lacks enough evidence for the bound, leave it incomplete; do not
+invent request, channel, state or consumer observations to fill the schema.
+
+Both DMA and enqueue must be strictly before `pre_cutoff_ns`. The retained FIFO
+is frozen at that bound; a later enqueue or eviction is `incomplete` with
+`late_history_change`. DMA anywhere in the closed interval
+`[pre_cutoff_ns, post_cutoff_ns]` is `incomplete` with
+`ambiguous_trigger_interval`, regardless of a proposed history/current label.
+It cannot be silently removed from the frame list or independent counter scope.
+Current DMA must be strictly after `post_cutoff_ns`.
+
+This checks completeness of **declared routes with supplied original-record
+bindings**. It does not automatically discover a route omitted from an entirely
+fabricated `run.input_routes`, attest the collector, or identify the unique
+physical cause. Source logs/launch bindings and independent collector review are
+still necessary. A route remaining enabled in `run.input_routes` but missing
+evidence is incomplete; unknown, duplicate or disabled-route evidence is
+rejected. Additional input events in the scoped capture sequence are unsupported
+rather than ignored. Multiple FULL actions require a future explicit contract.
 
 ### Frame and producer
 
@@ -127,23 +197,24 @@ This audit does not itself unpack packed14 inputs.
 
 Every event needs `seq` (contiguous from zero), unique `event_id`, `kind`, `clock_id`
 and `t_ns`. Use one observed QEMU virtual nanosecond clock throughout. Host elapsed
-time, enqueue time and EXIF timestamps cannot substitute for original FULL
-consumption. Events must be nondecreasing in time; history DMA must be strictly
-earlier than FULL and current DMA strictly later. No events may follow `capture_end`.
+time and EXIF timestamps cannot substitute for original FULL consumption. Actual
+virtual-clock input requests only establish the conservative lower bound above.
+Events must be nondecreasing in time; history DMA/enqueue must precede the lower
+bound and current DMA must follow the upper bound. No events may follow `capture_end`.
 
 | `kind` | Additional required data / constraint |
 | --- | --- |
 | `dma_complete` | `frame_id`, `job_id`; exactly one completion per scoped frame |
-| `enqueue` | matching frame/job; before FULL, after DMA, no queue overflow |
+| `enqueue` | matching frame/job; strictly before earliest FULL request, after DMA, no queue overflow |
 | `evict` | matching oldest frame/job; `reason=capacity`; queue must have been full |
-| `full_press_consumed` | exactly once; `origin=original_firmware`, integer `consumer_pc` matching `run.full_consumer_pc` |
+| `full_press_consumed` | exactly once; `origin=original_firmware`, integer `consumer_pc` matching `run.full_consumer_pc`; `route_id`, event ID/PC/time bind an actual latest route consumer |
 | `submit` | matching frame/job; `role=history` or `current`; FIFO history first |
 | `writer_complete` | matching submitted frame/job, unique `file_id`, zero-based writer-assigned `output_index`, positive `bytes`, `origin=original_firmware` |
 | `nvme_write_complete` | actual card-byte `offset`, `length`, integer `status=0`; Boolean false is invalid |
 | `capture_end` | independent `dma_count`, `submit_count`, `writer_count`, `nvme_count` for this bounded capture scope |
 
 For a capacity-two trace without eviction, an example order is:
-`DMA A → enqueue A → DMA B → enqueue B → FULL → submit A → submit B → DMA C → submit C`.
+`DMA A → enqueue A → DMA B → enqueue B → earliest FULL request → all route consumers → submit A → submit B → DMA C → submit C`.
 The three original writer completions and actual successful card writes must then
 be covered before the final counters. DMA completion is only a timing boundary;
 this tool does not infer a physical exposure-start time or measured pre-capture

@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Audit a finite, time-marked native RAW pre-capture experiment.
 
-Schema z8-precapture-audit-v1 links all capture-candidate DMA events to jobs,
-FIFO history, original FULL consumption, writer-assigned file order, completed
+Schema z8-precapture-audit-v2 links all capture-candidate DMA events to jobs,
+FIFO history, every declared FULL input route, writer-assigned file order, completed
 NVMe byte ranges and a complete exported NEF catalog. Producer snapshots are
 little-endian uint16, including an explicit row stride. This is a consistency
 audit of supplied native evidence, not cryptographic camera attestation.
@@ -22,7 +22,7 @@ import sys
 
 import numpy as np
 
-SCHEMA = 'z8-precapture-audit-v1'
+SCHEMA = 'z8-precapture-audit-v2'
 MAX_SAMPLES = 64 * 1024 * 1024
 MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_EVENTS = 100000
@@ -170,10 +170,85 @@ def _frames(manifest, root):
     return result
 
 
+def _full_input_bounds(manifest, report):
+    """Conservative bounds, not discovery/attestation of undeclared routes."""
+    run = manifest['run']
+    clock_id = _identity(_need(run, 'clock_id'), 'run clock ID')
+    enabled = _list(_need(run, 'input_routes'), 'input_routes', 8)
+    allowed = {'gpio', 'mcu_frame'}
+    if (not enabled or any(type(r) is not str or r not in allowed for r in enabled)
+            or len(enabled) != len(set(enabled))):
+        raise AuditError('trigger_routes', 'Declare each enabled gpio/mcu_frame route exactly once')
+    bindings = _need(run, 'full_route_bindings')
+    if not isinstance(bindings, dict) or set(bindings) != set(enabled):
+        raise AuditError('trigger_routes', 'FULL consumer bindings must match every enabled route')
+    action = _identity(_need(run, 'full_action_id'), 'FULL action ID')
+    rows = _list(_need(manifest, 'full_input_evidence'), 'FULL route evidence', 8)
+    seen, event_ids, observations = set(), set(), []
+    for row in rows:
+        route = _need(row, 'route_id')
+        if type(route) is not str or route not in enabled or route in seen:
+            raise AuditError('trigger_routes', 'Unknown, disabled or duplicate FULL route evidence')
+        seen.add(route)
+        if _identity(_need(row, 'action_id'), 'route action ID') != action:
+            raise AuditError('trigger_binding', 'Route evidence belongs to a different FULL action')
+        request, consumed = _need(row, 'request'), _need(row, 'consumer')
+        ids, times = {}, {}
+        for name, event in (('request', request), ('consumer', consumed)):
+            eid = _identity(_need(event, 'event_id'), name + ' event ID')
+            if eid in event_ids:
+                raise AuditError('trigger_binding', 'FULL route event IDs must be unique')
+            event_ids.add(eid); ids[name] = eid
+            times[name] = _integer(_need(event, 't_ns'), name + ' t_ns')
+            if _identity(_need(event, 'clock_id'), 'input event clock ID') != clock_id:
+                raise AuditError('clock', 'FULL requests/consumers require the same observed virtual clock')
+        if times['request'] > times['consumer']:
+            raise AuditError('trigger_binding', 'FULL consumption precedes its bound input request')
+        if _identity(_need(consumed, 'request_event_id'), 'bound request ID') != ids['request']:
+            raise AuditError('trigger_binding', 'Consumer does not bind its own route request')
+        pc = _integer(_need(consumed, 'consumer_pc'), 'route consumer PC', 1)
+        bound_pc = _integer(_need(bindings[route], 'consumer_pc'), 'bound FULL consumer PC', 1)
+        if pc % 4 or pc != bound_pc:
+            raise AuditError('trigger_binding', 'Original route consumer PC differs from its binding')
+        if (_need(consumed, 'origin') != 'original_firmware' or _need(consumed, 'matched') is not True
+                or _integer(_need(request, 'full_state'), 'requested FULL state', 0, 1) != 1):
+            raise AuditError('trigger_state', 'Require matched original FULL assertion, not a label alone')
+        if route == 'mcu_frame':
+            expected = _need(request, 'expected_keys_hex')
+            if (_need(request, 'kind') != 'input_queued' or _need(consumed, 'kind') != 'key_consumer'
+                    or not isinstance(expected, str) or not re.fullmatch('[0-9a-f]{88}', expected)
+                    or not (int.from_bytes(bytes.fromhex(expected)[:4], 'little') & (1 << 30))
+                    or _need(consumed, 'expected_hex') != expected or _need(consumed, 'keys_hex') != expected
+                    or _need(consumed, 'full_key_state') is not True):
+                raise AuditError('trigger_state', 'MCU FULL requires the complete matching 44-byte key state')
+        else:
+            levels = _integer(_need(request, 'levels'), 'GPIO levels', 0, 3)
+            channel = _integer(_need(consumed, 'channel_id'), 'GPIO consumed channel ID', 0, 0xffffffff)
+            full_channel = _integer(_need(bindings[route], 'full_channel_id'), 'GPIO FULL binding', 0, 0xffffffff)
+            state = _integer(_need(consumed, 'state'), 'GPIO consumed state', 0, 1)
+            if (_need(request, 'kind') != 'gpio_input_set' or _need(consumed, 'kind') != 'gpio_input_callback'
+                    or not levels & 2 or channel != full_channel or state != 1):
+                raise AuditError('trigger_state', 'GPIO FULL requires the original bound FULL channel and asserted level')
+        observations.append(dict(route_id=route, request_event_id=ids['request'], request_ns=times['request'],
+                                 consumer_event_id=ids['consumer'], consumer_ns=times['consumer'], consumer_pc=pc))
+    if seen != set(enabled):
+        raise AuditError('trigger_routes_incomplete', 'An enabled FULL route lacks its request/consumer evidence', incomplete=True)
+    before = min(r['request_ns'] for r in observations)
+    after = max(r['consumer_ns'] for r in observations)
+    report['trigger_bounds'] = dict(pre_cutoff_ns=before, post_cutoff_ns=after, routes=observations,
+        action_id=action, clock_id=run['clock_id'], sole_trigger_verified=False,
+        scope='Complete declared routes only; strict pre-request FIFO and post-all-consumers bounds, not unique cause')
+    return before, after, observations
+
+
 def _trace(manifest, frames, report):
     run, events = manifest['run'], _list(_need(manifest, 'events'), 'events')
+    clock_id = _identity(_need(run, 'clock_id'), 'run clock ID')
     capacity = _integer(_need(_need(manifest, 'queue'), 'capacity'), 'queue capacity', 2, 4096)
     consumer = _integer(_need(run, 'full_consumer_pc'), 'original FULL consumer PC', 1)
+    pre_cutoff, post_cutoff, routes = _full_input_bounds(manifest, report)
+    route_events = {r[k] for r in routes for k in ('request_event_id', 'consumer_event_id')}
+    frozen_pre = None
     history, pre, post, submissions = [], [], [], []
     dma, entered, evicted, writers, nvme = {}, set(), set(), {}, []
     # Submission only transfers queue ownership. Without an independently
@@ -192,15 +267,21 @@ def _trace(manifest, frames, report):
         if (_integer(_need(event, 'seq'), 'event seq') != index or eid in ids
                 or tick < previous_time or end is not None):
             raise AuditError('event_order', 'Events must be complete, unique and monotonic')
-        if _need(event, 'clock_id') != run['clock_id']:
+        if _identity(_need(event, 'clock_id'), 'capture event clock ID') != clock_id:
             raise AuditError('clock', 'Mixed clock domains cannot establish pre-trigger time')
         ids.add(eid); previous_time = tick
+        if frozen_pre is None and tick >= pre_cutoff:
+            frozen_pre = list(history)
+        if kind != 'full_press_consumed' and eid in route_events:
+            raise AuditError('trigger_binding', 'Input event ID reused for a different capture event')
         fid = None
         if kind in {'dma_complete', 'enqueue', 'evict', 'submit', 'writer_complete'}:
             fid = _identity(_need(event, 'frame_id'), 'event frame_id')
             if fid not in frames or _identity(_need(event, 'job_id'), 'event job_id') != frames[fid]['job_id']:
                 raise AuditError('job_identity', 'Event does not identify the same observed frame/job')
         if kind == 'dma_complete':
+            if pre_cutoff <= tick <= post_cutoff:
+                raise AuditError('ambiguous_trigger_interval', 'DMA inside the FULL request/consumer interval cannot be pre or post', incomplete=True)
             if fid in dma:
                 raise AuditError('duplicate_dma', 'A frame has multiple producer completions')
             f = frames[fid]
@@ -215,10 +296,14 @@ def _trace(manifest, frames, report):
                     raise AuditError('post_time', 'Current DMA must complete strictly after FULL consumption')
                 post.append(fid)
         elif kind == 'enqueue':
+            if tick >= pre_cutoff:
+                raise AuditError('late_history_change', 'History DMA and FIFO retention must both precede every FULL request', incomplete=True)
             if trigger is not None or fid not in dma or fid in entered or len(history) >= capacity:
                 raise AuditError('queue_enqueue', 'Invalid history enqueue or missing capacity eviction')
             history.append(fid); entered.add(fid)
         elif kind == 'evict':
+            if tick >= pre_cutoff:
+                raise AuditError('late_history_change', 'Retained FIFO changed at/after the earliest FULL request', incomplete=True)
             if (trigger is not None or event.get('reason') != 'capacity' or len(history) != capacity
                     or not history or history[0] != fid):
                 raise AuditError('queue_eviction', 'Eviction must remove the oldest full-queue entry')
@@ -229,9 +314,14 @@ def _trace(manifest, frames, report):
                     or type(event.get('consumer_pc')) is not int
                     or event.get('consumer_pc') != consumer or consumer % 4):
                 raise AuditError('trigger', 'One original FULL-consumer observation is required')
-            trigger = tick; pre = list(history)
-            if any(dma[x] >= tick for x in pre):
-                raise AuditError('pre_time', 'History DMA must complete strictly before FULL consumption')
+            selected = [r for r in routes if r['route_id'] == event.get('route_id')
+                        and r['consumer_event_id'] == eid and r['consumer_pc'] == consumer
+                        and r['consumer_ns'] == tick == post_cutoff]
+            if len(selected) != 1:
+                raise AuditError('trigger_binding', 'Canonical FULL must name an actual latest consumer by route and event ID')
+            trigger = tick; pre = list(frozen_pre or [])
+            if history != pre or any(dma[x] >= pre_cutoff for x in pre):
+                raise AuditError('pre_time', 'History must remain the FIFO retained before the earliest FULL request')
             report['trigger'] = dict(event_id=eid, t_ns=tick, consumer_pc=consumer)
         elif kind == 'submit':
             if trigger is None or fid not in dma or fid in submissions:
@@ -398,7 +488,10 @@ def audit_manifest(manifest, base_dir, *, decoder=None):
                   provenance_scope='consistency of supplied native logs, producer snapshots and actual card byte extents')
     try:
         root = Path(base_dir).resolve()
-        if _need(manifest, 'schema') != SCHEMA:
+        schema = _need(manifest, 'schema')
+        if schema == 'z8-precapture-audit-v1':
+            raise AuditError('trigger_routes_upgrade_required', 'v1 lacks complete FULL route bounds; supply original request/consumer evidence for v2', incomplete=True)
+        if schema != SCHEMA:
             raise AuditError('schema', 'Unsupported audit manifest version')
         run = _need(manifest, 'run')
         report['run_id'] = _identity(_need(run, 'run_id'), 'run_id')
