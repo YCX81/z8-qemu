@@ -37,4 +37,8 @@
 python tests/test_z8_f04f_stop.py --qemu /path/to/qemu-system-aarch64 --output /path/to/new-results
 ```
 
-这一批目前完成源码、构建与合成事务测试。新的原固件对照仍须独立记录；06中的停止现场不能自动当作新停止模型的运行验收。
+## 原程序 HALF08 对照
+
+后续HALF08使用该不可变构建，保持HALF07的原UI、私有格式政策副本、资源输入和只读观察器，仅增加此开关及其QOM记录。它不是未修改MAIN的默认功能。原程序实际完成 `+0xc=f04f → +0x34=1f87d → group2 pending7e8dc00 → ISR W1C +0x21c → +0/+4 reset → 清hold → +0x14=f04f ACK`。最终requests/kicks/acks均为1，owned_mask=0；独立stop10等其它单元也由原流程处理。
+
+这轮96次原输入消费和返回全匹配，没有FULL；27个停止态getter成功，87个运行源文件及全部输入哈希不变，自有QEMU已退出。仍为零D980帧、零RAW输出和空历史队列。随后在半按释放后的mode2→slot3资源读取中遇到原索引下溢而停止；因此只验收了本控制事务，整轮拍摄/退出恢复及RAW预拍均未通过。具体异常见[运行对照](z8-raw-runtime.md)。
