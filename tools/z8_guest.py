@@ -17,6 +17,26 @@ from z8_properties import load_model_profile, verification_scope
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def media_arguments(image, firmware, *, create=False):
+    """Prepare an explicit independent NAND image; never create it here."""
+    if image is None:
+        if create:
+            raise ValueError('Creating media requires an explicit NAND image')
+        return []
+    image, firmware = Path(image).resolve(), Path(firmware).resolve()
+    if ',' in str(image) or '\x00' in str(image):
+        raise ValueError('NAND image path cannot contain a comma or NUL')
+    if image == firmware or (image.exists() and os.path.samefile(image, firmware)):
+        raise ValueError('NAND media must be independent from the original MAIN')
+    if create and image.exists():
+        raise FileExistsError('Refusing to create over an existing NAND image')
+    if not create and not image.is_file():
+        raise FileNotFoundError('NAND image does not exist; request creation explicitly')
+    if not image.parent.is_dir():
+        raise FileNotFoundError('NAND image parent directory does not exist')
+    return ['z8-nand-image=' + str(image)] + (['z8-nand-image-create=on'] if create else [])
+
+
 def validate_properties(properties):
     supported = {item.split('=', 1)[0] for item in load_model_profile()['properties']}
     seen = set()
@@ -33,13 +53,17 @@ def validate_properties(properties):
 
 
 class Guest(SharedOwner):
-    def __init__(self, firmware, binary, raw, out, *, properties, instruction_clock=True):
+    def __init__(self, firmware, binary, raw, out, *, properties, instruction_clock=True,
+                 nand_image=None, create_nand_image=False):
         if os.name == 'nt':
             raise ValueError('Use the selected Linux/WSL environment')
         profile = load_profile()
         self.firmware = Path(firmware).resolve()
         identity = validate_firmware(self.firmware, profile)
         properties = validate_properties(properties)
+        media = media_arguments(nand_image, self.firmware, create=create_nand_image)
+        if media and not {'bootstrap-fixtures=on', 'nand-fixture=on'} <= set(properties):
+            raise ValueError('Persistent NAND requires explicit bootstrap and NAND model')
         binary, raw = Path(binary).resolve(), Path(raw).resolve()
         binary_sha, raw_sha = sha(binary), sha(raw)
         if ',' in str(raw):
@@ -57,7 +81,7 @@ class Guest(SharedOwner):
         self.ram_mib = 1024
         self.accelerator = None
         self.intercept_irq = False
-        self.command = [str(binary), '-M', ','.join(['nikon-z8-bringup', *properties]),
+        self.command = [str(binary), '-M', ','.join(['nikon-z8-bringup', *properties, *media]),
                         '-kernel', str(self.firmware), '-accel', 'tcg,thread=single']
         if instruction_clock:
             self.command += ['-icount', 'shift=0,sleep=on']
@@ -78,6 +102,10 @@ class Guest(SharedOwner):
         self.data['runtime_profile'] = dict(instruction_clock=bool(instruction_clock),
                                             service_core_events='service-core-event-model=on' in properties,
                                             cycle_accurate=False, firmware_timeouts_changed=False)
+        if media:
+            self.data['persistent_nand'] = dict(path=str(Path(nand_image).resolve()),
+                                                create_requested=create_nand_image,
+                                                stock_settings_round_trip_verified=False)
         self.proc = self.qmp = self.qt = self.fp = self.gdb = None
         self.irq = {}
         self._log_offset = 0

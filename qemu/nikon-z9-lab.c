@@ -38,6 +38,7 @@
 #define Z9_NAND_PAGE (Z9_NAND_MAIN + Z9_NAND_SPARE)
 #define Z9_NAND_PPB 64u
 #define Z9_NAND_PAGES (2048u * Z9_NAND_PPB)
+#include "nikon-persistent-media.h"
 #define Z9_PATH_MAX_EDGES 32768u
 OBJECT_DECLARE_SIMPLE_TYPE(NikonZ9State, NIKON_Z9_LAB)
 
@@ -239,6 +240,7 @@ struct NikonZ9State {
     uint32_t nand_regs[0x2100 / 4];
     uint32_t nand_features[256];
     GHashTable *nand_pages;
+    NikonNandImage nand_image;
     uint64_t nand_operations;
     qemu_irq nand_irq;
     /* Original copied 44f21ec4 / 44f22120; opt-in functional NOR only.
@@ -2793,11 +2795,17 @@ static bool graphics_commit(NikonZ9State *s)
             /* Original 40226acc with segment/coordinate counts zero emits
              * exactly 5e5,A8,5ec,A8. Clear prior edges now, but do not queue
              * or finish a draw before its matching end and 46/4a commit.
+             * Z8 C3.11 40226bd8 branches to 40227a94 for zero segments
+             * without selecting a fill/stroke E program. A preceding glyph
+             * can therefore leave either validated program bound. Empty
+             * geometry contributes no coverage in graphics_render_path;
+             * retain the paint/control/program and transaction checks.
              * ZR 4022b214 branches directly from segment count <1 at
              * 4022b31c to 4022c1d4, emitting e73,A8,e85,A8 instead.
              * Nonempty inline streams remain unsupported. */
             if (g->inline_path_phase || !g->path_controls[0] ||
-                !(g->path_paint_valid & 1) || g->path_kind != 1 || !g->path_program) {
+                !(g->path_paint_valid & 1) ||
+                (g->path_kind != 1 && g->path_kind != 2) || !g->path_program) {
                 return false;
             }
             g->path_edge_count = 0;
@@ -6911,6 +6919,10 @@ static bool nand_transfer(NikonZ9State *s, uint32_t command, uint64_t *physical,
               MEMTXATTRS_UNSPECIFIED, buffer, *amount) != MEMTX_OK) {
         return false;
     }
+    if (!reading && s->nand_image.path) {
+        return nikon_nand_image_update(&s->nand_image, s->nand_pages, first,
+                                       count, offset, per_page, buffer, false);
+    }
     for (uint32_t n = 0; n < count; n++) {
         gpointer key = GUINT_TO_POINTER(first + n + 1);
         uint8_t *page = g_hash_table_lookup(s->nand_pages, key);
@@ -6957,7 +6969,10 @@ static bool nand_command(NikonZ9State *s, uint32_t command)
     } else if (op == 0x40001000) {
         uint32_t page = r[1];
         ok = page < Z9_NAND_PAGES && !(page % Z9_NAND_PPB);
-        if (ok) {
+        if (ok && s->nand_image.path) {
+            ok = nikon_nand_image_update(&s->nand_image, s->nand_pages, page,
+                                         Z9_NAND_PPB, 0, 0, NULL, true);
+        } else if (ok) {
             for (uint32_t n = page; n < page + Z9_NAND_PPB; n++) {
                 g_hash_table_remove(s->nand_pages, GUINT_TO_POINTER(n + 1));
             }
@@ -13230,6 +13245,14 @@ static void nikon_z9_init(MachineState *machine)
         error_report("nand-fixture requires bootstrap-fixtures=on");
         exit(1);
     }
+    if (s->nand_image.create && !s->nand_image.path) {
+        error_report("z8-nand-image-create requires z8-nand-image");
+        exit(1);
+    }
+    if (s->nand_image.path && (!s->nand_fixture || !s->bootstrap_fixtures)) {
+        error_report("z8-nand-image requires bootstrap-fixtures and nand-fixture");
+        exit(1);
+    }
     if (s->z8_sd_empty_fixture && !s->bootstrap_fixtures) {
         error_report("z8-sd-empty-fixture requires bootstrap-fixtures=on");
         exit(1);
@@ -13550,6 +13573,10 @@ static void nikon_z9_init(MachineState *machine)
     if (s->nand_fixture) {
         s->nand_pages = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
         nand_reset(s);
+        if (s->nand_image.path && !nikon_nand_image_open(&s->nand_image,
+                s->nand_pages, machine->kernel_filename, &error_fatal)) {
+            exit(1);
+        }
         fprintf(stderr, "Z9_FIXTURE NAND geometry: 2048+64 bytes/page, 64 pages/block, 2048 blocks; no camera flash contents\n");
     }
     for (unsigned ch = 0; ch < 8; ch++) {
@@ -13651,6 +13678,59 @@ static void set_z8_sd_empty_fixture(Object *obj, bool value, Error **errp)
 static void set_nand_fixture(Object *obj, bool value, Error **errp)
 {
     NIKON_Z9_LAB(obj)->nand_fixture = value;
+}
+
+static bool z8_nand_image_mutable(Object *obj, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (!object_dynamic_cast(obj, MACHINE_TYPE_NAME("nikon-z8-bringup")) ||
+        s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp, "z8-nand-image requires Z8 at machine creation");
+        return false;
+    }
+    return true;
+}
+
+static char *get_z8_nand_image(Object *obj, Error **errp)
+{
+    return g_strdup(NIKON_Z9_LAB(obj)->nand_image.path);
+}
+
+static void set_z8_nand_image(Object *obj, const char *value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (!z8_nand_image_mutable(obj, errp)) {
+        return;
+    }
+    if (!value || !g_path_is_absolute(value) || strlen(value) > 4096 ||
+        strpbrk(value, "\r\n")) {
+        error_setg(errp, "z8-nand-image requires an absolute independent media path");
+        return;
+    }
+    g_free(s->nand_image.path);
+    s->nand_image.path = g_strdup(value);
+}
+
+static bool get_z8_nand_image_create(Object *obj, Error **errp)
+{
+    return NIKON_Z9_LAB(obj)->nand_image.create;
+}
+
+static void set_z8_nand_image_create(Object *obj, bool value, Error **errp)
+{
+    if (z8_nand_image_mutable(obj, errp)) {
+        NIKON_Z9_LAB(obj)->nand_image.create = value;
+    }
+}
+
+static char *get_z8_nand_image_state(Object *obj, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    return g_strdup_printf("{\"enabled\":%s,\"loaded\":%s,\"pages\":%u,"
+        "\"commits\":%" PRIu64 ",\"failed_commits\":%" PRIu64 "}",
+        s->nand_image.path ? "true" : "false", s->nand_image.loaded ? "true" : "false",
+        s->nand_pages ? g_hash_table_size(s->nand_pages) : 0,
+        s->nand_image.commits, s->nand_image.failed_commits);
 }
 
 static bool get_nor_model(Object *obj, Error **errp)
@@ -14002,6 +14082,9 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_str(oc, "engine150d-readback-input", NULL, set_engine150d_readback_input);
     object_class_property_add_str(oc, "engine150d-readback-state", get_engine150d_readback_state, NULL);
     object_class_property_add_bool(oc, "nand-fixture", get_nand_fixture, set_nand_fixture);
+    object_class_property_add_str(oc, "z8-nand-image", get_z8_nand_image, set_z8_nand_image);
+    object_class_property_add_bool(oc, "z8-nand-image-create", get_z8_nand_image_create, set_z8_nand_image_create);
+    object_class_property_add_str(oc, "z8-nand-image-state", get_z8_nand_image_state, NULL);
     object_class_property_add_bool(oc, "zr-sd-empty-fixture", get_zr_sd_empty_fixture, set_zr_sd_empty_fixture);
     object_class_property_add_bool(oc, "z8-sd-empty-fixture", get_z8_sd_empty_fixture, set_z8_sd_empty_fixture);
     object_class_property_add_bool(oc, "zr-dsi-command-model", get_zr_dsi_command_model, set_zr_dsi_command_model);
@@ -14138,6 +14221,7 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
 static void nikon_z9_finalize(Object *obj)
 {
     NikonZ9State *s = NIKON_Z9_LAB(obj);
+    nikon_nand_image_close(&s->nand_image);
     g_clear_pointer(&s->nand_pages, g_hash_table_unref);
     g_clear_pointer(&s->serial_last_tx, g_free);
     g_free(s->statistics_raw_path);

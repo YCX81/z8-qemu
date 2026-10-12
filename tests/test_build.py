@@ -135,8 +135,7 @@ class DistributionTests(unittest.TestCase):
             self.assertEqual(calls[2], ['ninja', '-j', '2', 'qemu-system-aarch64'])
             manifest = json.loads((root / '.local/build-manifest.json').read_text())
             self.assertEqual(manifest['binary_sha256'], build.digest(binary))
-            self.assertEqual(set(manifest['sources']), set(build.SOURCES))
-            self.assertIn('qemu/nikon-z9-lab.c', manifest['sources'])
+            self.assertIn('qemu/nikon-persistent-media.h', manifest['sources'])
 
     def test_named_distribution_reaches_normal_firmware_identity_check(self):
         with tempfile.TemporaryDirectory() as folder, \

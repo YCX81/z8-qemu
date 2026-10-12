@@ -25,6 +25,7 @@ elif subprocess.run(command + ['--reverse', '--dry-run'], cwd=root,
 shutil.copyfile(here / 'nikon-z9-lab.c', root / 'hw/arm/nikon-z9-lab.c')
 shutil.copyfile(here / 'nikon-raw-pixels.h', root / 'hw/arm/nikon-raw-pixels.h')
 shutil.copyfile(here / 'nikon-z9-pixels.h', root / 'hw/arm/nikon-z9-pixels.h')
+shutil.copyfile(here / 'nikon-persistent-media.h', root / 'hw/arm/nikon-persistent-media.h')
 for filename, marker, addition in [
     ('hw/arm/Kconfig', 'config NIKON_Z9_LAB',
      '\nconfig NIKON_Z9_LAB\n    bool\n    depends on AARCH64\n    select ARM_GIC\n'),

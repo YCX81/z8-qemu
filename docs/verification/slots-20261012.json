@@ -1,0 +1,434 @@
+{
+  "schema": 1,
+  "date": "2026-10-12",
+  "scope": "local QEMU integration acceptance; no camera hardware",
+  "firmware": {
+    "model": "Nikon Z8",
+    "version": "C3.11",
+    "bytes": 81807709,
+    "sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853"
+  },
+  "qemu": {
+    "version": "10.2.4",
+    "sha256": "c93c2db8365916a5a9e804776471a94fa41d0ac3201b02522066ad66961f9c04"
+  },
+  "dependencies": {
+    "python": "3.12.3",
+    "numpy": "2.5.4",
+    "Pillow": "12.3.0",
+    "capstone": "5.0.9",
+    "unicorn": "2.1.4",
+    "keystone-engine": "0.9.2"
+  },
+  "inputs": {
+    "raw": "authored 640x480 RGGB/u16, 12-bit gradient color bars from tools/make_cmos.py",
+    "raw_sha256": "50f30107b952e0f0f2469f3546d8e485a311e0069de4eabdd7ccd127b773370d",
+    "np3": "authored0310 Flexible Color, make_flexible_np3(name, slot + bank*64)",
+    "real_cloud_files_tested": false
+  },
+  "source_sha256": {
+    "profiles/z8-c311-acceptance.json": "1cf09e6e25afa4c72dc42b1edd52f8cc826fa917b6f7b3ea6d29aeb9e363fafb",
+    "profiles/z8-c311-bindings.json": "b652eb7a1f318802bb623701a15e5e926cf81118536f7e6d9d71c2ba604d5df2",
+    "profiles/z8-c311.json": "f9c02a3965eaf182a618b5a0c5e8bf99518f7ce061a94c85c93f2ad0bdd421c1",
+    "profiles/z8-model-properties.json": "932b8967f7f05e659d11a940a49f651564866c33f9985b1cc2c09a6ac2abd615",
+    "qemu/arm-service-events.patch": "3b021d31feacb1b123432cdf1537041781f4a9fd3d70ea5159039ebb943a6874",
+    "qemu/nikon-persistent-media.h": "fc50ae4f4cf950d84a2ab61145156999bd15bcdb7d7363cf50f9ff20be98e51a",
+    "qemu/nikon-z9-lab.c": "a3ccdf48cfa1ed365b031c7aa67047127a2bbbb9eb6e119f511721edcd6adc48",
+    "qemu/prepare_source.py": "62e6a075443695ffeb6f35b7f828a48a42affcf238d1c6d434e1fe01b5652675",
+    "tools/z8_boot.py": "035cb9574723640b5177df852896638f22414486c659bb292ad87cc2b9a56d3e",
+    "tools/z8_bringup.py": "1c86aa9fc94fb86081c5ebc8a725eb647cb0a5802f8f4a30c1601d242da89b16",
+    "tools/z8_c10_acceptance.py": "e639ce2bc03857a115c4f8f2fbb36caa4930522a4ffedb1b5bc873a76d6f3cec",
+    "tools/z8_c10_gui.py": "7e260fce3240b25253128d2aa0928360656f04e6e23d5d6855b1cc08b5d642a6",
+    "tools/z8_c10_image.py": "5d1fd71b4a4ce58817028c5161e1096f70c0677d3d6c296e08ae1469b790f1cb",
+    "tools/z8_c10_media.py": "b556ecfa656a2c68f58b07107314e5a9a7a6124343807891b7dcd2674a8aec9c",
+    "tools/z8_c10_memory.py": "cd6e3618661375c84055a17e4d15a517bc7b7c9a7b3986670a767565012d2fe6",
+    "tools/z8_c10_menu_acceptance.py": "416ae96c7bc7b2a1f0335e831ccee5a82da8d2020b8bbe5f77d9900e0b8d6207",
+    "tools/z8_elf.py": "35669071449b33a872e9a95be6c01b7793454a273678f7e4ec8066e63559842e",
+    "tools/z8_guest.py": "ae486e7fc49d2c3ecd0cfdee1ad2af19d7ef061ace64ad19a835fea0c7b26ad4",
+    "tools/z8_native_call.py": "e0deb9e1128a236790bbddbb31f8e9f5c470e4dd36bd40678c11833f3079da8a",
+    "tools/z8_picture_control.py": "19091848176a0d95ed39bbe96932f9bb3f2a9c8b2b72bad1e07dfe5bd27ffd4d",
+    "tools/z8_picture_control_labels.py": "f2ac2177233bad709c1e0176efb1f3f2725b12a174550acbc4b2bd4fbf41ce27",
+    "tools/z8_picture_control_list.py": "b4d8dfbecd39c325f483dcb09c313adde689b77aa13199914aa88c7a94f00f20",
+    "tools/z8_picture_control_main_menu.py": "b347b30c2846becac60a0de8ccf3688de65303b417ae4005862203b499662084",
+    "tools/z8_picture_control_menu.py": "afa12fead8c9d4527b8a504c8ce6e070f776a803f8a451f110cebac946428af7",
+    "tools/z8_properties.py": "74a422e7e5510a7ed84fbdc5c6d84127b8fa5f924fee863c9e00b6286c07df40",
+    "tools/z8_resources.py": "fd18decfb59b1957474f01a6b04bdfc0ed103b1b3b41a55d078b41e69d715cb0",
+    "tools/z8_run.py": "5d72a667759a826bfa3e77fb72214c6797e312c5a976367a4d380624aa727559",
+    "tools/z8_slots_acceptance.py": "50c937fa200e677ea9aaa5497faec92ee5e8cc93fb790054ed0b61b2b4fe7953",
+    "tools/z8_slots_core.py": "ecea2a4a508bbeea6e76e00542d27dd96216eb6cd929daac5b1e0b05a725db50",
+    "tools/z8_slots_image.py": "91fa373f788f4db3e8a950ea3ca7bcaf0d5c3ef7f79215d25b5a97ee2861dbd2",
+    "tools/z8_slots_imenu.py": "846260961baa45d583eb8985b4075420cd0276c522cda10c8b3b7777eabcb800",
+    "tools/z8_slots_labels.py": "4cb72afc32d80b1012d9652d751bd42cac64716c43963717b317141af62107b2",
+    "tools/z8_slots_layout.py": "34cc5fa3ac45532ad278ee6f8eeffedb611ec607d60ff8902d8a969750e3a8c5",
+    "tools/z8_slots_main_menu.py": "c397446ffe25b7d2a491cdd99be7e3cd1a6f81d331455846cf1b8e476d71ec50",
+    "tools/z8_slots_mapping.py": "77d4f12f489a3e4606d7374912e5ed4fec42abfa8e009132a5f048a16e780843",
+    "tools/z8_slots_media.py": "83a994858b1e573aeb622ea4528d165d516edfc17fc15716e7289f4c3073405b",
+    "tools/z8_task_context.py": "a138f4ff26eacfac7aa1e3fb0642afbd10395a7aab2f47f426df8f03e95a1379"
+  },
+  "capacities": {
+    "32": {
+      "slots_per_photo_or_video": 32,
+      "records": 64,
+      "derived_main_sha256": "9b50ffc09775860392f79b64b45abfcd21e04708ecea9701f8eeb5a22356a9cb",
+      "loader_regions": [
+        {
+          "address": "0x45010000",
+          "bytes": 32768,
+          "sha256": "0d1959c8c1341490354286643274fae6fdf580fff653c89d78904f6e17ef2200"
+        },
+        {
+          "address": "0x45024000",
+          "bytes": 32768,
+          "sha256": "9d783c89a10fbcfcd1af46cac8b27f9ea3a172d4c3edd62f51efb9531bf25410"
+        },
+        {
+          "address": "0x45022000",
+          "bytes": 8192,
+          "sha256": "052dce5ea71037c567f98926d9cb17a8699d6f1de84d55260ad9c538afa061c7"
+        },
+        {
+          "address": "0x45018000",
+          "bytes": 32768,
+          "sha256": "cb8102c8b90eabae684ed8e526b83e464a16f77fe06ce6f5f9e99d813b721a78"
+        },
+        {
+          "address": "0x45020000",
+          "bytes": 8192,
+          "sha256": "0285bc6a84a551007faad1c9f22d9edc6b79b68844d8f3a35990f1cac748a1e2"
+        },
+        {
+          "address": "0xa1162b000",
+          "bytes": 1048576,
+          "sha256": "a86bc68e5f999521061672f44f3ce8c065ec0da2f2b8192dc66e995c8ba706e3"
+        }
+      ],
+      "source_recomposes_accepted_images": true,
+      "phases": {
+        "create": {
+          "passed": true,
+          "checks": 2272,
+          "native_calls": 105,
+          "verified_records": 64,
+          "slots": [
+            32,
+            32
+          ],
+          "sources": [
+            0,
+            0
+          ],
+          "selectors": [
+            4127,
+            4127
+          ],
+          "records_digest": "745aa72a953ec096e8ff5069fe9d84fb7c18a4a21495b4690cf111fbdc15c160",
+          "media_commits": 135,
+          "media_failed_commits": 0,
+          "input_unchanged": true,
+          "owned_qemu_stopped": true,
+          "gui_status": "native_selection_passed_visual_review_required",
+          "scanout_rgb_sha256": {
+            "00-menu": "eade74774105b43ae8aa550800f4854db6cc4288f55a6293f6fae9c5d31036e5",
+            "01-initial": "a3bbcb3529fd9b4e4f580fcd25d4549a62dd606e9286accf6a75c06e32718e8e",
+            "04-previous-focused": "9c94ecb59cb10f8c1d243777e2c8580304188eb78e484310f2c159032f961d4b",
+            "05-previous-summary": "55cdd982e8691e5345603b3c31ad876ce307ab94c66ce726630250676afa91de",
+            "06-highest-focused": "7c6591d487b6f892538a7d3f6594e964e1667b2fed46cde1c904c20ebc711c41",
+            "07-highest-summary": "0f3214fc61d053857f98aabbdf1f18aa011ebf7df7cfb869e336d9cf37b41efe",
+            "08-highest-reopened": "a3bbcb3529fd9b4e4f580fcd25d4549a62dd606e9286accf6a75c06e32718e8e"
+          }
+        },
+        "restore": {
+          "passed": true,
+          "checks": 2039,
+          "native_calls": 28,
+          "verified_records": 64,
+          "slots": [
+            32,
+            32
+          ],
+          "sources": [
+            0,
+            0
+          ],
+          "selectors": [
+            4127,
+            4127
+          ],
+          "records_digest": "745aa72a953ec096e8ff5069fe9d84fb7c18a4a21495b4690cf111fbdc15c160",
+          "media_commits": 5,
+          "media_failed_commits": 0,
+          "input_unchanged": true,
+          "owned_qemu_stopped": true,
+          "gui_status": "native_selection_passed_visual_review_required",
+          "scanout_rgb_sha256": {
+            "00-menu": "eade74774105b43ae8aa550800f4854db6cc4288f55a6293f6fae9c5d31036e5",
+            "01-initial": "a3bbcb3529fd9b4e4f580fcd25d4549a62dd606e9286accf6a75c06e32718e8e",
+            "04-previous-focused": "9c94ecb59cb10f8c1d243777e2c8580304188eb78e484310f2c159032f961d4b",
+            "05-previous-summary": "55cdd982e8691e5345603b3c31ad876ce307ab94c66ce726630250676afa91de",
+            "06-highest-focused": "7c6591d487b6f892538a7d3f6594e964e1667b2fed46cde1c904c20ebc711c41",
+            "07-highest-summary": "0f3214fc61d053857f98aabbdf1f18aa011ebf7df7cfb869e336d9cf37b41efe",
+            "08-highest-reopened": "a3bbcb3529fd9b4e4f580fcd25d4549a62dd606e9286accf6a75c06e32718e8e"
+          }
+        },
+        "video": {
+          "passed": true,
+          "checks": 2234,
+          "native_calls": 36,
+          "verified_records": 64,
+          "slots": [
+            32,
+            32
+          ],
+          "sources": [
+            0,
+            1
+          ],
+          "selectors": [
+            4127,
+            8223
+          ],
+          "records_digest": "745aa72a953ec096e8ff5069fe9d84fb7c18a4a21495b4690cf111fbdc15c160",
+          "media_commits": 5,
+          "media_failed_commits": 0,
+          "input_unchanged": true,
+          "owned_qemu_stopped": true,
+          "gui_status": "native_selection_passed_visual_review_required",
+          "scanout_rgb_sha256": {
+            "00-menu": "eade74774105b43ae8aa550800f4854db6cc4288f55a6293f6fae9c5d31036e5",
+            "01-initial": "decac7b442f9e0b418338982247432726a97b83ea21fef3a6fcfd7dfd6da37f1",
+            "02-highest-focused": "1ec992acf1c6df1f9f8a1f2a5df7d2e562ea87bcd04830c1dcf012e957b97e8c",
+            "03-independent-summary": "89585c1ca88c0f1d8db9b1e3f2b7dd9f3625c50b6055ac56b7905bcbfc37fdc6",
+            "04-previous-focused": "e58406bedc57f1add525e1899ae288f7c359de522bc48bfc4b7db2d5ff4213a5",
+            "05-previous-summary": "c03a064707139886c64ad482bb5dbd5234bb24835ba27c5663bbe0ad0f3c4d34",
+            "06-highest-focused": "0ce6606b2b816f630f6c518beb98393142ce49edfd3cd317f557a8041b88054c",
+            "07-highest-summary": "89585c1ca88c0f1d8db9b1e3f2b7dd9f3625c50b6055ac56b7905bcbfc37fdc6",
+            "08-highest-reopened": "43fedc55a69a6d179d2646e887fe565d7ed251a33e25a4b10cfe6dec8fce308c"
+          }
+        },
+        "video-cold": {
+          "passed": true,
+          "checks": 1928,
+          "native_calls": 23,
+          "verified_records": 64,
+          "slots": [
+            32,
+            32
+          ],
+          "sources": [
+            0,
+            1
+          ],
+          "selectors": [
+            4127,
+            8223
+          ],
+          "records_digest": "745aa72a953ec096e8ff5069fe9d84fb7c18a4a21495b4690cf111fbdc15c160",
+          "media_commits": 0,
+          "media_failed_commits": 0,
+          "input_unchanged": true,
+          "owned_qemu_stopped": true,
+          "gui_status": "native_selection_passed_visual_review_required",
+          "scanout_rgb_sha256": {
+            "00-menu": "eade74774105b43ae8aa550800f4854db6cc4288f55a6293f6fae9c5d31036e5",
+            "01-initial": "43fedc55a69a6d179d2646e887fe565d7ed251a33e25a4b10cfe6dec8fce308c",
+            "02-summary": "89585c1ca88c0f1d8db9b1e3f2b7dd9f3625c50b6055ac56b7905bcbfc37fdc6",
+            "03-reopened": "43fedc55a69a6d179d2646e887fe565d7ed251a33e25a4b10cfe6dec8fce308c"
+          }
+        }
+      },
+      "visual_review": {
+        "passed": true,
+        "scope": "C31/C32 photo and video labels, names, focus, summary and re-entry",
+        "format_conversion_pixels_unchanged": true,
+        "raw_gui_status_preserved": true
+      }
+    },
+    "64": {
+      "slots_per_photo_or_video": 64,
+      "records": 128,
+      "derived_main_sha256": "2720d48c54806d046a00f2b2519540438f50c0c7c8acd58849bdb5a37470c6b9",
+      "loader_regions": [
+        {
+          "address": "0x45010000",
+          "bytes": 32768,
+          "sha256": "87b87fd3480ff46e3532045f956fd13a978669d003f84b4cc1b78c8ebf4f3094"
+        },
+        {
+          "address": "0x45024000",
+          "bytes": 32768,
+          "sha256": "0a9fc7e2a3d08897b64c7127a78d57782b14698346a2dc0a834c3b7b3b670b71"
+        },
+        {
+          "address": "0x45022000",
+          "bytes": 8192,
+          "sha256": "bad9a3e57aaa5bebf23fcaa79b99d35eb27c3e3fcab4f0a0c519d3b5c675a35f"
+        },
+        {
+          "address": "0x45018000",
+          "bytes": 32768,
+          "sha256": "5407a8eef95f37df3fa80cdb75790c356eb2e0f5c5680ac070aed0e9f9af4dfe"
+        },
+        {
+          "address": "0x45020000",
+          "bytes": 8192,
+          "sha256": "0285bc6a84a551007faad1c9f22d9edc6b79b68844d8f3a35990f1cac748a1e2"
+        },
+        {
+          "address": "0xa1162b000",
+          "bytes": 1048576,
+          "sha256": "2323e3a93ee6064e19df440865d8992877cbbf5b3b582197768c4037c4b701ce"
+        }
+      ],
+      "source_recomposes_accepted_images": true,
+      "phases": {
+        "create": {
+          "passed": true,
+          "checks": 2592,
+          "native_calls": 169,
+          "verified_records": 128,
+          "slots": [
+            64,
+            64
+          ],
+          "sources": [
+            0,
+            0
+          ],
+          "selectors": [
+            4159,
+            4159
+          ],
+          "records_digest": "e9603e6347a2b178e5d670b6b272d65c124f352e91c5f2bc0286071a7121405e",
+          "media_commits": 135,
+          "media_failed_commits": 0,
+          "input_unchanged": true,
+          "owned_qemu_stopped": true,
+          "gui_status": "native_selection_passed_visual_review_required",
+          "scanout_rgb_sha256": {
+            "00-menu": "eade74774105b43ae8aa550800f4854db6cc4288f55a6293f6fae9c5d31036e5",
+            "01-initial": "c8dae18e0efb87bf44066242325ac8844d2d350e44cb88fd5112d14138e14a04",
+            "04-previous-focused": "68e48f3d68844e23942f61ac12ae23f29f661d1f30f8c9b4208d1083ba60e9f8",
+            "05-previous-summary": "d4266150bfa35d986f81c0ea504bed64d53783b357e681638296fdd8628f68e6",
+            "06-highest-focused": "151068d7f81dbf5d8d422fbf14dd10515927a042de40f0476ae27d505ab2ec80",
+            "07-highest-summary": "12147697bccc4410ffc55129d6ebae73dff92137dc4e9a8a3b01623c1ad39d0e",
+            "08-highest-reopened": "c8dae18e0efb87bf44066242325ac8844d2d350e44cb88fd5112d14138e14a04"
+          }
+        },
+        "restore": {
+          "passed": true,
+          "checks": 2177,
+          "native_calls": 28,
+          "verified_records": 128,
+          "slots": [
+            64,
+            64
+          ],
+          "sources": [
+            0,
+            0
+          ],
+          "selectors": [
+            4159,
+            4159
+          ],
+          "records_digest": "e9603e6347a2b178e5d670b6b272d65c124f352e91c5f2bc0286071a7121405e",
+          "media_commits": 5,
+          "media_failed_commits": 0,
+          "input_unchanged": true,
+          "owned_qemu_stopped": true,
+          "gui_status": "native_selection_passed_visual_review_required",
+          "scanout_rgb_sha256": {
+            "00-menu": "eade74774105b43ae8aa550800f4854db6cc4288f55a6293f6fae9c5d31036e5",
+            "01-initial": "c8dae18e0efb87bf44066242325ac8844d2d350e44cb88fd5112d14138e14a04",
+            "04-previous-focused": "68e48f3d68844e23942f61ac12ae23f29f661d1f30f8c9b4208d1083ba60e9f8",
+            "05-previous-summary": "d4266150bfa35d986f81c0ea504bed64d53783b357e681638296fdd8628f68e6",
+            "06-highest-focused": "151068d7f81dbf5d8d422fbf14dd10515927a042de40f0476ae27d505ab2ec80",
+            "07-highest-summary": "12147697bccc4410ffc55129d6ebae73dff92137dc4e9a8a3b01623c1ad39d0e",
+            "08-highest-reopened": "c8dae18e0efb87bf44066242325ac8844d2d350e44cb88fd5112d14138e14a04"
+          }
+        },
+        "video": {
+          "passed": true,
+          "checks": 2360,
+          "native_calls": 36,
+          "verified_records": 128,
+          "slots": [
+            64,
+            64
+          ],
+          "sources": [
+            0,
+            1
+          ],
+          "selectors": [
+            4159,
+            8255
+          ],
+          "records_digest": "e9603e6347a2b178e5d670b6b272d65c124f352e91c5f2bc0286071a7121405e",
+          "media_commits": 5,
+          "media_failed_commits": 0,
+          "input_unchanged": true,
+          "owned_qemu_stopped": true,
+          "gui_status": "native_selection_passed_visual_review_required",
+          "scanout_rgb_sha256": {
+            "00-menu": "eade74774105b43ae8aa550800f4854db6cc4288f55a6293f6fae9c5d31036e5",
+            "01-initial": "0368321e3126c2e039cddf16f0acb4b321bb11e589d0aa3b1d9e9d43f9cc9b18",
+            "02-highest-focused": "e022c29662b754afd00975a7327b1faf8d04b50ea4a292825d1354220f7fbe1c",
+            "03-independent-summary": "d1212d9842b4bdd58b91939245033b5d59718bfd3711eb6dd2365a98bff878e8",
+            "04-previous-focused": "f49b446fc7eb52631076d5668058ee39867afb5cd9b1d517101e8d8289725888",
+            "05-previous-summary": "ef77c703398471d36c577f3ee551f99bcbd888c505bdf0e9ccac5081f7794199",
+            "06-highest-focused": "7f14cfb35d8ca0b333b22d04efec373ceef3bee4993f89277579af8e22a10049",
+            "07-highest-summary": "d1212d9842b4bdd58b91939245033b5d59718bfd3711eb6dd2365a98bff878e8",
+            "08-highest-reopened": "4864c962161034ab4e78df0410c9304f3141070a528f2fb558309f4ce0a69491"
+          }
+        },
+        "video-cold": {
+          "passed": true,
+          "checks": 2061,
+          "native_calls": 23,
+          "verified_records": 128,
+          "slots": [
+            64,
+            64
+          ],
+          "sources": [
+            0,
+            1
+          ],
+          "selectors": [
+            4159,
+            8255
+          ],
+          "records_digest": "e9603e6347a2b178e5d670b6b272d65c124f352e91c5f2bc0286071a7121405e",
+          "media_commits": 0,
+          "media_failed_commits": 0,
+          "input_unchanged": true,
+          "owned_qemu_stopped": true,
+          "gui_status": "native_selection_passed_visual_review_required",
+          "scanout_rgb_sha256": {
+            "00-menu": "eade74774105b43ae8aa550800f4854db6cc4288f55a6293f6fae9c5d31036e5",
+            "01-initial": "4864c962161034ab4e78df0410c9304f3141070a528f2fb558309f4ce0a69491",
+            "02-summary": "d1212d9842b4bdd58b91939245033b5d59718bfd3711eb6dd2365a98bff878e8",
+            "03-reopened": "4864c962161034ab4e78df0410c9304f3141070a528f2fb558309f4ce0a69491"
+          }
+        }
+      },
+      "visual_review": {
+        "passed": true,
+        "scope": "C63/C64 photo and video labels, names, focus, summary and re-entry",
+        "format_conversion_pixels_unchanged": true,
+        "raw_gui_status_preserved": true
+      }
+    }
+  },
+  "boundaries": {
+    "physical_hardware_verified": false,
+    "real_cloud_compatibility_verified": false,
+    "final_photo_color_verified": false,
+    "grain_verified": false,
+    "raw_precapture_verified": false,
+    "upgrade_package_generated": false,
+    "original_ui_pixels_distributed": false,
+    "generated_firmware_or_media_distributed": false
+  }
+}

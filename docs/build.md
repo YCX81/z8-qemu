@@ -38,6 +38,17 @@ The tools neither create nor select a default WSL distribution and impose no
 personal distribution-name restrictions. Linux installations without WSL work
 normally; native Windows execution remains unsupported.
 
+CI caches only the fixed upstream archive and ccache compiler objects, never
+the QEMU build directory, completed emulator binaries, firmware or runtime
+artifacts. The archive must pass the same SHA-256 check after cache restore.
+Compiler-cache restoration and saving are restricted to pushes to `main`;
+pull-request builds do not read or write that cache. QEMU 10.2.4's configure
+accepts the `CC`/`CXX` environment and explicitly refreshes configure-test
+results through `CCACHE_RECACHE`; CI selects `ccache gcc`/`ccache g++` and still
+runs configure, Ninja and the firmware-free tests on each build. Cache contents
+do not substitute for those checks. CI installs both base and C10/C32 synthetic
+test dependencies; dependency downloads use finite retries and timeouts.
+
 Start with two build jobs if host memory is tight. Stop only the emulator
 process you own before replacing its binary. Do not kill unrelated workloads.
 The machine reserves several inferred guest RAM windows; resident memory and

@@ -2,7 +2,7 @@
 
 更新日期：2026-10-12。`profiles/z8-model-properties.json` 是 Z8 运行器的独立功能参数配置，按完整 MAIN SHA-256、长度、机型和版本绑定 C3.11。`tools/model-properties.json` 保留给共享 Z9 运行器。独立配置没有替换共享外设实现，也没有将继承的参数自动升级为 Z8 硬件事实。
 
-本次迁移保持原有 65 项功能参数的值和顺序，以及 Z8 运行器附加的空 SD 卡配置。`tools/z8_properties.py` 校验配置身份、参数类别覆盖和诊断输入边界；`z8_run.py` 与 `z8_guest.py` 通过它读取 Z8 配置。MCU 地址仍由 Z8 bindings 单独核验，不借用 Z9 的固件身份。
+本次迁移保持原有 65 项功能参数的值和顺序，以及 Z8 运行器附加的空 SD 卡配置。`tools/z8_properties.py` 校验配置身份、参数类别覆盖和诊断输入边界；`z8_run.py`、`z8_guest.py`、`z8_c10_acceptance.py` 均通过它读取 Z8 配置。MCU 地址仍由 Z8 bindings 单独核验，不借用 Z9 的固件身份。
 
 | 类别 | 来源与当前边界 |
 | --- | --- |

@@ -31,8 +31,35 @@ FILES.update({'profiles/z8-c311-bindings.json', 'tools/z8_boot.py', 'tools/z8_gu
 FILES.update({'profiles/z8-c311-acceptance.json','docs/z8-battery-resources.md',
               'tests/test_z8_cancellation.py'})
 FILES.update({'Start-Z8.ps1','Test-Z8.ps1','REA.ps1'})
+FILES.update({'requirements-c10.txt', 'docs/z8-c10.md',
+              'docs/z8-persistent-media.md', 'docs/z8-raw-precapture-chain.md',
+              'qemu/nikon-persistent-media.h', 'tools/z8_native_call.py',
+              'tools/z8_picture_control.py', 'tools/z8_picture_control_menu.py',
+              'tools/z8_picture_control_labels.py', 'tools/z8_c10_image.py',
+              'tools/z8_c10_media.py', 'tools/z8_c10_gui.py',
+              'tools/z8_c10_acceptance.py', 'tests/test_z8_native_call.py',
+              'tests/test_z8_picture_control.py', 'tests/test_z8_picture_control_menu.py',
+              'tests/test_z8_picture_control_labels.py', 'tests/test_z8_c10_image.py',
+              'tests/test_z8_c10_media.py', 'tests/test_z8_c10_gui.py',
+              'tests/test_z8_c10_acceptance.py', 'tests/test_z8_persistent_media.py'})
+FILES.update({'tools/z8_c10_memory.py', 'tests/test_z8_c10_memory.py'})
+FILES.update({'tools/z8_task_context.py', 'tests/test_z8_task_context.py',
+              'tools/z8_picture_control_list.py', 'tests/test_z8_picture_control_list.py',
+              'tests/test_z8_graphics_empty.py'})
+FILES.update({'tools/z8_picture_control_main_menu.py', 'tests/test_z8_picture_control_main_menu.py'})
+FILES.update({'tools/z8_c10_menu_acceptance.py', 'tests/test_z8_c10_menu_acceptance.py'})
 FILES.update({'tools/z8_properties.py', 'profiles/z8-model-properties.json',
-              'tests/test_z8_properties.py', 'docs/z8-parameters.md', 'tests/test_build.py'})
+              'tests/test_z8_properties.py', 'docs/z8-parameters.md'})
+FILES.update({'tests/test_build.py', 'docs/research-progress.md'})
+FILES.update({'docs/z8-raw-next.md', 'docs/verification/slots-20261012.json'})
+FILES.update({'docs/z8-c32.md', 'tools/z8_slots_acceptance.py',
+              'tools/z8_slots_core.py', 'tools/z8_slots_image.py',
+              'tools/z8_slots_imenu.py', 'tools/z8_slots_labels.py',
+              'tools/z8_slots_layout.py', 'tools/z8_slots_main_menu.py',
+              'tools/z8_slots_mapping.py', 'tools/z8_slots_media.py',
+              'tests/test_z8_slots_core.py', 'tests/test_z8_slots_gui.py',
+              'tests/test_z8_slots_image.py', 'tests/test_z8_slots_layout.py',
+              'tests/test_z8_slots_main_menu.py', 'tests/test_z8_slots_media.py'})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),

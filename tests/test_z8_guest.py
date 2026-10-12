@@ -13,6 +13,20 @@ import z8_guest
 
 
 class GuestIdentity(unittest.TestCase):
+    def test_media_arguments_require_separate_explicit_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder); firmware=root/'main.bin'; firmware.write_bytes(b'input')
+            image=root/'media.img'
+            with self.assertRaises(ValueError): z8_guest.media_arguments(None,firmware,create=True)
+            with self.assertRaises(FileNotFoundError): z8_guest.media_arguments(image,firmware)
+            with self.assertRaises(ValueError): z8_guest.media_arguments(firmware,firmware)
+            args=z8_guest.media_arguments(image,firmware,create=True)
+            self.assertIn('z8-nand-image-create=on',args)
+            self.assertFalse(image.exists())
+            image.write_bytes(b'opaque-existing-media')
+            self.assertNotIn('z8-nand-image-create=on',z8_guest.media_arguments(image,firmware))
+            with self.assertRaises(FileExistsError): z8_guest.media_arguments(image,firmware,create=True)
+
     def test_wrong_firmware_is_rejected_before_output_creation(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

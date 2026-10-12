@@ -8,6 +8,10 @@ jobs:
   synthetic-and-build:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.build/ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_MAXSIZE: 500M
     steps:
       - uses: actions/checkout@v4
         with:
@@ -17,14 +21,29 @@ jobs:
           python-version: '3.12'
       - name: Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential ninja-build patch pkg-config libglib2.0-dev libpixman-1-dev zlib1g-dev libfdt-dev
-          python -m pip install -r requirements.txt
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y build-essential ccache ninja-build patch pkg-config libglib2.0-dev libpixman-1-dev zlib1g-dev libfdt-dev
+          python -m pip install --retries 3 --timeout 30 -r requirements.txt -r requirements-c10.txt
       - name: Reviewed source and history
         run: python tools/audit_publication.py
       - name: Synthetic contracts
         run: sh tests/run.sh
+      - name: Cache pinned upstream archive
+        uses: actions/cache@v4
+        with:
+          path: .build/qemu-10.2.4.tar.xz
+          key: qemu-10.2.4-821b545b92f165e57dddccac5077d76d4d436a226595b8813ad59306bbfd0746
+      - name: Restore main compiler cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/restore@v4
+        with:
+          path: .build/ccache
+          key: ccache-v1-${{ runner.os }}-${{ runner.arch }}-qemu10.2.4-${{ hashFiles('tools/build.py', '.github/workflows/ci.yml') }}-${{ github.sha }}
+          restore-keys: ccache-v1-${{ runner.os }}-${{ runner.arch }}-qemu10.2.4-${{ hashFiles('tools/build.py', '.github/workflows/ci.yml') }}-
       - name: Build pinned QEMU overlay
+        env:
+          CC: ccache gcc
+          CXX: ccache g++
         run: python tools/build.py --jobs 2
       - name: Firmware-free realization
         run: python tools/smoke_qemu.py .build/build/qemu-system-aarch64
@@ -36,3 +55,9 @@ jobs:
           python tests/test_z8_storage_control.py --qemu .build/build/qemu-system-aarch64
       - name: Authored service-core event program
         run: python tools/check_service_events.py --qemu .build/build/qemu-system-aarch64 --output .local/service-events-ci
+      - name: Save main compiler cache after checks
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: .build/ccache
+          key: ccache-v1-${{ runner.os }}-${{ runner.arch }}-qemu10.2.4-${{ hashFiles('tools/build.py', '.github/workflows/ci.yml') }}-${{ github.sha }}
