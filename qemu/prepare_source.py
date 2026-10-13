@@ -44,6 +44,10 @@ for name in ('nvme-completion-trace.patch', 'nvme-audit-state.patch'):
 for overlay in here.glob('nikon-*'):
     if overlay.suffix in ('.c', '.h'):
         shutil.copyfile(overlay, root / 'hw/arm' / overlay.name)
+# QEMU 10.2.4's NVMe controller links spdm_socket_* helpers even when no
+# spdm_port is configured. NVME_PCI does not select the backend, so the
+# --without-default-devices build explicitly selects SPDM_SOCKET for linking.
+# This does not enable a Nikon authentication protocol or open a connection.
 for filename, marker, addition in [
     ('hw/arm/Kconfig', 'config NIKON_Z9_LAB',
      '\nconfig NIKON_Z9_LAB\n    bool\n    depends on AARCH64\n    select ARM_GIC\n    select PCI_EXPRESS_DESIGNWARE\n    select NVME_PCI\n    select SPDM_SOCKET\n'),

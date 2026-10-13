@@ -62,7 +62,8 @@ def extract(volume, name, output):
     result = dict(volume=str(volume), entry=row, output=str(output), bytes=length,
                   sha256=digest.hexdigest(), camera_image_decoded=False,
                   scope='actual initialized file bytes extracted read-only; no substituted data, codec or camera-file acceptance')
-    output.with_suffix(output.suffix+'.extraction.json').open('x').write(json.dumps(result, indent=2)+'\n')
+    with output.with_suffix(output.suffix+'.extraction.json').open('x', encoding='utf-8') as receipt:
+        receipt.write(json.dumps(result, indent=2)+'\n')
     return result
 
 

@@ -33,8 +33,8 @@ jobs:
         with:
           path: .build/qemu-10.2.4.tar.xz
           key: qemu-10.2.4-821b545b92f165e57dddccac5077d76d4d436a226595b8813ad59306bbfd0746
-      - name: Restore main compiler cache
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Restore compiler cache for main and PR checks
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         uses: actions/cache/restore@v4
         with:
           path: .build/ccache

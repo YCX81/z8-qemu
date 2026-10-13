@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 set -eu
 cd "$(dirname "$0")/.."
+# Discovery includes test_producer_journal_helpers.py: both C helpers at -O0 and -O2 -DNDEBUG.
 python3 -B -m unittest discover -s tests -v
 test_binary=$(mktemp)
 trap 'rm -f "$test_binary"' EXIT HUP INT TERM
