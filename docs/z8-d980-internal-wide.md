@@ -2,7 +2,7 @@
 
 # Exact wide internal D980 control candidate
 
-Status: isolated build and CPU-free QTest passed on the published generation-journal baseline. No Nikon program has run with this new option; no physical camera operation or RAW precapture acceptance.
+Status: isolated build and CPU-free QTest passed on the published generation-journal baseline. The subsequent HALF20 original-program run accepted the wide control configuration and reached the original C120 UI and sampled state2. Historical pixel retention and RAW precapture remain unverified; no physical camera operation occurred.
 
 The stopped HALF19 original-program observation reached `150c0064=ff00`, then `150c0008=ff00` at PC40c1fc58. Its28 submitted/latched D980 words were identical. Relative to the existing narrow internal profile, only+4,+8,+100 differ: `20580000`, `12500000`, `38a0`. These encode8280×4688 with pitch14496; height low16 is0. Remaining25 words include+118=3, bank0, four e0000000 FIFO addresses with zero high words and eight zero spare-slot words. This navigation attempt ended before the final C120 UI/HALF gate, so this configuration is not a C120 output acceptance.
 
@@ -16,4 +16,4 @@ The existing `z8-d980-internal-state` getter adds `wide_enabled`, admission-only
 
 `tests/test_z8_d980_wide_internal.py` runs real, CPU-free QTest using a four-byte inert image and synthetic pixels. All52 cases passed in normal and optimized Python modes; all32 impacted existing internal tests passed under optimized Python. A prior actual run against immutablea3b rejected the new tuple at150c0008, providing the negative control. Cases cover exact admission, opt-in/creation constraints, all28 one-word deviations, protected-state equality on rejection, active transitions, original cancellation/reset, and no D980 output/epoch. With the generation journal enabled, internal admission generated no output record; after original cancellation/reset, a real2048-byte ordinary RAM output had a matching journal hash. Parallel preview or unrelated original control-stop IRQs are separate from D980 image completion.
 
-The tested immutable binary SHA256 is0264b8cec6facccd05b2b6e585a4f0b23e05b885708c3f8b6e360910fc8d769d. Build/test receipts bind the actual model/test/support sources and binary before/after, and all owned QTest processes stopped. Original-program HALF20 remains a separate, pending experiment.
+The tested immutable binary SHA256 is0264b8cec6facccd05b2b6e585a4f0b23e05b885708c3f8b6e360910fc8d769d. Build/test receipts bind the actual model/test/support sources and binary before/after, and all owned QTest processes stopped. The separate [HALF20 original-program result](z8-raw-runtime.md) records zero D980/RAW output and an observer safeguard stopping the release path; it does not promote this control model to a pixel supplier.
