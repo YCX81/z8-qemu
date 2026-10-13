@@ -1,7 +1,7 @@
 # Building
 
-Use Linux with Python 3.12+, GCC/Clang, Ninja, patch, pkg-config, GLib, Pixman, zlib
-and libfdt development headers. Install the Python dependencies from
+Use Linux with Python 3.12+, GCC/Clang, Ninja, patch, pkg-config, GLib, Pixman,
+zlib, libfdt and libjpeg development headers. Install the Python dependencies from
 `requirements.txt` in a virtual environment. See the README for Ubuntu commands.
 
 `python tools/build.py --work-dir /your/linux/path --jobs 2` downloads only
@@ -34,15 +34,18 @@ wsl -d <your-distribution-name> --exec bash
 Replace the placeholder with an installed distribution that has the dependencies
 above. Enter your clone and run the Linux commands. Prefer a Linux filesystem
 path for `--work-dir` even when the clone is on a Windows-mounted drive.
-The tools neither create nor select a default WSL distribution and impose no
-personal distribution-name restrictions. Linux installations without WSL work
-normally; native Windows execution remains unsupported.
+The Python build tool neither creates nor selects a default WSL distribution
+and imposes no personal distribution-name restrictions. The Windows wrappers
+still select Ubuntu, and the separate virtual-card auditor retains an old
+distribution-name restriction; these portability gaps remain tracked. Linux
+installations without WSL work normally; native Windows execution remains unsupported.
 
 CI caches only the fixed upstream archive and ccache compiler objects, never
 the QEMU build directory, completed emulator binaries, firmware or runtime
 artifacts. The archive must pass the same SHA-256 check after cache restore.
-Compiler-cache restoration and saving are restricted to pushes to `main`;
-pull-request builds do not read or write that cache. QEMU 10.2.4's configure
+Compiler-cache restoration is enabled for main pushes and pull requests;
+saving is restricted to successful main pushes. Actual PR cache hits have not
+yet been verified. QEMU 10.2.4's configure
 accepts the `CC`/`CXX` environment and explicitly refreshes configure-test
 results through `CCACHE_RECACHE`; CI selects `ccache gcc`/`ccache g++` and still
 runs configure, Ninja and the firmware-free tests on each build. Cache contents

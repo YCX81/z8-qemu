@@ -4,11 +4,11 @@ An initial publication must start with reviewed Git history. Do not push a branc
 of the private research repository, even if its latest tree excludes binaries.
 Every reachable commit and staged blob belongs in the review.
 
-Included: original emulator/tool source, formulas, interface addresses/masks,
+Intended distribution: independently authored emulator/tool source, formulas, interface addresses/masks,
 sample-identification hashes, synthetic input generators, tests, documentation
 and required open-source license notices.
 
-Excluded: original or decrypted Nikon programs, firmware containers, camera
+Excluded payloads: original or decrypted Nikon programs, firmware containers, camera
 memory/flash dumps, keys, calibration images, extracted fonts/icons, copied
 program instruction arrays, private photos, original UI screenshots and
 runtime artifacts. Shader recognition uses hashes. The color knot coordinates
@@ -41,3 +41,35 @@ explanations, copied original bytes, and key-recovery descriptions separately.
 An allowlisted path or a research purpose does not settle all questions about
 the content. Do not attach raw firmware or private runtime material to document
 the residual. Record the path, field name and affected commit identity instead.
+
+## Derived MAIN recipes and instruction-level material
+
+The source tree publishes reusable firmware modification recipes in
+`z8_picture_control.py`, `z8_slots_core.py` and their image builders. Keystone
+assembles authored replacement code; the tools also read original instructions
+and tables from the user's identity-checked MAIN at runtime. A recipe is a
+separate publication category from an emulator model or an unmodified-program
+launch. It needs source, attribution and distribution review in its own right.
+
+Local derived MAIN, owned-region files and experiment patch receipts can contain
+original firmware bytes as well as replacements. They remain excluded artifacts.
+They are **not camera update files and must not be written to a camera**. No
+update-container generation, physical compatibility or device safety is verified.
+The absence of a flashing tool does not settle the publication questions.
+
+The current tree is not free of original instruction-level material. The
+2026-10-13 targeted review found 30 matching word guards in the writer observer:
+20 literal words and 10 branch encodings computed from addresses. A Picture
+Control prologue guard and associated test literals are further examples.
+See the [technical review](z8-public-review-20261013.md) for paths and scope;
+that review does not reproduce the bytes and is not an exhaustive provenance
+or legal assessment. This finding is separate from the older 32-byte profile
+prefix in Git history. The intended exclusions above are not a claim that all
+existing or historical content already complies with them.
+
+Pending work: replace embedded original-word guards with reads from the locally
+supplied, fully identity-checked MAIN; retain address/span/mapping validation and
+test negative cases before changing runtime admission. Review tests, recipes,
+instruction explanations, key-recovery documentation and historical residuals
+separately. Do not relabel a manifest refresh as completion of that review.
+No history rewrite or force-push is included in this work.

@@ -1,6 +1,6 @@
 # Z8 参数来源与验收边界
 
-更新日期：2026-10-12。`profiles/z8-model-properties.json` 是 Z8 运行器的独立功能参数配置，按完整 MAIN SHA-256、长度、机型和版本绑定 C3.11。`tools/model-properties.json` 保留给共享 Z9 运行器。独立配置没有替换共享外设实现，也没有将继承的参数自动升级为 Z8 硬件事实。
+更新日期：2026-10-13。`profiles/z8-model-properties.json` 是 Z8 运行器的独立功能参数配置，按完整 MAIN SHA-256、长度、机型和版本绑定 C3.11。`tools/model-properties.json` 保留给共享 Z9 运行器。独立配置没有替换共享外设实现，也没有将继承的参数自动升级为 Z8 硬件事实。
 
 本次迁移保持原有 65 项功能参数的值和顺序，以及 Z8 运行器附加的空 SD 卡配置。`tools/z8_properties.py` 校验配置身份、参数类别覆盖和诊断输入边界；`z8_run.py`、`z8_guest.py`、`z8_c10_acceptance.py` 均通过它读取 Z8 配置。MCU 地址仍由 Z8 bindings 单独核验，不借用 Z9 的固件身份。
 
@@ -18,6 +18,8 @@
 JSON 中每一个功能参数都归入且仅归入一个类别，各类分别记录 `source`、`assumptions` 和 `physical_hardware_verified:false`。这些类别是当前实现的来源清单，不是参数逐项物理验收清单。资源附件中的电池采样与阈值另见 [Z8 实施记录](z8-status.md)及[电池资源来源](z8-battery-resources.md)。
 
 外部 `BoundaryPeer` 的参数是 `period_ms=33`，表示 QEMU 虚拟时间下的诊断投递间隔，不是 33 fps。它保留共享类的丢弃错过周期、禁止补发突发等行为，不是测得的 CMOS 时钟，也不证明 RAW 预拍速度或 Z8 物理时序。运行结果单独记录 `z8_diagnostic_boundary`。
+
+拍摄阶段追加的时序1200、slot15/slot8、内部FIFO和模拟像素输入，统一见[实验假设与反例](z8-experiment-assumptions.md)。清单区分程序实际请求、外部数值选择及模型行为，尚未做的移除对照明确留空。
 
 ## 身份与分层证据
 

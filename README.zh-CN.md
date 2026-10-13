@@ -6,7 +6,7 @@
 
 **辅助启动下的原厂菜单、模拟取景及普通触发后 NEF 已有本地 QEMU 验收记录；RAW 预拍摄仍未完成。** 本项目是实验性模拟器，不是可安装到相机的固件，不会连接或刷写实体相机。
 
-以下状态汇总截至源码提交 `a7cab1c` 的仓库文档与收据。本次文档更新没有重跑固件、验证当前二进制或测试实体硬件；历史结果只适用于记录的输入、源码与二进制。详细研究文档多数为中文，完整进度见[功能 TODO](docs/TODO.md)与[实施记录](docs/z8-status.md)。
+以下状态于2026-10-13按源码快照 `a97f5df` 及已记录的HALF20结果统一核对。本次文档更新没有重跑固件、验证当前二进制或测试实体硬件；历史结果只适用于记录的输入、源码与二进制。详细研究文档多数为中文，完整进度见[功能 TODO](docs/TODO.md)与[实施记录](docs/z8-status.md)。
 
 ## 当前成果与边界
 
@@ -16,12 +16,12 @@
 | C32/C64 优化校准槽位 | 照片、视频各32槽及各64槽分别通过四阶段验收：导入、原生选择、guest NAND 保存与新进程恢复。 | 显式实验使用派生 MAIN 和主动原厂函数调用。真实尼康云创文件、最终色彩输出及实体相机未验；64是已测试容量，不是硬件上限。 |
 | 普通 NEF | C11/C12 导出一张 80,790,528 字节 NEF。LibRaw 解码全部 45,705,600 个 RAW 样本，与实际 producer RAM 零差异；完整 packed 字节一致，三个内嵌 JPEG 可解码。C12 使用公开 CLI 配方。 | 仅一帧触发后周期流，单帧传感器模型请求仍为零。不代表预拍，也不证明真实传感器或 ISP 还原。 |
 | 原厂 writer 关联 | C16 将原文件对象、ID/路径、九次写入、最终长度、cleanup、返回及结果回写关联至导出 NEF；文件范围有 NVMe 写入完成覆盖。 | C16 使用私有观察器；公开观察器接入有合成测试，尚无等价公开运行验收。完整缓冲寿命、原生分配代次及实体介质持久化未验。 |
-| RAW 预拍研究 | 内部启动、F04F 停止和 C0 停止诊断分别提供默认关闭选项。HALF15–17 观察到预览供应、FSM 动作和任务消费；HALF19 解除指定 slot8 selector 下溢。 | HALF19 在新的 8280×4688 内部 FIFO 配置严格准入处停止，尚未到最终半按/C120验收。没有可验收历史 RAW 帧或历史 NEF；mode2→slot3 等资源缺项仍保留。 |
+| RAW 预拍研究 | HALF20在显式资源与wide控制模型下进入原C120/PRE画面、getter4及state2/handler3。 | D980/RAW输出为零，没有可验收历史RAW/NEF。释放期间因诊断器跨域同时命中停止，未出现原固件异常或未知MMIO。HALF21仅准备中。 |
 | producer 代次记录 | 默认关闭，记录实际 D980→151 NV16/RAW→1540 RAM 输出的完整 SHA-256、虚拟时间、模型写入代次和父帧关系。已记录七项无固件真实 QTest 与八项辅助测试通过。 | 64条元数据不是64帧像素缓存。原 latest-source 限制保留；CPU/其它 DMA 写入、原生所有权和历史保留未验。 |
 
 数值收据：[槽位验收](docs/verification/slots-20261012.json)、[普通 NEF / C12 / C16](docs/verification/raw-single-20261012.json)。NVMe 完成不能单独证明 NEF 验收或介质持久化；文件导出、解码与 RAM 比对是独立检查。
 
-RAW 预拍验收至少需要**两帧不同的触发前保留帧和一帧拍后帧**，以同一虚拟钟上全部已验证原厂 FULL 消费者为时间边界，闭合队列、缓冲寿命、文件集合与完整像素证据。增加预览计数或导出重复帧不足以验收。详见[运行对照](docs/z8-raw-runtime.md)与[多帧审核器](docs/z8-precapture-audit.md)。
+RAW 预拍验收至少需要**两帧不同的触发前保留帧和一帧拍后帧**，触发前帧的DMA及入队须早于所有启用路线的最早FULL请求，拍后帧DMA须晚于最晚的已验证原厂FULL消费者，全部使用同一虚拟钟，并闭合队列、缓冲寿命、文件集合与完整像素证据。增加预览计数或导出重复帧不足以验收。详见[运行对照](docs/z8-raw-runtime.md)与[多帧审核器](docs/z8-precapture-audit.md)。
 
 Open Gate 视频、AF 增强、尼康云创在线接入、完整胶片模拟、照片 Log、RED Log3G10/R3D NE 和机内全景仍未实现或未验收，详见 [TODO](docs/TODO.md)。原厂视频 N-Log 不计为项目新增功能，录像仿真仍未验收。
 
@@ -42,9 +42,15 @@ Windows 包装脚本要求用户自行将兼容 MAIN 放在 `.local/firmware/z8-
 
 原始输入只读。槽位扩容与格式政策实验使用单独标识的派生程序，不能将结果记为未修改固件的默认启动成果。固件、密钥、派生镜像、内存快照、截图和运行材料留在本地。详见[发布边界与已知历史残留](docs/publication.md)。
 
+## 派生固件实验
+
+槽位生成器公开了可复用的A64补丁配方，并不只是模拟器参数。它生成另行标识的本地MAIN，区别于原程序启动。派生MAIN、owned-region镜像和补丁收据可能含有从用户固件读取的原内容，属于本地实验材料，**不是相机更新文件，不得写入相机**；未提供重打包或实体设备验证。
+
+当前树仍有源自原程序的小段指令守卫和测试literal，移除旧入口前缀并没有清除全部此类内容。详见[发布分类与待审项](docs/publication.md)、[来源及复现技术复核](docs/z8-public-review-20261013.md)、[实验输入与反例清单](docs/z8-experiment-assumptions.md)。清单审计通过不等于来源或法律审查通过。
+
 ## 构建与测试
 
-使用 Linux / WSL、Python 3.12+ 及[构建说明](docs/build.md)所列依赖：GCC/Clang、Ninja、patch、pkg-config，以及 GLib、Pixman、zlib、libfdt 开发头文件。拍摄实验另需 libjpeg 开发头文件、exfatprogs 和 `requirements-capture.txt`；槽位实验使用 `requirements-c10.txt`。
+使用 Linux / WSL、Python 3.12+ 及[构建说明](docs/build.md)所列依赖：GCC/Clang、Ninja、patch、pkg-config，以及 GLib、Pixman、zlib、libfdt、libjpeg 开发头文件。拍摄实验另需 exfatprogs 和 `requirements-capture.txt`；槽位实验使用 `requirements-c10.txt`。
 
 在 Linux / WSL 的仓库目录执行：
 

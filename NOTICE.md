@@ -7,9 +7,12 @@ their applicable source notices. Nikon has not sponsored, endorsed or supplied
 this project. Nikon, Z8 and Z9 identify interoperability targets; their owners
 retain their rights.
 
-We respect Nikon's rights and do not publish its private code. This repository
-distributes original emulator/tool source and the accompanying open-source
-license notices. Users provide their own compatible local firmware. A source
+The intended publication boundary excludes proprietary firmware programs. This
+repository distributes emulator/tool source, experimental patch recipes and
+open-source license notices. Known instruction-level guards in the current tree
+and the older profile-prefix residual are disclosed in docs/publication.md;
+this is not a claim that all current or historical content is cleared.
+Users provide their own compatible local firmware. A source
 license here does not grant rights to Nikon firmware or other third-party
 material. Firmware-derived local files are excluded from publication. The
 publication script checks inventory, hashes and selected content patterns; a

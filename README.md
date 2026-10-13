@@ -6,7 +6,7 @@ Documentation updated: **2026-10-13**. This workspace ports Nikon Z8 C3.11 to th
 
 **Assisted original-firmware menus, synthetic live view and an ordinary post-trigger NEF have recorded local QEMU acceptance. RAW pre-release capture remains incomplete.** This is an experimental emulator, not camera-installable firmware. It does not connect to or flash a physical camera.
 
-The status below summarizes checked-in documentation and receipts through source commit `a7cab1c`. This documentation update did not rerun firmware, verify the current binary or test physical hardware. Historical results belong to their recorded inputs, sources and binaries. Detailed research notes are mostly in Chinese; see the [feature TODO](docs/TODO.md) and [implementation record](docs/z8-status.md).
+The status below was reconciled against source snapshot `a97f5df` and the recorded HALF20 results on 2026-10-13. This documentation update did not rerun firmware, verify the current binary or test physical hardware. Historical results belong to their recorded inputs, sources and binaries. Detailed research notes are mostly in Chinese; see the [feature TODO](docs/TODO.md) and [implementation record](docs/z8-status.md).
 
 ## Current results and limits
 
@@ -16,12 +16,12 @@ The status below summarizes checked-in documentation and receipts through source
 | C32/C64 Picture Control slots | Separate four-stage acceptance for 32 and 64 photo slots plus 32 and 64 video slots: import, native selection, guest NAND save and new-process recovery. | Explicit experiment using a derived MAIN and active firmware calls. Real Nikon Imaging Cloud files, final color output and camera hardware are unverified. 64 is the tested capacity, not a hardware limit. |
 | Ordinary NEF | C11/C12 exported one 80,790,528-byte NEF. LibRaw decoded all 45,705,600 RAW samples with zero differences against actual producer RAM; packed bytes matched and three embedded JPEGs decoded. C12 used the public CLI recipe. | One post-trigger frame from the periodic stream model; single-frame sensor-model requests remained zero. Not pre-release capture or sensor/ISP fidelity evidence. |
 | Native writer binding | C16 associated the native file object, ID/path, nine writes, final length, cleanup, return and result store with the exported NEF; its file ranges were covered by completed NVMe writes. | C16 used a private observer. Public observer integration has synthetic tests, without equivalent public runtime acceptance. Complete buffer lifetime, native allocation generation and physical-media durability remain unverified. |
-| RAW pre-release research | Internal-start, F04F stop and C0 stop diagnostics are separate default-off options. HALF15–17 observed preview supply, FSM actions and task consumption; HALF19 resolved the specified slot8 selector underflow. | HALF19 stopped at strict admission of a new 8280×4688 internal FIFO configuration, before final half-press/C120 acceptance. No accepted historical RAW frames or historical NEFs. Other resource gaps, including mode2→slot3, remain. |
+| RAW pre-release research | HALF20 reached the native C120/PRE display, getter4 and state2/handler3 with explicit resources and the opt-in wide control model. | Zero D980/RAW output and no accepted historical frames/NEFs. The release interval stopped on a diagnostic cross-domain hit, without a firmware exception or unknown MMIO. HALF21 is preparation only. |
 | Producer generation journal | Default-off metadata for actual D980→151 NV16/RAW→1540 RAM output: full SHA-256, virtual time, model write generations and parent lineage. Seven firmware-free QTests and eight helper tests were recorded as passing. | The 64-record journal is not a 64-frame pixel cache. Latest-source restrictions remain; CPU/other DMA writes, native ownership and historical retention are unverified. |
 
 Receipts: [slot acceptance](docs/verification/slots-20261012.json) and [ordinary NEF / C12 / C16](docs/verification/raw-single-20261012.json). NVMe completion alone does not establish NEF acceptance or media durability; file export, decoding and RAM comparisons are separate checks.
 
-RAW pre-release acceptance requires at least **two distinct retained pre-trigger frames and one post-trigger frame**, ordered against all verified native FULL consumers on the same virtual clock, with complete queue, buffer-lifetime, file-set and full-pixel evidence. Increasing preview counts or exporting repeated frames is insufficient. See [runtime comparisons](docs/z8-raw-runtime.md) and the [multi-frame auditor](docs/z8-precapture-audit.md).
+RAW pre-release acceptance requires at least **two distinct retained pre-trigger frames and one post-trigger frame**, with pre-trigger DMA and enqueue before the earliest FULL request across every enabled route, and post-trigger DMA after the latest verified native FULL consumer on the same virtual clock. Complete queue, buffer-lifetime, file-set and full-pixel evidence is required. Increasing preview counts or exporting repeated frames is insufficient. See [runtime comparisons](docs/z8-raw-runtime.md) and the [multi-frame auditor](docs/z8-precapture-audit.md).
 
 Open Gate video, AF enhancements, online Nikon Imaging Cloud integration, complete film simulation, photo Log, RED Log3G10/R3D NE and in-camera panorama remain unimplemented or unaccepted; see [TODO](docs/TODO.md). Native video N-Log is not a new project feature. Video recording emulation remains unverified.
 
@@ -42,9 +42,15 @@ Supply a compatible local MAIN at `.local/firmware/z8-c311-main.bin` for the Win
 
 Original input is read-only. Slot-expansion and format-policy experiments use separately identified derived programs; their results do not describe the unmodified default launch. Firmware, keys, derived images, dumps, screenshots and runtime artifacts stay local. See the [publication boundary and known history residual](docs/publication.md).
 
+## Derived firmware experiments
+
+The slot generators publish reusable A64 patch recipes, not just emulator settings. They create a separately identified local MAIN; this is different from the original-program launch. Generated MAIN, owned-region images and patch receipts may contain material copied from the user's firmware. They are local experiment artifacts, **not camera update files, and must not be written to a camera**. No repacking or physical-device validation is provided.
+
+The current tree also contains small instruction guards and test literals derived from the original program; the earlier entry-prefix removal did not remove all such material. See the [publication categories and remaining review](docs/publication.md), [technical source/reproduction review](docs/z8-public-review-20261013.md) and [experiment assumptions with counterfactuals](docs/z8-experiment-assumptions.md). Passing the inventory audit is not provenance or legal clearance.
+
 ## Build and test
 
-Use Linux / WSL, Python 3.12+ and the dependencies in [build instructions](docs/build.md): GCC/Clang, Ninja, patch, pkg-config, GLib, Pixman, zlib and libfdt development headers. Capture work additionally needs libjpeg development headers, exfatprogs and `requirements-capture.txt`; slot experiments use `requirements-c10.txt`.
+Use Linux / WSL, Python 3.12+ and the dependencies in [build instructions](docs/build.md): GCC/Clang, Ninja, patch, pkg-config, GLib, Pixman, zlib, libfdt and libjpeg development headers. Capture work additionally needs exfatprogs and `requirements-capture.txt`; slot experiments use `requirements-c10.txt`.
 
 From the repository directory in Linux / WSL:
 
