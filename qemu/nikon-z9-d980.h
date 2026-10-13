@@ -156,8 +156,16 @@ static bool primary_d980_receive(NikonZ9State *s, bool single_input)
         unknown_access(s, 0x150d9920, encoded, 4, true);
         return false;
     }
+    NJOutput journal_output = producer_journal_output(NJ_D980,
+        s->primary_d980_latched[0] == 1 ? NJ_PACKED14 : NJ_PACKED12,
+        physical, bytes, w, h, pitch, s->primary_d980_frames + 1,
+        s->primary_d980_frames + 1, s->sensor_tag_model);
+    NJToken journal_token;
+    nj_begin(&s->producer_journal, &journal_token, &journal_output, 1,
+             (NJParent){0}, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
     if (address_space_write(&address_space_memory, physical, MEMTXATTRS_UNSPECIFIED,
                             s->primary_d980_cache, bytes) != MEMTX_OK) {
+        producer_journal_finish(s, &journal_token, false);
         s->primary_d980_rejects++;
         unknown_access(s, 0x150d9920, encoded, 4, true);
         return false;
@@ -166,6 +174,7 @@ static bool primary_d980_receive(NikonZ9State *s, bool single_input)
     s->primary_d980_bytes += bytes;
     s->primary_d980_last_encoded = encoded;
     s->primary_d980_last_physical = physical;
+    producer_journal_finish(s, &journal_token, true);
     if (s->sensor_tag_model) {
         g_free(s->sensor_tag_sha256);
         s->sensor_tag_sha256 = g_compute_checksum_for_data(G_CHECKSUM_SHA256,
