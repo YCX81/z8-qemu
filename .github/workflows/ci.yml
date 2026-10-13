@@ -47,6 +47,8 @@ jobs:
         run: python tools/build.py --jobs 2
       - name: Bounded producer journal real transactions
         run: python tests/test_z8_producer_journal.py --qemu .build/build/qemu-system-aarch64 --output .local/producer-journal-ci
+      - name: Exact wide internal control transactions
+        run: python -O tests/test_z8_d980_wide_internal.py --qemu .build/build/qemu-system-aarch64 --output .local/d980-wide-ci
       - name: Firmware-free realization
         run: python tools/smoke_qemu.py .build/build/qemu-system-aarch64
       - name: Z8 registration and strict unknown access

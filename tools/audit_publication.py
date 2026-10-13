@@ -101,6 +101,7 @@ FILES.update({'docs/z8-producer-journal.md', 'qemu/nikon-producer-journal.h',
               'qemu/nikon-producer-journal-qemu.h', 'tests/test_producer_journal.c',
               'tests/test_producer_journal_adapter.c', 'tests/test_producer_journal_helpers.py',
               'tests/test_producer_journal_contract.py', 'tests/test_z8_producer_journal.py'})
+FILES.update({'docs/z8-d980-internal-wide.md', 'tests/test_z8_d980_wide_internal.py'})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),

@@ -3,9 +3,22 @@
  * Packed12 little-endian pairs and CFA-cell resampling are explicit lab
  * assumptions. Native format2/stride values alone do not prove the physical
  * wire packing, optical margins or actual sensor precision. */
-/* Exact Z8 observed internal-port configuration, not an image producer.
- * In particular height low16=2 and control118=3 are NOT RAM packing modes.
+/* Exact Z8 observed internal-port configurations, not an image producer.
+ * Height low16=2/0 and control118=3 are NOT inferred RAM packing modes.
  * These scalar MMIO observations do not recover ROI or sensor calibration. */
+static bool z8_d980_internal_wide_profile(NikonZ9State *s, const uint32_t *c)
+{
+    /* HALF19: same25 other words, exactly8280x4688, height low16=0.
+     * This path stopped before final C120 UI/HALF validation. */
+    static const uint32_t observed[] = {
+        1, 0x20580000, 0x12500000, 0, 14496, 1, 1, 0, 1, 0, 3, 0,
+        0xe0000000, 0, 0xe0000000, 0, 0xe0000000, 0, 0xe0000000, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+    };
+    return s->z8_d980_internal_model && s->z8_d980_internal_wide_model &&
+        !memcmp(c, observed, sizeof(observed));
+}
+
 static bool z8_d980_internal_profile(NikonZ9State *s, const uint32_t *c)
 {
     static const uint32_t observed[] = {
@@ -13,7 +26,8 @@ static bool z8_d980_internal_profile(NikonZ9State *s, const uint32_t *c)
         0xe0000000, 0, 0xe0000000, 0, 0xe0000000, 0, 0xe0000000, 0,
         0, 0, 0, 0, 0, 0, 0, 0,
     };
-    return s->z8_d980_internal_model && !memcmp(c, observed, sizeof(observed));
+    return (s->z8_d980_internal_model && !memcmp(c, observed, sizeof(observed))) ||
+        z8_d980_internal_wide_profile(s, c);
 }
 
 static bool primary_d980_description(NikonZ9State *s, const uint32_t *c,
