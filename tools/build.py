@@ -21,6 +21,18 @@ SOURCES = ['qemu/nikon-z9-lab.c','qemu/nikon-z9-pixels.h','qemu/nikon-raw-pixels
 SOURCES.append('qemu/arm-service-events.patch')
 SOURCES.append('qemu/nikon-persistent-media.h')
 SOURCES.append('qemu/nikon-sensor-tag.h')
+SOURCES.append('qemu/nikon-buffer-ownership.h')
+SOURCES.append('qemu/nikon-expeed-lossless.h')
+SOURCES.extend(('qemu/nikon-z8-hlg-pixels.h', 'qemu/nikon-z8-hlg-capture.h'))
+SOURCES.extend(('qemu/nikon-z8-heif-menu-stop.h', 'qemu/nikon-z8-heif-menu-stop-qemu.h'))
+SOURCES.extend(('qemu/nikon-z8-1534-reference.h', 'qemu/nikon-z8-1534-reference-qemu.h'))
+SOURCES.extend(('qemu/nikon-z8-hlg-pipeline-profile.h',
+                'qemu/nikon-z8-hlg-pipeline-pixels.h', 'qemu/nikon-z8-hlg-pipeline.h'))
+SOURCES.extend(('qemu/nikon-z8-hlg-thumbnail-pixels.h', 'qemu/nikon-z8-hlg-thumbnail.h'))
+SOURCES.extend(('qemu/nikon-z8-still-hevc.h', 'qemu/nikon-z8-still-hevc-qemu.h'))
+SOURCES.append('qemu/nikon-z8-still-hevc-profile.h')
+SOURCES.extend(('qemu/nikon-z8-still-hevc-pixels.h', 'qemu/nikon-z8-hevc-sps.h',
+                'qemu/nikon-z8-still-hevc-codec.h', 'qemu/nikon-z8-still-hevc-backend.h'))
 SOURCES.extend(['qemu/nikon-producer-journal.h','qemu/nikon-producer-journal-qemu.h'])
 SOURCES.append('qemu/designware-dma.patch')
 SOURCES.append('qemu/nvme-completion-trace.patch')
@@ -83,6 +95,7 @@ def main():
     p.add_argument('--jobs',type=int,default=4)
     a = p.parse_args()
     if os.name == 'nt': p.error('Build in Linux or an explicitly selected WSL distribution')
+    x265_version = subprocess.check_output(['pkg-config', '--modversion', 'x265'], text=True).strip()
     if not 1 <= a.jobs <= 64: p.error('--jobs must be 1..64')
     work = a.work_dir.resolve()
     work.mkdir(parents=True,exist_ok=True)
@@ -108,6 +121,7 @@ def main():
     subprocess.run(['ninja','-j',str(a.jobs),'qemu-system-aarch64'],cwd=build,check=True)
     binary = build/'qemu-system-aarch64'
     manifest = dict(qemu_version=VERSION,upstream_archive_sha256=SHA256,binary=str(binary),binary_sha256=digest(binary),sources={name:digest(ROOT/name) for name in SOURCES},configure=options)
+    manifest['x265_pkg_config_version'] = x265_version
     destination = ROOT/'.local/build-manifest.json'
     destination.parent.mkdir(exist_ok=True)
     destination.write_text(json.dumps(manifest,indent=2),encoding='utf-8')

@@ -149,6 +149,10 @@ static bool primary_d980_receive(NikonZ9State *s, bool single_input)
         unknown_access(s, 0x150d9800, s->primary_d980_latched[0], 4, true);
         return false;
     }
+    if (!nb_writable(&s->output_owner,(NBSpan){physical,(uint64_t)pitch*h})) {
+        s->primary_d980_rejects++;
+        unknown_access(s,0x150d9920,encoded,4,true); return false;
+    }
     if (!s->primary_d980_cache || w != s->primary_d980_cache_width ||
         h != s->primary_d980_cache_height || pitch != s->primary_d980_cache_stride || s->primary_d980_latched[0] != s->primary_d980_cache_format) {
         g_free(s->primary_d980_cache);
@@ -169,6 +173,11 @@ static bool primary_d980_receive(NikonZ9State *s, bool single_input)
         s->primary_d980_rejects++;
         unknown_access(s, 0x150d9920, encoded, 4, true);
         return false;
+    }
+    /* Marker copy is an explicit external input option, before actual DMA. */
+    if(s->sensor_visible_tag_model && !nikon_sensor_tag_visible_copy(s->primary_d980_cache,
+        bytes,w,h,pitch,s->primary_d980_latched[0]==1?14:12,s->primary_d980_frames+1)) {
+        s->primary_d980_rejects++;unknown_access(s,0x150d9920,encoded,4,true);return false;
     }
     NJOutput journal_output = producer_journal_output(NJ_D980,
         s->primary_d980_latched[0] == 1 ? NJ_PACKED14 : NJ_PACKED12,

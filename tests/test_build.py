@@ -125,16 +125,19 @@ class DistributionTests(unittest.TestCase):
                     binary.write_bytes(b'authored non-executable stand-in')
             with patch.object(build, 'ROOT', root), \
                     patch.object(build, 'SHA256', build.digest(supplied)), \
+                    patch.object(build.subprocess, 'check_output', return_value='3.5\n') as dependency, \
                     patch.object(build.subprocess, 'run', side_effect=pretend_command), \
                     patch.object(build.urllib.request, 'urlopen') as network, \
                     patch.object(sys, 'argv', ['build.py', '--work-dir', str(work),
                                                '--archive', str(supplied), '--jobs', '2']):
                 build.main()
             network.assert_not_called()
+            dependency.assert_called_once_with(['pkg-config', '--modversion', 'x265'], text=True)
             self.assertEqual(calls[0][0], 'python3')
             self.assertEqual(calls[2], ['ninja', '-j', '2', 'qemu-system-aarch64'])
             manifest = json.loads((root / '.local/build-manifest.json').read_text())
             self.assertEqual(manifest['binary_sha256'], build.digest(binary))
+            self.assertEqual(manifest['x265_pkg_config_version'], '3.5')
             self.assertIn('qemu/nikon-persistent-media.h', manifest['sources'])
 
     def test_named_distribution_reaches_normal_firmware_identity_check(self):

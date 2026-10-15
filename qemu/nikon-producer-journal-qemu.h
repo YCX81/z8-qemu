@@ -107,7 +107,7 @@ static char *get_producer_generation_journal_state(Object *obj, Error **errp)
     NikonZ9State *s = NIKON_Z9_LAB(obj);
     NJournal *j = &s->producer_journal;
     static const char *kinds[] = {"none", "d980_ram", "151_nv16", "151_raw", "1540_raw_copy"};
-    static const char *formats[] = {"none", "packed12le", "packed14le", "NV16_Y_UV"};
+    static const char *formats[] = {"none", "packed12le", "packed14le", "NV16_Y_UV", "nikon-f0-lossless14"};
     static const char *states[] = {"no_monitored_overlap_since_completion",
         "overwritten_by_monitored_write", "reset_barrier", "coverage_unknown"};
     GString *o = g_string_new(NULL);

@@ -1,7 +1,8 @@
 # Building
 
 Use Linux with Python 3.12+, GCC/Clang, Ninja, patch, pkg-config, GLib, Pixman,
-zlib, libfdt and libjpeg development headers. Install the Python dependencies from
+zlib, libfdt, libjpeg and libx265 development headers (the still HEVC experiment
+uses the public 10-bit API, checked at runtime). Install the Python dependencies from
 `requirements.txt` in a virtual environment. See the README for Ubuntu commands.
 
 `python tools/build.py --work-dir /your/linux/path --jobs 2` downloads only

@@ -22,6 +22,10 @@ from z8_capture_bindings import load_bindings as capture_bindings, read_gpio_bin
 from z8_capture_readiness import capture as capture_readiness
 import z8_nvme_evidence
 import z8_capture_resources
+import z8_still_hevc_observer
+import z8_capture_recovery
+import z8_153_fault
+import z8_heif_rearm
 import z8_writer_integration
 from z8_writer_integration import WriterSession, RESERVED, without_reserved
 
@@ -91,10 +95,94 @@ def ordinary_work_idle(raw, jpeg, events, baseline):
     returned = [e for e in events if e['seq'] >= baseline['event_start']
                 and e['kind'] == 'file_writer_return']
     return bool(raw.get('jobs', 0) > baseline['raw_jobs'] and not raw.get('pending', True)
-        and raw.get('acks') == raw.get('jobs') and jpeg.get('jobs', 0) >= baseline['jpeg_jobs'] + 3
+        and type(raw.get('acks')) is int and raw['acks'] >= raw.get('jobs',0)
+        and jpeg.get('jobs', 0) >= baseline['jpeg_jobs'] + 3
         and not jpeg.get('requested', True) and not jpeg.get('pending', 1)
         and not jpeg.get('core', 1) and jpeg.get('acks') == jpeg.get('core_acks') == jpeg.get('jobs')
         and returned and all(int(e['registers']['X00'], 16) & 0xffffffff == 0 for e in returned))
+
+
+FIRST_FAULT_STATES = (
+    'runtime-clock-state', 'primary-d980-state', 'engine151-state',
+    'engine1518-state', 'engine151-control-state', 'engine151-capture-pixels-state',
+    'engine151-raw-output-state', 'z8-capture-hlg-pixels-state', 'z8-capture-hlg-pipeline-state',
+    'engine1542-state', 'engine1543-control-state',
+    'engine1542-ram-input-control-state', 'z8-capture-hlg-thumbnail-state',
+    'capture-nv16-pipeline-state', 'engine15e2-config-state', 'engine15e2-jpeg-state',
+    'engine15e2-preflight-state', 'z8-still-hevc-state',
+    'z8-still-hevc-codec-state',
+)
+
+def heif_menu_stop_states(g):
+    props=g.data.get('capture_device_hypotheses',{}).get('properties',[])
+    return ['engine150c-state','z8-heif-menu-stop-state'] if 'z8-heif-menu-stop-model=on' in props else []
+
+def heif_1534_states(g):
+    props=g.data.get('capture_device_hypotheses',{}).get('properties',[])
+    return [*z8_153_fault.STATES,'z8-heif-1534-state'] if 'z8-heif-1534-inplace-model=on' in props else []
+
+def record_gate_launch(g):
+    """Opt-in host receipt after resource attachment/Popen, before guest boot."""
+    if not getattr(g,'_heif_native_rearm_gate',False):return
+    argv=g.proc.args
+    if (not isinstance(argv,(list,tuple)) or not 1<=len(argv)<=512 or
+        any(not isinstance(a,str) for a in argv) or sum(len(a.encode()) for a in argv)>64*1024):
+        raise ValueError('Owned QEMU argv must be a bounded string vector')
+    g.data['qemu_launch']=dict(argv=list(argv),guest_state_modified=False,
+        scope='Owned Popen args after final resource attachment, before boot; no QOM/RAM access or execution change')
+
+
+def capture_first_fault(g, failure):
+    """Read-only QOM collection at the existing strict stop, before cleanup.
+
+    Never resumes, changes properties or replaces a first
+    receipt. Unsupported getters are independent errors, not a reason to lose
+    the remaining register state. The caller retains the original exception.
+    The explicit HEVC observer may also read its bounded current globals.
+    """
+    if failure is None or 'Unmodeled hardware access' not in str(failure):
+        return
+    path = g.out/'first-fault-state.json'
+    if path.exists():
+        return
+    row = dict(failure=repr(failure), device_states={}, errors={}, first_unknown=None,
+               scope='Read-only QOM at existing strict stop; no execution changes')
+    try:
+        with (g.out/'stderr.log').open(encoding='utf-8', errors='replace') as stream:
+            row['first_unknown'] = next((line.strip() for line in stream if 'Z9_UNKNOWN' in line), None)
+    except OSError as error:
+        row['log_error'] = repr(error)
+    for name in (*FIRST_FAULT_STATES,*heif_menu_stop_states(g),*heif_1534_states(g)):
+        try:
+            row['device_states'][name] = state(g, name)
+        except Exception as error:
+            row['errors'][name] = repr(error)
+    if getattr(g, '_still_hevc_observer_enabled', False):
+        row['cpu_registers'] = {}
+        row['scope'] += '; opt-in four-CPU register text'
+        for cpu in range(4):
+            try:
+                row['cpu_registers'][str(cpu)] = g.qmp.hmp('info registers', cpu)
+            except Exception as error:
+                row['errors'][f'cpu{cpu}'] = repr(error)
+        observer=getattr(g,'_still_hevc_observer',None)
+        if observer is not None:
+            row['still_hevc_globals']=observer.fault()
+            row['scope']+='; bounded opt-in current HEVC globals'
+            for name,error in row['still_hevc_globals']['errors'].items():
+                row['errors']['hevc-global-'+name]=error
+    if getattr(g,'_still_153_observer_enabled',False):
+        try:
+            snap=z8_153_fault.capture(g,row['first_unknown'],row.get('cpu_registers'))
+            if snap is not None:
+                row['engine153_snapshot']=dict(file='153-fault/state.json',collection_complete=snap['collection_complete'])
+        except Exception as error:
+            row['errors']['engine153_snapshot']=repr(error)
+    row['collection_complete'] = not row['errors']
+    with path.open('x', encoding='utf-8') as stream:
+        json.dump(row, stream, indent=2); stream.write('\n')
+    g.data['capture_trace']['first_fault_snapshot'] = dict(
+        file=path.name, collection_complete=row['collection_complete'])
 
 
 def finalize_trace(g, peer, budget, failure=None):
@@ -106,6 +194,10 @@ def finalize_trace(g, peer, budget, failure=None):
         g.qmp.command('stop')
     except Exception as error:
         errors.append(dict(stage='stop', error=repr(error)))
+    try:
+        capture_first_fault(g, failure)
+    except Exception as error:
+        errors.append(dict(stage='first_fault_snapshot', error=repr(error)))
     if peer is not None and getattr(peer, 'writer_session', None) is not None:
         try:
             writer = peer.writer_session.close(reason='probe finally', failure=failure)
@@ -122,6 +214,13 @@ def finalize_trace(g, peer, budget, failure=None):
         except Exception as error:
             errors.append(dict(stage='nvme_evidence', error=repr(error)))
     names = ['runtime-clock-state', 'raw-pipeline-state', 'engine1548-scanout-state']
+    names += heif_menu_stop_states(g)
+    names += heif_1534_states(g)
+    if getattr(g, '_still_hevc_observer_enabled', False):
+        # Successful HIF writes have no first fault. Preserve the same read-only
+        # producer/codec receipts at normal shutdown under the opt-in observer.
+        names += ['z8-capture-hlg-pixels-state', 'z8-capture-hlg-pipeline-state',
+                  'z8-capture-hlg-thumbnail-state', 'z8-still-hevc-state', 'z8-still-hevc-codec-state']
     if g.data.get('capture_device_hypotheses'):
         names += ['primary-d980-state', 'engine151-raw-output-state', 'engine15e2-jpeg-state', 'capture-gpio-state',
                   'ccomp-gpio-state', 'primary-d980-single-frame-state', 'primary-d980-source-notify-state',
@@ -150,12 +249,23 @@ def finalize_trace(g, peer, budget, failure=None):
 
 
 def contact_sequence(args):
+    shots=getattr(args,'heif_shots',1)
+    menu_cycle=getattr(args,'heif_intershot_menu_cycle',False)
+    menu_exit=getattr(args,'heif_menu_exit_key','half')
+    native_gate=getattr(args,'heif_native_rearm_gate',False)
+    if menu_exit not in ('half','menu') or ((native_gate or menu_exit!='half') and not menu_cycle):
+        raise ValueError('Native rearm gate and MENU exit key require the explicit intershot menu cycle')
+    if shots not in (1,2) or (shots==2 and (args.menu_only or args.wait_capture_work or args.settle>10 or
+        not all(getattr(args,k,False) for k in ('still_hevc_observer','tagged_input','capture_pixels')))):
+        raise ValueError('Two HEIF shots require observer, tagged input, pixel capture, settle<=10 and no menu-only/RAW-work wait')
+    if menu_cycle and (shots!=2 or not getattr(args,'capture_recovery_observer',False)):
+        raise ValueError('Intershot menu experiment requires two shots and read-only recovery observer')
     contacts = []
     for label, half in (('wake-half', True), ('wake-release', False)):
         contacts.append(dict(label=label, body=shutter_body(half, False),
             expected=expected_keys(half, False), gap=1_000_000_000, half=half, full=False))
     actions = args.menu_actions.split(',') if args.menu_actions else []
-    if len(actions) > 64 or (args.menu_only and args.wait_capture_work):
+    if len(actions)+int(menu_cycle)*(1+int(menu_exit=='menu')) > 64 or (args.menu_only and args.wait_capture_work):
         raise ValueError('Use at most 64 menu actions; image-work waiting requires a shutter sequence')
     for action in actions:
         body, expected = navigation_contact(action)
@@ -170,12 +280,45 @@ def contact_sequence(args):
                 expected=expected_keys(half, False), gap=1_000_000_000, half=half, full=False))
     shutter_start = len(contacts)
     if not args.menu_only:
-        for label, half, full in [('release', False, False), ('half', True, False), ('full', True, True),
-                                  ('full-release', True, False), ('half-release', False, False)]:
-            gap = args.half_seconds if label == 'half' else args.settle
-            contacts.append(dict(label=label, body=shutter_body(half, full),
-                expected=expected_keys(half, full), gap=gap*1_000_000_000, half=half, full=full))
+        for shot in range(1,shots+1):
+            if shot==2 and menu_cycle:
+                # Exactly one real MENU press/release, then the established
+                # half/release menu exit. No setting selection or guest writes.
+                body,expected=navigation_contact('menu')
+                contacts.extend([
+                    dict(label='shot2-menu',body=body,expected=expected,
+                         gap=args.navigation_press_ms*1_000_000,half=False,full=False),
+                    dict(label='shot2-menu-release',body=key_body(),expected=expected_keys(),
+                         gap=10_000_000_000,half=False,full=False)])
+                if menu_exit=='menu':
+                    contacts.extend([
+                        dict(label='shot2-exit-menu',body=body,expected=expected,
+                             gap=args.navigation_press_ms*1_000_000,half=False,full=False),
+                        dict(label='shot2-exit-menu-release',body=key_body(),expected=expected_keys(),
+                             gap=1_000_000_000,half=False,full=False)])
+                else:contacts.extend([
+                    dict(label='shot2-leave-menu-half',body=shutter_body(True,False),expected=expected_keys(True,False),
+                         gap=1_000_000_000,half=True,full=False),
+                    dict(label='shot2-leave-menu-release',body=shutter_body(False,False),expected=expected_keys(False,False),
+                         gap=1_000_000_000,half=False,full=False)])
+            for label, half, full in [('release', False, False), ('half', True, False), ('full', True, True),
+                                      ('full-release', True, False), ('half-release', False, False)]:
+                gap = args.half_seconds if label == 'half' else args.settle
+                if shot<shots and label=='half-release':gap=max(gap,getattr(args,'heif_inter_shot_seconds',15))
+                contacts.append(dict(label=label if shot==1 else 'shot2-'+label,body=shutter_body(half, full),
+                    expected=expected_keys(half, full),gap=gap*1_000_000_000,half=half,full=full))
     return contacts, shutter_start
+
+def heif_intershot_gate_label(args):
+    return 'shot2-menu' if getattr(args,'heif_intershot_menu_cycle',False) else 'shot2-release'
+
+def heif_intershot_ready(s,receipts):
+    c,p,h,t,j,l=(s[k] for k in ('codec','protocol','c1','thumbnail','jpeg','lcd'))
+    return bool(receipts==3 and c.get('jobs')==3 and c.get('busy') is False and c.get('failed') is False and
+        p.get('pending')==p.get('errors')==0 and
+        h.get('jobs')==h.get('retired')==1 and all(h.get(k) is False for k in ('requested','owned','failed')) and
+        t.get('a2_pending')==0 and j.get('requested') is False and j.get('pending')==j.get('core')==0 and
+        l.get('active') is True and l.get('last_frame_has_video') is True)
 
 
 def display_ready(lcd):
@@ -424,6 +567,12 @@ class CapturePeer(Peer):
         self.consumer = load_configuration(guest)['boot']['points']['boot4']
         self.capture_profile = capture_bindings(guest)
         self.trace_points = dict(POINTS)
+        self.still_hevc_observer = None
+        self.recovery_observer = z8_capture_recovery.Observer(guest) if getattr(guest,'_capture_recovery_observer_enabled',False) else None
+        if getattr(guest, '_still_hevc_observer_enabled', False):
+            self.still_hevc_observer = z8_still_hevc_observer.Observer(guest)
+            guest._still_hevc_observer = self.still_hevc_observer
+            self.trace_points.update(z8_still_hevc_observer.POINTS)
         for pc,name in observation_points(self.capture_profile).items():
             if pc != self.consumer:
                 self.trace_points.setdefault(pc,name)
@@ -440,6 +589,15 @@ class CapturePeer(Peer):
         if getattr(guest, '_native_writer_observer_enabled', False):
             self.trace_points = without_reserved(self.trace_points)
             self.writer_session = WriterSession(self, journal, guest._writer_host_check)
+        self.start_early_recovery_observation()
+
+    def start_early_recovery_observation(self):
+        recovery=getattr(self,'recovery_observer',None)
+        if recovery is None:return
+        recovery.enable_early()
+        for pc,name in recovery.early_points.items():
+            self.trace_points.setdefault(pc,name)
+            self.arm(pc,'capture_'+name)
 
     def arm(self, pc, label):
         if getattr(self, 'writer_session', None) is not None and pc in RESERVED:
@@ -456,6 +614,10 @@ class CapturePeer(Peer):
         return state(self.g, 'runtime-clock-state')['virtual_ns']
 
     def start_shutter_observation(self, *, repeat=True):
+        recovery=getattr(self,'recovery_observer',None)
+        if recovery is not None:
+            recovery.active=True
+            for pc,name in recovery.points.items():self.trace_points.setdefault(pc,name)
         callback = struct.unpack('<Q', self.g.read_bytes(self.cseq.TASK + 0x48, 8))[0]
         if type(repeat) is not bool or self.cseq.enabled:
             raise ValueError('Choose the CSEQ observation policy once at shutter_start')
@@ -476,8 +638,16 @@ class CapturePeer(Peer):
         if self.active_contact is not None:
             raise RuntimeError('Previous key consumer has not returned')
         self.active_contact = dict(label=label, expected=expected, entered=False)
+        if label=='shot2-menu' and getattr(self,'recovery_observer',None) is not None:
+            self.recovery_observer.intershot_started=True
         self.arm(self.consumer, 'capture_key_consumer')
         for pc, name in self.trace_points.items():
+            recovery=getattr(self,'recovery_observer',None)
+            if recovery is not None and pc in recovery.points and not recovery.can_arm(pc):
+                continue
+            observer=getattr(self,'still_hevc_observer',None)
+            if observer is not None and pc in z8_still_hevc_observer.POINTS and not observer.can_arm(pc):
+                continue
             if pc == self.cseq.ENTRY and self.cseq.enabled:
                 continue  # Entry/next-instruction alternation owns this point.
             if pc == 0x40F4CB3C and self.flag8_predecessor is not None:
@@ -497,13 +667,18 @@ class CapturePeer(Peer):
                 d980=state(self.g,'primary-d980-state'),
                 gpio=state(self.g,'capture-gpio-state'),
                 lcd=state(self.g,'engine1548-scanout-state')))
+        recovery=getattr(self,'recovery_observer',None)
+        if recovery is not None:
+            receipt=recovery.contact(label,self.now())
+            if receipt:self.journal.add('recovery_contact',self.now(),label=label,snapshot=receipt)
         self.enqueue_external(body, 2)
 
     def handle(self):
         writer_session = getattr(self, 'writer_session', None)
         writer_handled = writer_session.handle() if writer_session else False
         if self.g.data.get('capture_pixels_enabled'):
-            from z8_capture_pixels import capture_d980, capture_raw_output
+            from z8_capture_pixels import capture_d980
+            from z8_photo_sequence import capture_photo_output
             d980=state(self.g,'primary-d980-state')
             if d980.get('frames',0)>self.last_pixel_frame:
                 receipt=capture_d980(self.g,f'd980-{d980["frames"]:05}')
@@ -512,7 +687,8 @@ class CapturePeer(Peer):
                 print('Saved actual D980 producer',self.last_pixel_frame,flush=True)
             raw=state(self.g,'engine151-raw-output-state')
             if raw.get('jobs',0)>self.last_raw_job:
-                receipt=capture_raw_output(self.g,f'raw-{raw["jobs"]:05}')
+                previous=self.g.data.get('raw_output_snapshots',[])
+                receipt=capture_photo_output(self.g,f'raw-{raw["jobs"]:05}',previous[-1] if previous else None)
                 self.g.data.setdefault('raw_output_snapshots',[]).append(receipt)
                 self.last_raw_job=raw['jobs']
                 print('Saved actual RAW output',self.last_raw_job,flush=True)
@@ -536,13 +712,24 @@ class CapturePeer(Peer):
                 cpus=[dict(cpu=cpu, pc=hex(regs['PC']), sp=hex(regs['SP']),
                            lr=hex(regs['X30']), x0=hex(regs['X00'])) for cpu, regs in cpu_registers])
             raise
+        observer=getattr(self,'still_hevc_observer',None)
+        hevc_rearm=observer.transition(cpu_registers,set(self.points)) if observer is not None else []
         handled = super().handle()
+        for pc in hevc_rearm:
+            label=z8_still_hevc_observer.POINTS.get(pc,'still_hevc_rearm_'+hex(pc))
+            self.arm(pc,'capture_'+label)
         if rearm is not None:
             self.arm(rearm, 'capture_cseq_dispatch' if rearm == self.cseq.ENTRY else 'capture_cseq_rearm')
         for pc,label,cpu,regs in observations:
             fields = dict(pc=hex(pc), cpu=cpu,
                 registers={k:hex(regs[k]) for k in
                     ('X00','X01','X02','X03','X08','X09','X10','X12','X19','X20','X21','X22','X24','X25','X26','X27','X30','SP')})
+            observer = getattr(self, 'still_hevc_observer', None)
+            if observer is not None and pc in z8_still_hevc_observer.POINTS:
+                fields['still_hevc'] = observer.observe(pc, cpu, regs)
+            recovery=getattr(self,'recovery_observer',None)
+            if recovery is not None and pc in recovery.points:
+                fields['recovery']=recovery.point(pc,cpu,regs,self.now())
             if pc in SCHEDULING_POINTS:
                 fields['scheduling'] = scheduling_observation(self.g, pc, regs)
             if pc in z8_capture_resources.observation_points(self.g):
@@ -630,6 +817,27 @@ def run(args):
     journal = TraceJournal(args.output.name)
     guest = PreparedGuest(args.firmware,args.qemu,args.raw,args.output,
                           properties=load_model_profile()['properties'].copy())
+    guest._still_hevc_observer_enabled = bool(getattr(args, 'still_hevc_observer', False))
+    guest._still_hevc_export_c1 = bool(getattr(args, 'still_hevc_export_c1', False))
+    guest._capture_recovery_observer_enabled = bool(getattr(args, 'capture_recovery_observer', False))
+    guest._still_153_observer_enabled = bool(getattr(args,'still_153_observer',False))
+    if guest._still_153_observer_enabled and not guest._still_hevc_observer_enabled:
+        raise ValueError('--still-153-observer requires pinned --still-hevc-observer')
+    guest._heif_intershot_menu_cycle = bool(getattr(args,'heif_intershot_menu_cycle',False))
+    guest._heif_native_rearm_gate = bool(getattr(args,'heif_native_rearm_gate',False))
+    if guest._heif_intershot_menu_cycle:
+        exit_key=getattr(args,'heif_menu_exit_key','half')
+        guest.data['heif_intershot_intervention']=dict(kind='one-menu-'+exit_key+'-exit-cycle',
+            ordinary_two_shot_recovery_verified=False,guest_ram_written=False,
+            scope='External input experiment: run12 MENU caused original task10000/set800; no model event injection',
+            native_rearm_gate=guest._heif_native_rearm_gate,
+            recovery_point_profile='menu-cycle-13-plus-5-once-intershot' if guest._heif_native_rearm_gate else 'menu-cycle-existing-13-points')
+    if guest._capture_recovery_observer_enabled and not guest._still_hevc_observer_enabled:
+        raise ValueError('--capture-recovery-observer requires pinned --still-hevc-observer')
+    if guest._still_hevc_export_c1 and not guest._still_hevc_observer_enabled:
+        raise ValueError('--still-hevc-export-c1 requires --still-hevc-observer')
+    if guest._still_hevc_observer_enabled and guest.data['firmware_sha256'] != '2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853':
+        raise ValueError('Still HEVC observer requires exact Z8 C3.11 MAIN')
     writer_enabled=z8_writer_integration.configure(guest,args,lambda: budget.check('native writer observation'))
     # Additional peripheral model opt-ins are recorded separately from the
     # established assisted-menu profile. No implicit Z9 firmware binding.
@@ -675,7 +883,18 @@ def run(args):
                   Path(__file__).with_name('z8_capture_readiness.py'),
                   Path(__file__).with_name('z8_nvme_evidence.py'),
                   Path(__file__).with_name('z8_capture_resources.py')]
-    if args.capture_pixels:source_paths.append(Path(__file__).with_name('z8_capture_pixels.py'))
+    if guest._still_hevc_observer_enabled:
+        source_paths.append(Path(__file__).with_name('z8_still_hevc_observer.py'))
+        source_paths.append(Path(__file__).with_name('z8_heif_receipts.py'))
+    if guest._still_153_observer_enabled:
+        source_paths.append(Path(__file__).with_name('z8_153_fault.py'))
+    if guest._capture_recovery_observer_enabled:
+        source_paths += [Path(__file__).with_name(n) for n in ('z8_capture_recovery.py','z8_capture_readiness.py')]
+    if guest._heif_native_rearm_gate:
+        source_paths.append(Path(__file__).with_name('z8_heif_rearm.py'))
+    if args.capture_pixels:
+        source_paths += [Path(__file__).with_name(name) for name in
+                         ('z8_capture_pixels.py','z8_photo_sequence.py')]
     if writer_enabled:
         source_paths += [Path(__file__).with_name(name) for name in
                         ('z8_writer_observer.py','z8_writer_integration.py',
@@ -683,7 +902,7 @@ def run(args):
     if args.capture_properties:source_paths.append(args.capture_properties)
     guest.data['probe_sources']={str(path.resolve()):hashlib.sha256(path.read_bytes()).hexdigest()
                                 for path in source_paths}
-    guest.data['capture_trace']=dict(scope='bounded diagnostic prototype: first hit per contact, optional serial CSEQ repetition after shutter_start',
+    guest.data['capture_trace']=dict(scope='bounded diagnostic prototype: first hit per contact, optional serial CSEQ repetition and eight hits per HEVC site',
         cseq_repeat_requested=not getattr(args, 'skip_cseq_repeat', False),
         events=journal.events,complete=False,historical_trace_complete=False,
         complete_meaning='contact sequence and optional observed idle gate only; no file/NEF acceptance',
@@ -694,10 +913,12 @@ def run(args):
             budget.check('boot or guest service')
             return original_log()
         try:
+            record_gate_launch(g)
             g.log=budgeted_log
             budget.check('startup')
             boot(g)
             peer=CapturePeer(g,journal); clock=make_boundary_peer(g)
+            native_gate=z8_heif_rearm.Gate(g,guest._heif_native_rearm_gate,shared=peer.recovery_observer)
             if args.gpio:
                 g.data['z8_capture_gpio_bindings']=read_gpio_bindings(g)
             if args.rtc_status:
@@ -725,6 +946,22 @@ def run(args):
                 clock.tick()
                 now=peer.now()
                 eligible=peer.active_contact is None and now>=ready_at
+                if eligible and index<len(contacts) and contacts[index]['label']==heif_intershot_gate_label(args):
+                    observed={key:state(g,name) for key,name in (
+                        ('codec','z8-still-hevc-codec-state'),('protocol','z8-still-hevc-state'),
+                        ('c1','z8-capture-hlg-pipeline-state'),('thumbnail','z8-capture-hlg-thumbnail-state'),
+                        ('jpeg','engine15e2-jpeg-state'),('lcd','engine1548-scanout-state'))}
+                    receipts=peer.still_hevc_observer.receipts.last_job
+                    eligible=heif_intershot_ready(observed,receipts)
+                    g.data['capture_trace']['heif_intershot_gate']=dict(ready=eligible,t_ns=now,states=observed,receipts=receipts,
+                        scope='Read-only first photo codec/source retirement after explicit gap; not writer durability or rearm proof')
+                    if not eligible:ready_at=now+100_000_000
+                if eligible and native_gate.enabled and index<len(contacts) and contacts[index]['label'] in z8_heif_rearm.LABELS:
+                    # Pause only to read a coherent snapshot. A failed sample
+                    # leaves index unchanged and ordinary device service runs.
+                    # Exceptions keep the VM stopped; cleanup preserves receipt.
+                    eligible,now=z8_heif_rearm.pause_and_sample(peer,native_gate,contacts[index]['label'])
+                    if not eligible:ready_at=now+z8_heif_rearm.POLL_NS
                 if eligible and (index==0 or (args.wait_liveview and index==shutter_start and not args.menu_only)):
                     lcd=state(g,'engine1548-scanout-state')
                     eligible=display_ready(lcd)
@@ -814,6 +1051,10 @@ def main():
     p.add_argument('--gpio',action='store_true')
     p.add_argument('--rtc-status',action='store_true')
     p.add_argument('--tagged-input',action='store_true')
+    p.add_argument('--heif-shots',type=int,choices=(1,2),default=1,
+                   help='Default one; two repeats original release/half/full/release contacts in one boot')
+    p.add_argument('--heif-inter-shot-seconds',type=int,choices=range(2,61),default=15,
+                   help='Explicit virtual wait after first release; two-shot mode also requires read-only completion gate')
     p.add_argument('--capture-selector',action='store_true')
     p.add_argument('--capture-timing-input',action='store_true',
                    help='Supply synthetic ROM coefficient1200 only at 0x47f63022; native lookup guard, not calibration')
@@ -830,6 +1071,20 @@ def main():
                    help='Use first-hit-per-contact CSEQ sampling; keep identity guards and the 4096 total bound')
     p.add_argument('--native-writer-observer',action='store_true',
                    help='Default off; observe bounded original mode0/format1 writer calls with pinned MAIN/0ff runtime guards; no NEF acceptance')
+    p.add_argument('--still-hevc-observer', action='store_true',
+                   help='Default off; up to eight hits per HEVC point, per-job QOM receipts, bounded read-only RAM and fault registers')
+    p.add_argument('--still-hevc-export-c1',action='store_true',
+                   help='Default off; requires HEVC observer; export at most two C1 photos, 96 MiB each, for offline PSNR')
+    p.add_argument('--capture-recovery-observer',action='store_true',
+                   help='Default off; pinned HEVC observer required; bounded photo-contact QOM/RAM and native CSEQ decision points')
+    p.add_argument('--heif-intershot-menu-cycle',action='store_true',
+                   help='Default off diagnostic: two shots plus recovery observer required; one real MENU/half-exit cycle after first-photo retirement')
+    p.add_argument('--heif-menu-exit-key',choices=('half','menu'),default='half',
+                   help='Explicit intershot experiment only: exit MENU with HALF (existing default) or another MENU press/release')
+    p.add_argument('--heif-native-rearm-gate',action='store_true',
+                   help='Default off: bounded read-only native-state/FULL-permission/liveview gate before shot2 release and FULL; requires intershot cycle')
+    p.add_argument('--still-153-observer',action='store_true',
+                   help='Default off; pinned HEVC observer required; at existing153 strict fault save bounded QOM and both RAM programs')
     run(p.parse_args())
 
 

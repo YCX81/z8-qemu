@@ -82,6 +82,11 @@ body = path.read_text()
 if jpeg_line not in body:
     path.write_text(body.replace("hw_arch += {'arm': arm_ss}",
                                  jpeg_line + "hw_arch += {'arm': arm_ss}"))
+x265_line = "arm_ss.add(when: 'CONFIG_NIKON_Z9_LAB', if_true: dependency('x265', required: true))\n"
+body = path.read_text()
+if x265_line not in body:
+    path.write_text(body.replace("hw_arch += {'arm': arm_ss}",
+                                 x265_line + "hw_arch += {'arm': arm_ss}"))
 
 # QEMU's TCG GDB removal currently stops at the first CPU without a matching
 # breakpoint. A global SMP breakpoint can be absent on one vCPU after a hit,

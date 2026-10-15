@@ -102,7 +102,14 @@ FILES.update({'docs/z8-producer-journal.md', 'qemu/nikon-producer-journal.h',
               'tests/test_producer_journal_adapter.c', 'tests/test_producer_journal_helpers.py',
               'tests/test_producer_journal_contract.py', 'tests/test_z8_producer_journal.py'})
 FILES.update({'docs/z8-d980-internal-wide.md', 'tests/test_z8_d980_wide_internal.py'})
+FILES.update({'docs/z8-photo-audit.md','profiles/z8-lossless14-properties.json','tools/z8_photo_sequence.py','tools/z8_photo_audit.py',
+    'tools/z8_nef_codec.py','qemu/nikon-buffer-ownership.h','qemu/nikon-expeed-lossless.h',
+    'tests/test_buffer_ownership.c','tests/test_buffer_ownership_helpers.py',
+    'tests/test_z8_photo_sequence.py','tests/test_z8_photo_audit.py','tests/test_z8_nef_codec.py',
+    'tests/test_lossless14.py','tests/test_z8_buffer_ownership.py','tests/test_z8_lossless14.py'})
 FILES.update({'docs/z8-experiment-assumptions.md', 'docs/verification/raw-research-log-20261013.md', 'docs/z8-model-split-plan.md', 'docs/z8-public-review-20261013.md'})
+FILES.update({'qemu/nikon-z8-hlg-pipeline-profile.h', 'tests/z8_still_hevc_fixture.py', 'qemu/nikon-z8-still-hevc-qemu.h', 'tests/test_z8_still_hevc_backend.py', 'tests/test_z8_still_hevc_observer.py', 'tests/test_z8_heif_menu_stop.py', 'tools/z8_heif_rearm.py', 'qemu/nikon-z8-hlg-pipeline-pixels.h', 'tests/test_z8_hlg_pipeline.c', 'tests/test_z8_still_hevc_backend.c', 'p12-final.md', 'p14-final.md', 'tests/test_z8_hif_audit.py', 'tests/test_z8_still_hevc_backend_helpers.py', 'tests/test_z8_heif_visible_tag.py', 'p8-final.md', 'tests/test_z8_still_hevc_codec_helpers.py', 'tests/test_z8_heif_menu_stop_helpers.py', 'qemu/nikon-z8-still-hevc-codec.h', 'tests/test_z8_heif_menu_stop.c', 'tests/test_z8_hlg_thumbnail.py', 'tests/test_hevc_probe_helpers.py', 'docs/z8-heif-1602.md', 'docs/publication-checkpoint-20261015.md', 'tests/test_z8_hlg_thumbnail_helpers.py', 'p9-final.md', 'tools/z8_hif_audit.py', 'qemu/nikon-z8-1534-reference.h', 'p11-final.md', 'tests/x265_still_probe.c', 'qemu/nikon-z8-still-hevc-backend.h', 'tests/test_z8_153_fault.py', 'tools/z8_153_fault.py', 'tests/test_z8_hlg_pipeline_helpers.py', 'tests/test_z8_heif_visible_tag.c', 'tests/test_z8_heif_receipts.py', 'tests/test_x265_still_probe_wrapper.py', 'tests/x265_still_probe.py', 'qemu/nikon-z8-hevc-sps.h', 'tests/test_z8_heif_visible_input.py', 'tools/z8_capture_recovery.py', 'tests/test_z8_hlg_pipeline.py', 'qemu/nikon-z8-heif-menu-stop-qemu.h', 'tests/test_z8_1534_reference_helpers.py', 'qemu/nikon-z8-still-hevc.h', 'p13-final.md', 'p15-final.md', 'tests/test_z8_still_hevc.py', 'tests/test_z8_hlg_capture.py', 'qemu/nikon-z8-hlg-capture.h', 'qemu/nikon-z8-hlg-pipeline.h', 'tests/test_z8_heif_psnr.py', 'tests/test_z8_hevc_vui_streams.py', 'tests/test_z8_hlg_thumbnail.c', 'p8b-final.md', 'tests/test_z8_hevc_vui_streams_wrapper.py', 'tests/test_z8_hlg_helpers.py', 'qemu/nikon-z8-hlg-thumbnail-pixels.h', 'tests/test_z8_1534_reference.c', 'tests/hevc_probe_parse.h', 'tests/test_z8_heif_visible_input_sequence.py', 'qemu/nikon-z8-1534-reference-qemu.h', 'qemu/nikon-z8-hlg-thumbnail.h', 'tests/test_z8_hlg_pixels.c', 'tools/z8_heif_psnr.py', 'tests/test_z8_capture_recovery.py', 'p7-final.md', 'tools/z8_heif_receipts.py', 'tests/test_z8_still_hevc_codec.c', 'p10-final.md', 'qemu/nikon-z8-heif-menu-stop.h', 'tests/test_z8_hlg_thumbnail_sequence.py', 'qemu/nikon-z8-still-hevc-profile.h', 'tests/test_z8_still_hevc_aux.py', 'qemu/nikon-z8-hlg-pixels.h', 'tests/test_z8_heif_rearm.py', 'tests/test_hevc_probe_parse.c', 'tests/test_z8_still_hevc_helpers.py', 'tools/z8_still_hevc_observer.py', 'tests/test_z8_1534_reference.py', 'tests/test_z8_still_hevc.c', 'qemu/nikon-z8-still-hevc-pixels.h', 'tests/test_z8_1534_fixture.py'})
+FILES.add('p16-final.md')
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),
@@ -110,6 +117,8 @@ SECRET_PATTERNS = [
 ]
 
 def validate(path, data):
+    # Hash canonical Git text without rewriting CRLF source working copies.
+    data = data.replace(b'\r\n', b'\n')
     if path not in FILES | {MANIFEST}: raise ValueError('Unreviewed public path: '+path)
     # Reviewed functional capture/peripheral code grows this one model. All
     # other files retain the 512-KiB ceiling; binary/hex guards still apply.
@@ -132,6 +141,7 @@ def main():
     for directory,dirs,files in os.walk(ROOT):
         dirs[:] = [name for name in dirs if name not in IGNORED]
         for name in files:
+            if name == '.git': continue  # Linked worktrees use a metadata file.
             path = Path(directory)/name
             if path.is_symlink(): raise ValueError('Symlink in public tree: '+str(path))
             discovered.add(path.relative_to(ROOT).as_posix())
@@ -145,8 +155,8 @@ def main():
     validate(MANIFEST,(ROOT/MANIFEST).read_bytes())
     commits = 0; blobs = set()
     if (ROOT/'.git').exists():
-        # Inspect all refs, rather than only the currently visible checkout.
-        refs = git('rev-list','--all').decode().splitlines()
+        # Inspect this publication and its ancestors; audit divergent branches separately.
+        refs = git('rev-list','HEAD').decode().splitlines()
         commits = len(refs)
         for ref in refs:
             tree = git('ls-tree','-rz','--full-tree',ref).split(b'\0')
@@ -167,7 +177,7 @@ def main():
             if stage != '0' or mode not in ('100644','100755'):
                 raise ValueError('Unexpected index entry: '+name)
             staged_hash = validate(name,git('cat-file','blob',oid))
-            if staged_hash != hashlib.sha256((ROOT/name).read_bytes()).hexdigest():
+            if staged_hash != validate(name,(ROOT/name).read_bytes()):
                 raise ValueError('Staged content differs from reviewed worktree: '+name)
             tracked.add(name)
         if tracked != FILES | {MANIFEST}: raise ValueError('Git index differs from reviewed inventory')

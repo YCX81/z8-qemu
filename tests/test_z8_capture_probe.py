@@ -14,6 +14,213 @@ from z8_capture_probe import shutter_body, expected_keys, TraceJournal, display_
 import z8_capture_probe as probe
 
 
+class FirstFaultSnapshotTests(unittest.TestCase):
+    def test_gate_launch_receipt_uses_owned_popen_argv_and_defaults_off(self):
+        g=SimpleNamespace(data={})
+        probe.record_gate_launch(g);self.assertEqual(g.data,{})
+        argv=['/bin/qemu','-M','nikon-z8-bringup,fixture=on','-device','loader,file=a b.bin,addr=0x10']
+        g._heif_native_rearm_gate=True;g.proc=SimpleNamespace(args=argv);g.command=['not-the-launched-command']
+        probe.record_gate_launch(g)
+        self.assertEqual(g.data['qemu_launch']['argv'],argv)
+        argv.append('later-host-mutation')
+        self.assertNotIn('later-host-mutation',g.data['qemu_launch']['argv'])
+        self.assertFalse(g.data['qemu_launch']['guest_state_modified'])
+        for bad in ('qemu -M text',[None],['x']*513,['x'*65537]):
+            g.proc.args=bad
+            with self.assertRaises(ValueError):probe.record_gate_launch(g)
+    def test_native_rearm_options_default_off_and_menu_exit_sequence(self):
+        argv=['probe','--firmware','main','--qemu','qemu','--raw','raw','--output','out']
+        with patch.object(sys,'argv',argv),patch.object(probe,'run') as run:probe.main()
+        self.assertFalse(run.call_args.args[0].heif_native_rearm_gate)
+        self.assertEqual(run.call_args.args[0].heif_menu_exit_key,'half')
+        a=self.menu_cycle_args();a.heif_menu_exit_key='menu';a.heif_native_rearm_gate=True
+        c,start=probe.contact_sequence(a)
+        cycle=c[start+5:start+9]
+        self.assertEqual([i['label'] for i in cycle],['shot2-menu','shot2-menu-release','shot2-exit-menu','shot2-exit-menu-release'])
+        self.assertTrue(all(not i['half'] and not i['full'] for i in cycle))
+        self.assertEqual(cycle[0]['body'],cycle[2]['body'])
+        a.menu_actions=','.join(['left']*63)
+        with self.assertRaises(ValueError):probe.contact_sequence(a)
+        a.menu_actions=','.join(['left']*62);probe.contact_sequence(a)
+    def test_native_rearm_rejects_missing_cycle(self):
+        a=self.menu_cycle_args();a.heif_intershot_menu_cycle=False;a.heif_native_rearm_gate=True
+        with self.assertRaises(ValueError):probe.contact_sequence(a)
+        a.heif_native_rearm_gate=False;a.heif_menu_exit_key='menu'
+        with self.assertRaises(ValueError):probe.contact_sequence(a)
+    def test_153_fault_option_is_default_off_and_error_preserves_strict_fault(self):
+        argv=['probe','--firmware','main','--qemu','qemu','--raw','raw','--output','out']
+        for extra,on in (([],False),(['--still-153-observer'],True)):
+            with patch.object(sys,'argv',argv+extra),patch.object(probe,'run') as run:probe.main()
+            self.assertIs(run.call_args.args[0].still_153_observer,on)
+        with tempfile.TemporaryDirectory() as d:
+            g=SimpleNamespace(out=Path(d),data={'capture_trace':{}},_still_153_observer_enabled=True)
+            failure=RuntimeError('Unmodeled hardware access')
+            (g.out/'stderr.log').write_text('Z9_UNKNOWN addr=0x15340004 size=4 value=0x1\n')
+            with patch.object(probe,'state',return_value={}),patch.object(probe.z8_153_fault,'capture',side_effect=ValueError('read failed')):
+                probe.capture_first_fault(g,failure)
+            r=json.loads((g.out/'first-fault-state.json').read_text())
+            self.assertEqual(r['failure'],repr(failure));self.assertFalse(r['collection_complete'])
+            self.assertIn('engine153_snapshot',r['errors'])
+    def test_seconds_600_accepted_and_900_rejected_before_run(self):
+        import contextlib,io
+        argv=['probe','--firmware','main','--qemu','qemu','--raw','raw','--output','out']
+        with patch.object(sys,'argv',argv+['--seconds','600']),patch.object(probe,'run') as run:
+            probe.main();self.assertEqual(run.call_args.args[0].seconds,600)
+        with patch.object(sys,'argv',argv+['--seconds','900']),patch.object(probe,'run') as run,contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):probe.main()
+            run.assert_not_called()
+    def test_menu_stop_receipt_is_queried_only_for_explicit_new_model(self):
+        for on in (False,True):
+            with self.subTest(on=on),tempfile.TemporaryDirectory() as d:
+                props=['z8-heif-menu-stop-model=on'] if on else []
+                g=SimpleNamespace(out=Path(d),data={'capture_trace':{},'capture_device_hypotheses':{'properties':props}})
+                calls=[]
+                with patch.object(probe,'state',side_effect=lambda g,n:calls.append(n) or {}):
+                    probe.capture_first_fault(g,RuntimeError('Unmodeled hardware access'))
+                self.assertEqual('z8-heif-menu-stop-state' in calls,on)
+    def menu_cycle_args(self):
+        return SimpleNamespace(menu_actions='',menu_only=False,wait_capture_work=False,
+            navigation_press_ms=400,navigation_release_ms=2000,half_seconds=2,settle=10,
+            still_hevc_observer=True,tagged_input=True,capture_pixels=True,heif_shots=2,
+            capture_recovery_observer=True,heif_inter_shot_seconds=15,heif_intershot_menu_cycle=True)
+    def test_menu_cycle_is_one_external_menu_and_half_exit_between_photos(self):
+        args=self.menu_cycle_args();contacts,start=probe.contact_sequence(args)
+        cycle=contacts[start+5:start+9]
+        self.assertEqual([c['label'] for c in cycle],
+            ['shot2-menu','shot2-menu-release','shot2-leave-menu-half','shot2-leave-menu-release'])
+        self.assertEqual(cycle[0]['body'],probe.navigation_contact('menu')[0])
+        self.assertEqual(cycle[1]['body'],probe.key_body())
+        self.assertEqual(cycle[2]['body'],shutter_body(True,False))
+        self.assertEqual(cycle[3]['body'],shutter_body(False,False))
+        self.assertEqual(cycle[1]['gap'],10_000_000_000)
+        self.assertEqual(sum(c['full'] for c in contacts),2)
+        self.assertEqual(probe.heif_intershot_gate_label(args),'shot2-menu')
+        args.heif_intershot_menu_cycle=False;plain,s=probe.contact_sequence(args)
+        self.assertEqual(contacts[:start+5],plain[:s+5])
+        self.assertEqual(contacts[start+9:],plain[s+5:])
+        self.assertEqual(probe.heif_intershot_gate_label(args),'shot2-release')
+    def test_menu_cycle_rejects_missing_observation_one_shot_and_action_overflow(self):
+        for key,value in (('heif_shots',1),('capture_recovery_observer',False),
+                          ('menu_actions',','.join(['left']*64)),('settle',11)):
+            with self.subTest(key=key):
+                args=self.menu_cycle_args();setattr(args,key,value)
+                with self.assertRaises(ValueError):probe.contact_sequence(args)
+        args=self.menu_cycle_args();args.menu_actions=','.join(['left']*63)
+        contacts,_=probe.contact_sequence(args)
+        self.assertEqual(sum(c['label']=='menu-left' for c in contacts),63)
+    def test_menu_cycle_cli_default_off(self):
+        argv=['probe','--firmware','main','--qemu','qemu','--raw','raw','--output','out']
+        for extra,on in (([],False),(['--heif-intershot-menu-cycle'],True)):
+            with patch.object(sys,'argv',argv+extra),patch.object(probe,'run') as run:probe.main()
+            self.assertIs(run.call_args.args[0].heif_intershot_menu_cycle,on)
+    def test_two_heif_contacts_are_explicit_bounded_and_default_is_one(self):
+        args=SimpleNamespace(menu_actions='',menu_only=False,wait_capture_work=False,
+            navigation_press_ms=400,navigation_release_ms=2000,half_seconds=2,settle=10,
+            still_hevc_observer=True,tagged_input=True,capture_pixels=True,heif_inter_shot_seconds=15)
+        contacts,start=probe.contact_sequence(args)
+        self.assertEqual(sum(c['full'] for c in contacts),1)
+        args.heif_shots=2;contacts,start=probe.contact_sequence(args)
+        self.assertEqual(sum(c['full'] for c in contacts),2)
+        self.assertEqual([c['label'] for c in contacts[start+5:]],['shot2-release','shot2-half','shot2-full','shot2-full-release','shot2-half-release'])
+        self.assertEqual(contacts[start+4]['gap'],15_000_000_000)
+        args.tagged_input=False
+        with self.assertRaises(ValueError):probe.contact_sequence(args)
+        args.tagged_input=True;args.settle=11
+        with self.assertRaises(ValueError):probe.contact_sequence(args)
+
+    def test_heif_intershot_gate_never_clears_pending_or_accepts_partial_work(self):
+        states={'codec':dict(jobs=3,busy=False,failed=False,result_valid=True),
+            'protocol':dict(pending=0,errors=0),'c1':dict(jobs=1,retired=1,requested=False,owned=False,failed=False),
+            'thumbnail':dict(a2_pending=0),'jpeg':dict(requested=False,pending=0,core=0),
+            'lcd':dict(active=True,last_frame_has_video=True)}
+        self.assertTrue(probe.heif_intershot_ready(states,3))
+        states['codec']['result_valid']=False # Native retirement/reset may discard the result; saved jobs remain proof.
+        self.assertTrue(probe.heif_intershot_ready(states,3))
+        for key,field,value in (('codec','jobs',2),('protocol','pending',0x20000),('c1','owned',True),('jpeg','core',1)):
+            from copy import deepcopy
+            bad=deepcopy(states);bad[key][field]=value
+            self.assertFalse(probe.heif_intershot_ready(bad,3))
+        self.assertFalse(probe.heif_intershot_ready(states,2))
+
+    def test_successful_hevc_run_exports_final_receipts_only_when_observer_enabled(self):
+        for enabled in (False,True):
+            with self.subTest(enabled=enabled),tempfile.TemporaryDirectory() as folder:
+                calls=[]
+                g=SimpleNamespace(out=Path(folder),data={'capture_trace':{}},
+                    _still_hevc_observer_enabled=enabled,qmp=SimpleNamespace(command=lambda *a,**k:None))
+                with patch.object(probe,'state',side_effect=lambda g,n:calls.append(n) or {'property':n}):
+                    probe.finalize_trace(g,None,probe.HostBudget(5))
+                final=json.loads((g.out/'capture-trace.json').read_text())['final_device_states']
+                self.assertEqual('z8-still-hevc-codec-state' in final,enabled)
+                if enabled:
+                    self.assertIn('z8-capture-hlg-pipeline-state',final)
+                    self.assertIn('z8-capture-hlg-thumbnail-state',final)
+                    self.assertIn('z8-still-hevc-state',final)
+
+    def test_fault_snapshot_is_qom_read_only_and_keeps_first_receipt(self):
+        with tempfile.TemporaryDirectory() as folder:
+            calls = []
+            def command(name, **kwargs):
+                calls.append((name, kwargs))
+                self.assertEqual(name, 'qom-get')
+                return json.dumps({'property': kwargs['property']})
+            g = SimpleNamespace(out=Path(folder), data={'capture_trace': {}},
+                                qmp=SimpleNamespace(command=command))
+            (g.out/'stderr.log').write_text('Z9_UNKNOWN first\nZ9_UNKNOWN later\n')
+            failure = RuntimeError('Unmodeled hardware access; first stop')
+            probe.capture_first_fault(g, failure)
+            path = g.out/'first-fault-state.json'
+            before = path.read_bytes()
+            row = json.loads(before)
+            self.assertEqual(row['first_unknown'], 'Z9_UNKNOWN first')
+            self.assertEqual(row['failure'], repr(failure))
+            for name in ('engine151-state', 'engine1518-state', 'engine151-control-state',
+                         'engine151-capture-pixels-state', 'engine1542-state'):
+                self.assertIn(name, row['device_states'])
+            self.assertTrue(row['collection_complete'])
+            count = len(calls)
+            probe.capture_first_fault(g, failure)
+            self.assertEqual(len(calls), count)
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_unavailable_property_does_not_erase_remaining_states_or_failure(self):
+        with tempfile.TemporaryDirectory() as folder:
+            def read(g, name):
+                if name == 'engine1518-state': raise RuntimeError('unavailable')
+                return {'ok': True}
+            g = SimpleNamespace(out=Path(folder), data={'capture_trace': {}})
+            failure = RuntimeError('Unmodeled hardware access')
+            with patch.object(probe, 'state', side_effect=read):
+                probe.capture_first_fault(g, failure)
+            row = json.loads((g.out/'first-fault-state.json').read_text())
+            self.assertFalse(row['collection_complete'])
+            self.assertIn('engine151-state', row['device_states'])
+            self.assertIn('engine1518-state', row['errors'])
+            self.assertEqual(row['failure'], repr(failure))
+
+    def test_only_strict_fault_triggers_and_capture_precedes_cleanup_observer(self):
+        with tempfile.TemporaryDirectory() as folder:
+            g = SimpleNamespace(out=Path(folder), data={'capture_trace': {}})
+            probe.capture_first_fault(g, TimeoutError('deadline'))
+            self.assertFalse((g.out/'first-fault-state.json').exists())
+            events = []
+            g.qmp = SimpleNamespace(command=lambda *a, **k: events.append(a[0]))
+            peer = SimpleNamespace(close=lambda: events.append('close'))
+            with patch.object(probe, 'state', return_value={}), \
+                 patch.object(probe, 'capture_first_fault', side_effect=lambda *a: events.append('snapshot')):
+                probe.finalize_trace(g, peer, probe.HostBudget(5), RuntimeError('Unmodeled hardware access'))
+            self.assertEqual(events[:2], ['stop', 'snapshot'])
+            self.assertLess(events.index('snapshot'), events.index('close'))
+
+    def test_menu_limit_is_still_64(self):
+        args=SimpleNamespace(menu_actions=','.join(['j']*64), menu_only=True,
+            wait_capture_work=False, navigation_press_ms=400, navigation_release_ms=2000)
+        contacts,_=probe.contact_sequence(args)
+        self.assertEqual(len(contacts),130)
+        args.menu_actions+=',j'
+        with self.assertRaises(ValueError): probe.contact_sequence(args)
+
+
 class CseqObservationContracts(unittest.TestCase):
     # A single instruction fixture, not a copied firmware function.
     instruction = bytes.fromhex('fc6fbaa9')
@@ -155,6 +362,64 @@ class PeerObservationIntegration(unittest.TestCase):
         self.assertEqual(rows[1]['task_event_mask'], '0x8')
         self.assertEqual(rows[1]['context_words']['0x34'], 0)
         self.assertTrue(all(command.startswith(('Z1,', 'z1,')) for command in self.commands))
+
+    def test_recovery_points_start_at_shutter_and_contact_and_branch_are_linked(self):
+        calls=[]
+        self.peer.recovery_observer=SimpleNamespace(active=False,can_arm=lambda pc:True,points=probe.z8_capture_recovery.POINTS,
+            contact=lambda label,t:calls.append(('contact',label)) or {'path':'contact.json'},
+            point=lambda pc,cpu,regs,t:calls.append(('point',pc)) or {'path':'branch.json'})
+        pc=0x40f44b3c
+        self.assertNotIn(pc,self.peer.trace_points)
+        self.peer.start_shutter_observation(repeat=False)
+        self.assertTrue(self.peer.recovery_observer.active)
+        self.assertEqual(self.peer.trace_points[0x40f454f8],probe.POINTS[0x40f454f8])
+        self.peer.begin('full',shutter_body(True,True),expected_keys(True,True))
+        self.assertIn(pc,self.peer.points)
+        self.registers[0]=self.regs(pc,event=0);self.peer.handle()
+        self.assertEqual(calls,[('contact','full'),('point',pc)])
+        self.assertEqual(self.peer.journal.events[-1]['recovery']['path'],'branch.json')
+
+    def test_early_recovery_registration_is_opt_in_and_only_specific_setters(self):
+        self.peer.start_early_recovery_observation()
+        self.assertEqual(self.commands,[])
+        calls=[]
+        self.peer.recovery_observer=SimpleNamespace(enable_early=lambda:calls.append('enable'),early_points=probe.z8_capture_recovery.EARLY_POINTS)
+        self.peer.start_early_recovery_observation()
+        self.assertEqual(calls,['enable'])
+        self.assertEqual(set(self.peer.points),set(probe.z8_capture_recovery.EARLY_POINTS))
+        self.assertNotIn(0x40d2bc8c,self.peer.points)
+
+    def test_contact_does_not_rearm_consumed_early_recovery_point(self):
+        pc=0x40f4d35c
+        self.peer.trace_points[pc]='recovery_set800_lifecycle_before'
+        self.peer.recovery_observer=SimpleNamespace(can_arm=lambda p:False,contact=lambda l,t:None,points=probe.z8_capture_recovery.POINTS)
+        self.peer.begin('menu-test',shutter_body(False,False),expected_keys(False,False))
+        self.assertNotIn(pc,self.peer.points)
+
+    def test_hevc_peer_repeats_eight_requests_without_contact_rearming_exhausted_sites(self):
+        obs=probe.z8_still_hevc_observer
+        observer=obs.Observer(self.peer.g);self.peer.still_hevc_observer=observer
+        pc=0x40c9700c;self.peer.trace_points={pc:obs.POINTS[pc]}
+        self.peer.arm(pc,'capture_'+obs.POINTS[pc])
+        with patch.object(observer,'read',side_effect=lambda a,n:bytes(n)):
+            for hit in range(8):
+                self.registers[0]=self.regs(pc,sp=0xa00100080,event=0xa00200000)
+                self.peer.handle()
+                self.assertNotIn(pc,self.peer.points)
+                if hit<7:
+                    self.assertIn(pc+4,self.peer.points)
+                    self.peer.begin('half',shutter_body(True),expected_keys(True))
+                    self.peer.active_contact=None
+                    self.assertNotIn(pc,self.peer.points)
+                    self.registers[0]=self.regs(pc+4,sp=0xa00100000,event=0xa00200000)
+                    self.peer.handle()
+                    self.assertIn(pc,self.peer.points)
+                else:self.assertNotIn(pc+4,self.peer.points)
+        self.peer.begin('release',shutter_body(),expected_keys())
+        self.assertNotIn(pc,self.peer.points)
+        rows=[r['still_hevc'] for r in self.peer.journal.events if 'still_hevc' in r]
+        self.assertEqual([r['site_hit'] for r in rows],list(range(1,9)))
+        self.assertTrue(all(command.startswith(('Z1,','z1,')) for command in self.commands))
 
     def test_new_contact_cannot_rearm_entry_during_natural_instruction_transition(self):
         self.peer.start_shutter_observation()
@@ -419,6 +684,9 @@ class ContactContracts(unittest.TestCase):
         returned = dict(seq=2, kind='file_writer_return', registers={'X00': '0x0'})
         self.assertFalse(probe.ordinary_work_idle(raw, jpeg, [entry], baseline))
         self.assertTrue(probe.ordinary_work_idle(raw, jpeg, [entry, returned], baseline))
+        self.assertTrue(probe.ordinary_work_idle(dict(raw,acks=4), jpeg, [entry,returned], baseline))
+        self.assertFalse(probe.ordinary_work_idle(dict(raw,acks=0), jpeg, [entry,returned], baseline))
+        self.assertFalse(probe.ordinary_work_idle(dict(raw,acks=True), jpeg, [entry,returned], baseline))
         self.assertFalse(probe.ordinary_work_idle(raw, jpeg, [returned], dict(baseline, raw_jobs=1)))
         self.assertFalse(probe.ordinary_work_idle(raw, jpeg, [dict(returned, registers={'X00': '0x3'})], baseline))
 

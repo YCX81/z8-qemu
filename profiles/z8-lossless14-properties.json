@@ -1,0 +1,168 @@
+{
+  "model": "Nikon Z8",
+  "version": "C3.11",
+  "main_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+  "source": "Z8 C3.11 base plus attributed WonderLantern z9-qemu c6dbfc4 F0 encoder and ownership invariants",
+  "scope": "Explicit F0/four2048 functional experiment; native full-file/recovery acceptance separately required",
+  "physical_hardware_verified": false,
+  "properties": [
+    "event1508-secondary-timing-model=on",
+    "capture-gpio-model=on",
+    "ccomp-gpio-model=on",
+    "primary-d980-config-model=on",
+    "primary-d980-stream-model=on",
+    "engine152c-config-model=on",
+    "engine152c-request-model=on",
+    "engine151-raw-output-model=on",
+    "engine1544-config-model=on",
+    "engine1544-neutral-copy-model=on",
+    "engine1540-descriptors-model=on",
+    "engine1540-parameters-model=on",
+    "engine1540-control-model=on",
+    "engine1540-frame-pass-model=on",
+    "primary-stopped-source-reset-model=on",
+    "primary-reset-parameter-retention-model=on",
+    "primary20-empty-reset-model=on",
+    "primary-d980-packed14-model=on",
+    "primary-d980-single-frame-model=on",
+    "primary-d980-source-notify-model=on",
+    "raw-source-boundary-model=on",
+    "primary-d980-prepared-start-model=on",
+    "primary-d980-channel-boundary-model=on",
+    "primary-capture-direct-stop-model=on",
+    "engine1543-capture-control-model=on",
+    "engine15e2-config-model=on",
+    "engine153-config-model=on",
+    "engine153-inplace-identity-model=on",
+    "engine151-capture-pixels-model=on",
+    "engine151-average-result-model=on",
+    "engine15e2-jpeg-model=on",
+    "engine15e2-deferred-input-model=on",
+    "engine15e2-limit-disabled-model=on",
+    "engine15e2-result474-model=on",
+    "engine15e2-preflight-model=on",
+    "capture-nv16-pipeline-model=on",
+    "engine1542-ram-input-control-model=on",
+    "capture-thumbnail-nv16-model=on",
+    "output-buffer-ownership-model=on",
+    "engine1540-lossless14-model=on"
+  ],
+  "source_argument_mapping": {
+    "secondary_source_timing": [
+      "event1508-secondary-timing-model=on"
+    ],
+    "capture_gpio": [
+      "capture-gpio-model=on"
+    ],
+    "ccomp_gpio": [
+      "ccomp-gpio-model=on"
+    ],
+    "d980_config": [
+      "primary-d980-config-model=on"
+    ],
+    "d980_stream": [
+      "primary-d980-stream-model=on"
+    ],
+    "engine152c_config": [
+      "engine152c-config-model=on"
+    ],
+    "engine152c_request": [
+      "engine152c-request-model=on"
+    ],
+    "engine151_raw_output": [
+      "engine151-raw-output-model=on"
+    ],
+    "engine1544_config": [
+      "engine1544-config-model=on"
+    ],
+    "engine1544_neutral_copy": [
+      "engine1544-neutral-copy-model=on"
+    ],
+    "engine1540_descriptors": [
+      "engine1540-descriptors-model=on"
+    ],
+    "engine1540_parameters": [
+      "engine1540-parameters-model=on"
+    ],
+    "engine1540_control": [
+      "engine1540-control-model=on"
+    ],
+    "engine1540_frame_pass": [
+      "engine1540-frame-pass-model=on"
+    ],
+    "primary_reset_parameter_retention": [
+      "primary-stopped-source-reset-model=on",
+      "primary-reset-parameter-retention-model=on"
+    ],
+    "primary20_empty_reset": [
+      "primary20-empty-reset-model=on"
+    ],
+    "d980_packed14": [
+      "primary-d980-packed14-model=on"
+    ],
+    "single_frame_input": [
+      "primary-d980-single-frame-model=on"
+    ],
+    "single_source_notify": [
+      "primary-d980-source-notify-model=on",
+      "raw-source-boundary-model=on"
+    ],
+    "prepared_single_start": [
+      "primary-d980-prepared-start-model=on"
+    ],
+    "single_channel_boundary": [
+      "primary-d980-channel-boundary-model=on"
+    ],
+    "capture_direct_stop": [
+      "primary-capture-direct-stop-model=on"
+    ],
+    "engine1543_capture_control": [
+      "engine1543-capture-control-model=on"
+    ],
+    "engine15e2_config": [
+      "engine15e2-config-model=on"
+    ],
+    "engine153_config": [
+      "engine153-config-model=on"
+    ],
+    "engine153_inplace_identity": [
+      "engine153-inplace-identity-model=on"
+    ],
+    "engine151_capture_pixels": [
+      "engine151-capture-pixels-model=on"
+    ],
+    "engine151_average_result": [
+      "engine151-average-result-model=on"
+    ],
+    "engine15e2_jpeg": [
+      "engine15e2-jpeg-model=on"
+    ],
+    "engine15e2_deferred_input": [
+      "engine15e2-deferred-input-model=on"
+    ],
+    "engine15e2_limit_disabled": [
+      "engine15e2-limit-disabled-model=on"
+    ],
+    "engine15e2_result474": [
+      "engine15e2-result474-model=on"
+    ],
+    "engine15e2_preflight": [
+      "engine15e2-preflight-model=on"
+    ],
+    "capture_nv16_pipeline": [
+      "capture-nv16-pipeline-model=on"
+    ],
+    "engine1542_ram_input_control": [
+      "engine1542-ram-input-control-model=on"
+    ],
+    "capture_thumbnail_nv16": [
+      "capture-thumbnail-nv16-model=on"
+    ],
+    "output_ownership": [
+      "output-buffer-ownership-model=on"
+    ],
+    "f0_lossless14": [
+      "engine1540-lossless14-model=on"
+    ]
+  }
+}

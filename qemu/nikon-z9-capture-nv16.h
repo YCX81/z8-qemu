@@ -25,6 +25,8 @@ static unsigned capture_nv16_coordinate(const uint32_t *f, unsigned at, bool y)
 
 static bool capture_nv16_prepare(NikonZ9State *s)
 {
+    /* Separate, opt-in photo HLG contract. Never reinterpret it as NV16. */
+    if (s->hlg_capture.last_output_hlg) { return z8_hlg_c1_prepare(s); }
     const uint32_t *src = s->engine1518[0].config;
     const uint32_t *a = s->engine1542_config[1];
     const uint32_t *c = s->engine1542_config[11];
@@ -89,6 +91,7 @@ static bool capture_nv16_prepare(NikonZ9State *s)
 
 static void capture_nv16_cancel(NikonZ9State *s)
 {
+    z8_hlg_c1_cancel(s);
     if (s->capture_nv16_requested) {
         s->capture_nv16_requested = false; s->capture_nv16_cancels++;
     }
@@ -96,6 +99,8 @@ static void capture_nv16_cancel(NikonZ9State *s)
 
 static void capture_nv16_try(NikonZ9State *s)
 {
+    if (s->hlg_pipeline.requested) { z8_hlg_c1_try(s); return; }
+    if (s->hlg_capture.last_output_hlg) { return; }
     if (!s->capture_nv16_model || !s->capture_nv16_requested || s->capture_nv16_failed ||
         !s->engine1543_active[1] || s->engine1543_held[1] ||
         !s->engine1518[0].config[0x30 / 4]) { return; }
