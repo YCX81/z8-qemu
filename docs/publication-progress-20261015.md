@@ -33,3 +33,17 @@ preserved; duplicate commits are unnecessary.
 
 RAW precapture, completed video files, HEIF repeat-shot recovery, AF behavior
 and Live Photo import each retain their own incomplete acceptance boundaries.
+
+## HEIF incremental publication, 2026-10-15
+
+Following the initial source checkpoints above, `codex/z8-heif-1602` records
+three additional batches: native rearm/stop-wait diagnostics, the default-off
+virtual-clock codec completion experiment, and P17/P19/P20 evidence reports.
+The current source regression passed 756 tests with 88 skipped, together with
+the existing C checks. Individual staged snapshots were audited before commit.
+
+See the [incremental HEIF checkpoint](https://github.com/YCX81/z8-qemu/blob/codex/z8-heif-1602/docs/publication-checkpoint-20261015-round2.md).
+Stable second-shot recovery and a second accepted HIF remain unverified. P21's
+fixed off/on native comparison was ongoing at the source snapshot; publication
+did not rerun QEMU or alter its watched host source files. The table above
+continues to describe the earlier checkpoints and their original validation.
