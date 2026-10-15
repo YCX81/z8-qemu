@@ -1,7 +1,14 @@
 # Building
 
+<<<<<<< current
 Use Linux with Python 3.12+, GCC/Clang, Ninja, patch, pkg-config, GLib, Pixman,
 zlib, libfdt and libjpeg development headers. Install the Python dependencies from
+=======
+Use Linux with Python 3.12+, GCC/Clang, Ninja, patch, pkg-config, GLib, Pixman, zlib
+and libfdt, x265 and x264 development headers. The optional diagnostic video
+backend links x265/x264; it does not execute Nikon codec microcode. On Ubuntu
+the extra packages are `libx265-dev libx264-dev`. Install the Python dependencies from
+>>>>>>> incoming
 `requirements.txt` in a virtual environment. See the README for Ubuntu commands.
 
 `python tools/build.py --work-dir /your/linux/path --jobs 2` downloads only

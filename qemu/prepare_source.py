@@ -22,6 +22,7 @@ if subprocess.run(command + ['--forward', '--dry-run'], cwd=root,
 elif subprocess.run(command + ['--reverse', '--dry-run'], cwd=root,
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
     raise SystemExit('Unexpected ARM source: service event patch cannot be verified')
+<<<<<<< current
 dma_patch = here / 'designware-dma.patch'
 command = ['patch', '--batch', '--fuzz=0', '-p1', '-i', str(dma_patch)]
 if subprocess.run(command + ['--forward', '--dry-run'], cwd=root,
@@ -48,6 +49,30 @@ for overlay in here.glob('nikon-*'):
 # spdm_port is configured. NVME_PCI does not select the backend, so the
 # --without-default-devices build explicitly selects SPDM_SOCKET for linking.
 # This does not enable a Nikon authentication protocol or open a connection.
+=======
+# Reuse the bounded PCIe aperture fix and passive NVMe completion evidence.
+# Every patch is verified in both fresh and already-applied build caches.
+for name in ('designware-dma.patch','nvme-completion-trace.patch','nvme-audit-state.patch'):
+    command = ['patch','--batch','--fuzz=0','-p1','-i',str(here/name)]
+    if subprocess.run(command+['--forward','--dry-run'],cwd=root,
+                      stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0:
+        subprocess.run(command+['--forward'],cwd=root,check=True)
+    elif subprocess.run(command+['--reverse','--dry-run'],cwd=root,
+                        stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode!=0:
+        raise SystemExit('Unexpected PCIe/NVMe source: '+name)
+shutil.copyfile(here / 'nikon-z9-lab.c', root / 'hw/arm/nikon-z9-lab.c')
+shutil.copyfile(here / 'nikon-raw-pixels.h', root / 'hw/arm/nikon-raw-pixels.h')
+shutil.copyfile(here / 'nikon-z9-pixels.h', root / 'hw/arm/nikon-z9-pixels.h')
+shutil.copyfile(here / 'nikon-z8-video-ring.h', root / 'hw/arm/nikon-z8-video-ring.h')
+shutil.copyfile(here / 'nikon-z8-input-pair.h', root / 'hw/arm/nikon-z8-input-pair.h')
+shutil.copyfile(here / 'nikon-z8-video-data.h', root / 'hw/arm/nikon-z8-video-data.h')
+shutil.copyfile(here / 'nikon-z8-video-processing.h', root / 'hw/arm/nikon-z8-video-processing.h')
+for name in ('nikon-z8-wave5.h','nikon-z9-wave5.h','nikon-wave5-codec.h','nikon-z8-yuv.h','nikon-z8-yuv-wave5.h','nikon-z8-yuv-dma.h','nikon-z8-yuv-single.h'):
+    shutil.copyfile(here/name,root/'hw/arm'/name)
+for name in ('nikon-z9-pcie.h','nikon-z8-pcie-config.h'):
+    shutil.copyfile(here/name,root/'hw/arm'/name)
+shutil.copyfile(here / 'nikon-persistent-media.h', root / 'hw/arm/nikon-persistent-media.h')
+>>>>>>> incoming
 for filename, marker, addition in [
     ('hw/arm/Kconfig', 'config NIKON_Z9_LAB',
      '\nconfig NIKON_Z9_LAB\n    bool\n    depends on AARCH64\n    select ARM_GIC\n    select PCI_EXPRESS_DESIGNWARE\n    select NVME_PCI\n    select SPDM_SOCKET\n'),
@@ -64,6 +89,7 @@ for filename, marker, addition in [
     body = path.read_text()
     if marker not in body:
         path.write_text(body + addition)
+<<<<<<< current
 path = root / 'hw/arm/Kconfig'
 body = path.read_text()
 block = body[body.index('config NIKON_Z9_LAB'):]
@@ -71,9 +97,22 @@ if '    select PCI_EXPRESS_DESIGNWARE' not in block.split('\nconfig ', 1)[0]:
     body = body.replace('config NIKON_Z9_LAB\n',
                         'config NIKON_Z9_LAB\n    select PCI_EXPRESS_DESIGNWARE\n    select NVME_PCI\n    select SPDM_SOCKET\n', 1)
     path.write_text(body)
+=======
+# Minimal builds need these explicit upstream device/link dependencies.
+path = root / 'hw/arm/Kconfig'
+body = path.read_text()
+block = body[body.index('config NIKON_Z9_LAB'):].split('\nconfig ',1)[0]
+if '    select PCI_EXPRESS_DESIGNWARE' not in block:
+    path.write_text(body.replace('config NIKON_Z9_LAB\n',
+        'config NIKON_Z9_LAB\n    select PCI_EXPRESS_DESIGNWARE\n    select NVME_PCI\n    select SPDM_SOCKET\n',1))
+>>>>>>> incoming
 path = root / 'hw/arm/meson.build'
 body = path.read_text()
 line = "arm_ss.add(when: 'CONFIG_NIKON_Z9_LAB', if_true: files('nikon-z9-lab.c'))\n"
+for dependency in ('x265','x264'):
+    entry=f"arm_ss.add(when: 'CONFIG_NIKON_Z9_LAB', if_true: dependency('{dependency}', required: true))\n"
+    if entry not in body:body+=entry
+path.write_text(body)
 if line not in body:
     body = body.replace("hw_arch += {'arm': arm_ss}", line + "hw_arch += {'arm': arm_ss}")
     path.write_text(body)

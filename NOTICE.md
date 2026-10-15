@@ -1,5 +1,11 @@
 # Research and rights notice
 
+The functional F0 lossless14 encoder in `qemu/nikon-expeed-lossless.h` is
+imported unchanged from WonderLantern/z9-qemu at
+`c6dbfc4ef3ea2ac9d48be2ab66c7d732e241b1ff`. It retains Copyright (C) 2026
+RdWing and GPL-2.0-or-later, with upstream attribution to RdWing/z8-qemu.
+It is an open-source format implementation, not Nikon microcode.
+
 This Z8 research fork builds on WonderLantern's independent Z9 emulator and
 retains its shared model and reference tools. The fork adds Z8 C 3.11 bindings,
 diagnostics, and laboratory experiments. Upstream and fork contributions retain

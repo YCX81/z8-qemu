@@ -4,7 +4,19 @@
 
 Documentation updated: **2026-10-13**. This workspace ports Nikon Z8 C3.11 to the research emulator from [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu), starting from upstream commit `27498735e3ed202052dfc6306ded6b867af70a58`. Z8 firmware identities, MCU bindings, resources and acceptance baselines are defined separately from the retained Z9 reference tools.
 
+<<<<<<< current
 **Assisted original-firmware menus, synthetic live view and an ordinary post-trigger NEF have recorded local QEMU acceptance. RAW pre-release capture remains incomplete.** This is an experimental emulator, not camera-installable firmware. It does not connect to or flash a physical camera.
+=======
+[原生界面方向实验](docs/z8-orientation.md)提供横拍、左右竖拍输入及私有旋转补丁；视频文件类型页已完成左右竖屏显示、六项焦点遍历及返回验证，使用原厂等比缩放和滚动，验证范围单独记录。
+
+当前研究[视频信息层竖屏布局](docs/z8-video-orientation.md)，以 Z8 原厂照片画布和字号为基准，主菜单像素与原厂一致；左右显示和合成电平归零无残影已验证。长时间模式往返仍出现原厂错误提示，实际录制未完成验收。[录像文件方向](docs/z8-video-file-orientation.md)已有独立矩阵锁定实验，通过原始 A64 配置与封装函数测试；尚无真实录像、连续分段或播放器验证。
+
+[录制链路接续](docs/z8-video-pipeline.md)已补齐照片／视频通道停止确认、实际像素写入后的源通知，并接入原固件可识别的虚拟文件卡。仍有下游等待未完成，尚未取得录像文件；没有把设备测试通过或可录时长显示当成录制通过。
+
+最新[视频数据通路接续](docs/z8-video-data.md)已让原录制代码配置 4K HEVC，并通过显式功能后端编码实际图像帧；原封装对象已创建，但可播放 MOV／MP4、录制启停及文件方向仍未通过。
+
+**外部 MCU 对端和显式虚拟参数辅助下，Z8 原厂英文菜单与模拟 RAW 取景通过三次 MENU 往返。** 五次扫描输出检查使用独立解码实现，未与真机图像对照；菜单哈希是回归基线。原始 MAIN 未修改，裸模型完整启动、完整相机功能和实体硬件仍未验证。新机器名为 `nikon-z8-bringup`，原 `nikon-z9-lab` 保留。Z8 专用入口是 `tools/z8_run.py`；旧 `tools/run.py`、`tools/boot.py` 和原有 Z9 文档仅作参考。
+>>>>>>> incoming
 
 The status below was reconciled against source snapshot `a97f5df` and the recorded HALF20 results on 2026-10-13. This documentation update did not rerun firmware, verify the current binary or test physical hardware. Historical results belong to their recorded inputs, sources and binaries. Detailed research notes are mostly in Chinese; see the [feature TODO](docs/TODO.md) and [implementation record](docs/z8-status.md).
 

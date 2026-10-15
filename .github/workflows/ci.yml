@@ -22,8 +22,13 @@ jobs:
       - name: Dependencies
         run: |
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+<<<<<<< current
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y build-essential ccache ninja-build patch pkg-config libglib2.0-dev libpixman-1-dev zlib1g-dev libfdt-dev libjpeg-dev exfatprogs
           python -m pip install --retries 3 --timeout 30 -r requirements-capture.txt
+=======
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y build-essential ccache ninja-build patch pkg-config libglib2.0-dev libpixman-1-dev zlib1g-dev libfdt-dev libx265-dev libx264-dev
+          python -m pip install --retries 3 --timeout 30 -r requirements.txt -r requirements-c10.txt
+>>>>>>> incoming
       - name: Reviewed source and history
         run: python tools/audit_publication.py
       - name: Synthetic contracts
@@ -47,6 +52,10 @@ jobs:
         run: python tools/build.py --jobs 2
       - name: Bounded producer journal real transactions
         run: python tests/test_z8_producer_journal.py --qemu .build/build/qemu-system-aarch64 --output .local/producer-journal-ci
+      - name: Output ownership and F0 actual transactions
+        run: |
+          python tests/test_z8_buffer_ownership.py --qemu .build/build/qemu-system-aarch64 --output .local/output-owner-ci
+          python tests/test_z8_lossless14.py --qemu .build/build/qemu-system-aarch64 --output .local/lossless14-ci
       - name: Exact wide internal control transactions
         run: python -O tests/test_z8_d980_wide_internal.py --qemu .build/build/qemu-system-aarch64 --output .local/d980-wide-ci
       - name: Firmware-free realization

@@ -76,6 +76,7 @@ FILES.update({'docs/z8-c32.md', 'tools/z8_slots_acceptance.py',
               'tests/test_z8_slots_core.py', 'tests/test_z8_slots_gui.py',
               'tests/test_z8_slots_image.py', 'tests/test_z8_slots_layout.py',
               'tests/test_z8_slots_main_menu.py', 'tests/test_z8_slots_media.py'})
+<<<<<<< current
 FILES.update({'requirements-capture.txt', 'docs/z8-raw-foundation.md',
               'qemu/designware-dma.patch', 'qemu/nikon-sensor-tag.h',
               'qemu/nikon-z9-pcie.h', 'qemu/nikon-z9-d980.h',
@@ -102,7 +103,57 @@ FILES.update({'docs/z8-producer-journal.md', 'qemu/nikon-producer-journal.h',
               'tests/test_producer_journal_adapter.c', 'tests/test_producer_journal_helpers.py',
               'tests/test_producer_journal_contract.py', 'tests/test_z8_producer_journal.py'})
 FILES.update({'docs/z8-d980-internal-wide.md', 'tests/test_z8_d980_wide_internal.py'})
+FILES.update({'docs/z8-photo-audit.md','profiles/z8-lossless14-properties.json','tools/z8_photo_sequence.py','tools/z8_photo_audit.py',
+    'tools/z8_nef_codec.py','qemu/nikon-buffer-ownership.h','qemu/nikon-expeed-lossless.h',
+    'tests/test_buffer_ownership.c','tests/test_buffer_ownership_helpers.py',
+    'tests/test_z8_photo_sequence.py','tests/test_z8_photo_audit.py','tests/test_z8_nef_codec.py',
+    'tests/test_lossless14.py','tests/test_z8_buffer_ownership.py','tests/test_z8_lossless14.py'})
 FILES.update({'docs/z8-experiment-assumptions.md', 'docs/verification/raw-research-log-20261013.md', 'docs/z8-model-split-plan.md', 'docs/z8-public-review-20261013.md'})
+=======
+FILES.update({'docs/z8-orientation.md', 'tools/z8_orientation.py',
+              'tools/z8_orientation_acceptance.py', 'tests/test_z8_orientation.py',
+              'tests/test_z8_orientation_device.py', 'tests/test_z8_orientation_graphics.py',
+              'tests/test_z8_orientation_policy.py', 'tests/test_z8_orientation_resample.py',
+              'tests/test_z8_orientation_resources.py'})
+FILES.update({'tools/z8_orientation_unlock.py', 'tools/z8_orientation_unlock_run.py',
+              'tools/z8_orientation_unlock_acceptance.py', 'tests/test_z8_orientation_unlock.py'})
+FILES.update({'tools/z8_orientation_video_acceptance.py', 'tests/test_z8_orientation_menu_layout.py'})
+FILES.add('tests/test_z8_menu_scanout.py')
+FILES.update({'docs/z8-video-orientation.md','tools/z8_video.py',
+              'tests/test_z8_video.py','tests/test_z8_orientation_video_layout.py',
+              'tests/test_z8_video_serial.py','tests/test_z8_video_pipeline_config.py',
+              'tests/test_z8_video_152c.py'})
+FILES.update({'tools/z8_video_layout.py','tools/z8_video_resources.py',
+              'tests/test_z8_video_portrait.py','tests/test_z8_video_resources.py',
+              'tests/test_z8_video_1530.py','tests/test_z8_video_1543.py',
+              'tests/test_z8_video_1564.py'})
+FILES.update({'tools/video_track_orientation.py','tests/test_video_track_orientation.py',
+              'tests/test_z8_video_mux.py','docs/z8-video-file-orientation.md'})
+FILES.add('tests/test_z8_video_scanout.py')
+FILES.add('tests/test_z8_video_audio.py')
+FILES.update({'tools/z8_video_file_rotation.py','tests/test_z8_video_file_rotation.py'})
+FILES.update({'qemu/nikon-z8-video-ring.h','tests/test_z8_video_ring_stop.py'})
+FILES.add('tests/test_z8_video_source_completion.py')
+FILES.update({'qemu/nikon-z8-input-pair.h','tests/test_z8_video_input_pair.py'})
+FILES.add('docs/z8-zr-reference.md')
+FILES.update({'qemu/nikon-z8-video-data.h','tests/test_z8_video_data.py','tests/test_z8_video_stream.py'})
+FILES.update({'tools/z8_rtc.py','tests/test_z8_rtc.py'})
+FILES.add('tests/test_z8_video_full_raw.py')
+FILES.update({'qemu/nikon-z8-video-processing.h','tests/test_z8_video_processing.py'})
+FILES.update({'qemu/nikon-z8-wave5.h','qemu/nikon-z9-wave5.h','qemu/nikon-wave5-codec.h','tests/test_z8_video_codec.py'})
+FILES.update({'qemu/nikon-z8-yuv.h','tests/test_z8_video_1566.py'})
+FILES.add('tests/test_z8_yuv_stream.py')
+FILES.add('qemu/nikon-z8-yuv-wave5.h')
+FILES.add('docs/z8-video-data.md')
+FILES.add('tests/test_z8_video_protocol.py')
+FILES.add('qemu/nikon-z8-yuv-dma.h')
+FILES.update({'qemu/nikon-z8-yuv-single.h','tests/test_z8_yuv_single.py','tests/test_z8_video_fourth_safety.py'})
+FILES.add('tests/test_z8_video_source_boundary.py')
+FILES.add('docs/z8-video-pipeline.md')
+FILES.update({'qemu/nikon-z9-pcie.h','qemu/nikon-z8-pcie-config.h',
+              'qemu/designware-dma.patch','qemu/nvme-completion-trace.patch','qemu/nvme-audit-state.patch',
+              'tools/virtual_recording_card.py','tests/test_z8_nvme_trace.py'})
+>>>>>>> incoming
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),
@@ -132,6 +183,7 @@ def main():
     for directory,dirs,files in os.walk(ROOT):
         dirs[:] = [name for name in dirs if name not in IGNORED]
         for name in files:
+            if name == '.git': continue  # Git worktree administrative pointer, never public content.
             path = Path(directory)/name
             if path.is_symlink(): raise ValueError('Symlink in public tree: '+str(path))
             discovered.add(path.relative_to(ROOT).as_posix())
