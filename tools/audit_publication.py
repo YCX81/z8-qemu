@@ -117,6 +117,10 @@ FILES.update({
     'tools/z8_heif_menu_boundary.py',
     'tools/z8_heif_stop_raw.py',
 })
+FILES.update({
+    'tests/test_z8_still_hevc_virtual.py',
+    'tests/test_z8_still_hevc_virtual_realize.py',
+})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),

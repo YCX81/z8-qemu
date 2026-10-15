@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
+ * P21 virtual completion delta from integration U-HM5-01 (see p21/provenance.json).
  * Photo-only 1602 backend. Worker owns immutable host snapshots, never guest
  * memory or device state. BQL/main-loop completion validates again, writes and
  * reads back RAM, then publishes grid stages or the non-grid final event.
@@ -22,6 +23,7 @@ typedef struct Z8HEVCWork {
     gint cancel;
     QemuThread thread;
     QEMUBH *bh;
+    QEMUTimer *completion_timer;
     const char *error;
 } Z8HEVCWork;
 typedef struct Z8HEVCEncodePart {
@@ -32,7 +34,9 @@ static void z8_hevc_work_free(Z8HEVCWork *j)
 {
     for(unsigned i=0;i<2;i++) { g_free(j->input[i]); }
     for(unsigned i=0;i<4;i++) { g_free(j->lane[i].data);g_free(j->lane[i].table); }
-    qemu_bh_delete(j->bh);object_unref(OBJECT(j->owner));g_free(j);
+    if (j->bh) { qemu_bh_delete(j->bh); }
+    if (j->completion_timer) { timer_del(j->completion_timer);timer_free(j->completion_timer); }
+    object_unref(OBJECT(j->owner));g_free(j);
 }
 static void z8_hevc_backend_exit(Notifier *notifier,void *data)
 {
@@ -145,7 +149,10 @@ static gpointer z8_hevc_worker(gpointer opaque)
     j->error=NULL;
 done:
     g_free(tile);for(unsigned i=0;i<22;i++) { z8_hevc_encoded_free(&j->encoded[i]); }
-    qemu_bh_schedule(j->bh);return NULL;
+    /* Legacy mode publishes via host-scheduled BH. Virtual mode has exactly
+     * one owner: its already armed virtual timer, which joins this worker. */
+    if (j->bh) { qemu_bh_schedule(j->bh); }
+    return NULL;
 }
 static void z8_hevc_complete(void *opaque)
 {
@@ -203,6 +210,9 @@ static void z8_hevc_complete(void *opaque)
     memcpy(receipt->lane_bytes,b->lane_bytes,sizeof(receipt->lane_bytes));
     memcpy(receipt->lane_records,b->lane_records,sizeof(receipt->lane_records));
     memcpy(receipt->tiles,b->tiles,sizeof(receipt->tiles));
+    if (b->virtual_completion) {
+        b->committed_virtual_ns=qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+    }
     h->pending|=z8_hevc_completion_mask(j->lanes);
     b->completion_irqs+=z8_hevc_irq(h);qemu_set_irq(s->still_hevc_irq,z8_hevc_irq(h));
     fprintf(stderr,"Z8_STILL_HEVC job=%" PRIu64 " c1=%" PRIu64 " frame=%" PRIu64
@@ -267,7 +277,12 @@ static bool z8_hevc_backend_start(NikonZ9State *s)
     memset(b->lane_sha256,0,sizeof(b->lane_sha256));memset(b->table_sha256,0,sizeof(b->table_sha256));
     memset(b->tiles,0,sizeof(b->tiles));
     memset(b->input_sha256,0,sizeof(b->input_sha256));
-    object_ref(OBJECT(s));j->bh=qemu_bh_new(z8_hevc_complete,j);
+    object_ref(OBJECT(s));
+    if (b->virtual_completion) {
+        j->completion_timer=timer_new_ns(QEMU_CLOCK_VIRTUAL,z8_hevc_complete,j);
+    } else {
+        j->bh=qemu_bh_new(z8_hevc_complete,j);
+    }
     const char *error="backend-input-allocation-or-read";
     for(unsigned i=0;i<2;i++) {
         j->input[i]=g_try_malloc(spans[i].bytes);
@@ -284,6 +299,16 @@ static bool z8_hevc_backend_start(NikonZ9State *s)
     }
     b->busy=true;b->work=j;
     qemu_thread_create(&j->thread,"z8-still-hevc",z8_hevc_worker,j,QEMU_THREAD_JOINABLE);
+    if (j->completion_timer) {
+        /* Functional, not physical-latency, model. At the current virtual
+         * deadline the BQL timer callback joins the real encoder. Host compute
+         * may block that callback, but must not consume guest timeout ticks.
+         * No completion is published until existing source/ownership checks,
+         * real encode, DMA and readback have all succeeded. No clock is set,
+         * rewound or advanced here, and no measured hardware delay is claimed. */
+        b->scheduled_virtual_ns=qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+        timer_mod_ns(j->completion_timer,b->scheduled_virtual_ns);
+    }
     b->consumed_job=j->source_job;b->source_job=j->source_job;b->source_frame=j->source_frame;
     b->consumed_jobs[index]=j->source_job;
     memcpy(b->input_sha256,j->source_hash,sizeof(b->input_sha256));h->writes++;return true;
@@ -322,6 +347,16 @@ static void set_z8_still_hevc_x265(Object *obj,bool value,Error **errp)
     NikonZ9State *s=NIKON_Z9_LAB(obj);
     if(s->image_ram.ram || s->image_ram.rom_device) { error_setg(errp,"z8-still-hevc-x265-model is immutable after realization");return; }
     s->still_hevc_backend.enabled=value;
+}
+static bool get_z8_still_hevc_virtual_completion(Object *obj,Error **errp)
+{ return NIKON_Z9_LAB(obj)->still_hevc_backend.virtual_completion; }
+static void set_z8_still_hevc_virtual_completion(Object *obj,bool value,Error **errp)
+{
+    NikonZ9State *s=NIKON_Z9_LAB(obj);
+    if(s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp,"z8-still-hevc-virtual-completion-model is immutable after realization");return;
+    }
+    s->still_hevc_backend.virtual_completion=value;
 }
 static char *get_z8_still_hevc_codec_state(Object *obj,Error **errp)
 {
@@ -383,6 +418,13 @@ static char *get_z8_still_hevc_codec_state(Object *obj,Error **errp)
         }
         g_string_append(out,"]}");
     }
-    g_string_append(out,"]}");return g_string_free(out,false);
+    g_string_append(out,"]");
+    if (b->virtual_completion) {
+        g_string_append_printf(out,",\"virtual_completion\":{\"enabled\":true,"
+            "\"clock\":\"QEMU_CLOCK_VIRTUAL\",\"scheduled_ns\":%" PRId64
+            ",\"committed_ns\":%" PRId64 ",\"physical_latency_verified\":false}",
+            b->scheduled_virtual_ns,b->committed_virtual_ns);
+    }
+    g_string_append(out,"}");return g_string_free(out,false);
 }
 #endif

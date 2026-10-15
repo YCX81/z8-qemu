@@ -17583,6 +17583,13 @@ static void nikon_z9_init(MachineState *machine)
     if (s->still_hevc_backend.enabled && (!s->still_hevc.enabled || !s->hlg_pipeline.enabled)) {
         error_report("z8-still-hevc-x265-model requires still-hevc protocol and HLG C1 pipeline"); exit(1);
     }
+    /* P21: HM5 virtual completion barrier; no physical latency claim. */
+    if (s->still_hevc_backend.virtual_completion && !s->still_hevc_backend.enabled) {
+        error_report("z8-still-hevc-virtual-completion-model requires x265 backend"); exit(1);
+    }
+    if (s->still_hevc_backend.virtual_completion && !icount_enabled() && !qtest_enabled()) {
+        error_report("z8-still-hevc-virtual-completion-model requires icount or QTest"); exit(1);
+    }
     if (s->hlg_pipeline.enabled && (!s->hlg_capture.enabled || !s->capture_nv16_model ||
         !s->engine1543_capture_control_model)) {
         error_report("z8-capture-hlg-pipeline-model requires HLG151 and photo capture pipeline/control"); exit(1);
@@ -18769,6 +18776,7 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_bool(oc, "z8-still-hevc-model", get_z8_still_hevc_model, set_z8_still_hevc_model);
     object_class_property_add_str(oc, "z8-still-hevc-state", get_z8_still_hevc_state, NULL);
     object_class_property_add_bool(oc, "z8-still-hevc-x265-model", get_z8_still_hevc_x265, set_z8_still_hevc_x265);
+    object_class_property_add_bool(oc, "z8-still-hevc-virtual-completion-model", get_z8_still_hevc_virtual_completion, set_z8_still_hevc_virtual_completion);
     object_class_property_add_str(oc, "z8-still-hevc-codec-state", get_z8_still_hevc_codec_state, NULL);
     object_class_property_add_bool(oc, "engine151-raw-output-model", get_engine151_raw_output_model, set_engine151_raw_output_model);
     object_class_property_add_str(oc, "engine151-raw-output-state", get_engine151_raw_output_state, NULL);

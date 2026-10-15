@@ -92,6 +92,8 @@ typedef struct Z8HEVCHistory {
 } Z8HEVCHistory;
 typedef struct Z8HEVCBackend {
     bool enabled,busy,result_valid,failed;
+    bool virtual_completion;
+    int64_t scheduled_virtual_ns,committed_virtual_ns;
     void *work;
     uint64_t jobs,dma_bytes,completion_irqs,consumed_job,source_job,source_frame,cancels;
     uint64_t stage1_acks,stage2_acks;
