@@ -6,6 +6,32 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
 import z8_capture_recovery as recovery
 
 class RecoveryTests(unittest.TestCase):
+    def test_half_points_require_option_contact_and_single_hit(self):
+        with tempfile.TemporaryDirectory() as d:
+            g,calls,values=self.flag_guest(d)
+            self.assertTrue(set(recovery.HALF_POINTS).isdisjoint(recovery.Observer(g).points))
+            g._heif_menu_at_task800=True;s=recovery.Observer(g);s.active=True;s.intershot_started=True
+            for pc in recovery.HALF_POINTS:self.assertFalse(s.can_arm(pc))
+            parent=0xa028283f8;values[0xa028296f0]=parent.to_bytes(8,'little')
+            s.half_started=True
+            for pc in recovery.HALF_POINTS:
+                self.assertTrue(s.can_arm(pc))
+                receipt=s.point(pc,0,{'X00':0xa06c4ee00,'X30':0x41030f4c},1)
+                row=json.loads((g.out/receipt['path']).read_text())
+                self.assertTrue(row['collection_complete']);self.assertEqual(row['application']['parent'],hex(parent))
+                if pc==0x40f4d464:self.assertEqual(row['resume_request']['bytes'],0xe0)
+                self.assertFalse(s.can_arm(pc))
+                with self.assertRaises(ValueError):s.point(pc,0,{},2)
+            self.assertLess(s.bytes_requested,recovery.MAX_BYTES)
+    def test_stop_witnesses_require_new_option_and_are_once_per_intershot(self):
+        with tempfile.TemporaryDirectory() as d:
+            g,calls,_=self.flag_guest(d);g._heif_native_rearm_gate=True;g._heif_intershot_menu_cycle=True
+            self.assertNotIn(0x40f448b8,recovery.Observer(g).points)
+            g._heif_menu_release_after_stop=True;s=recovery.Observer(g);s.active=True
+            self.assertFalse(s.can_arm(0x40f448b8));s.intershot_started=True
+            for pc in (0x40f4c438,0x40f448b8):
+                self.assertTrue(s.can_arm(pc));s.point(pc,0,{'X19':0x20000},1)
+                self.assertFalse(s.can_arm(pc))
     def test_rearm_points_are_opt_in_once_after_intershot_only(self):
         with tempfile.TemporaryDirectory() as d:
             g,calls,_=self.flag_guest(d);g._heif_intershot_menu_cycle=True;g._heif_native_rearm_gate=True

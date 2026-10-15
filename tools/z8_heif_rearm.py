@@ -13,6 +13,7 @@ MODE_START=0xa03bba638;MODE_STOP=0xa03bba92c
 WAIT_NS=10_000_000_000;POLL_NS=100_000_000
 MAX_SAMPLES=202;MAX_RAM=16*1024;MAX_QOM=1024*1024;MAX_SINGLE_QOM=64*1024
 LABELS=('shot2-release','shot2-full')
+STOP_WAIT_NS=5_000_000_000;STOP_MAX_SAMPLES=64
 
 def need(ok,message):
     if not ok:raise ValueError(message)
@@ -25,6 +26,52 @@ def pause_and_sample(peer,gate,label):
     # intentionally leave the VM stopped and retain the failed gate receipt.
     if not ready:gate.g.qmp.command('cont')
     return ready,now
+
+def contact_deadline(enabled,label,sampled_ns,queued_ns,gap_ns):
+    need(all(type(v) is int and v>=0 for v in (sampled_ns,queued_ns,gap_ns)) and queued_ns>=sampled_ns,
+         'Invalid contact clock/gap')
+    return (queued_ns if enabled and label.startswith('shot2-') else sampled_ns)+gap_ns
+
+class StopReleaseGate:
+    """External MENU release waits for native notification and task entry.
+
+    This does not mean all hardware teardown or the task body has finished.
+    It only orders an external key release after observed native execution.
+    """
+    def __init__(self,guest,enabled=False,*,minimum_ns=400_000_000):
+        self.g=guest;self.enabled=enabled;self.minimum_ns=minimum_ns
+        self.rows=[];self.samples=0;self.last_ns=None
+        if enabled:
+            need(type(minimum_ns) is int and 0<=minimum_ns<STOP_WAIT_NS,'MENU hold budget')
+            guest.data['capture_trace']['heif_menu_stop_gate']=self.rows
+    def sample(self,label,t_ns):
+        if not self.enabled:return True
+        need(label=='shot2-menu-release','Unknown MENU stop gate label')
+        need(type(t_ns) is int and t_ns>=0 and (self.last_ns is None or t_ns>=self.last_ns),'MENU monotonic clock required')
+        need(self.samples<STOP_MAX_SAMPLES,'MENU stop sample budget exhausted')
+        self.samples+=1;self.last_ns=t_ns
+        events=self.g.data['capture_trace']['events']
+        press=next((e for e in reversed(events) if e.get('kind')=='input_queued' and e.get('label')=='shot2-menu'),None)
+        need(press is not None and type(press.get('t_ns')) is int and 0<=press['t_ns']<=t_ns,'Missing current MENU press')
+        posts=[e for e in events if e.get('kind')=='recovery_menu_stop107' and press['t_ns']<e['t_ns']<=t_ns]
+        post=posts[0] if posts else None;consume=None
+        if post is not None:
+            consume=next((e for e in events if e.get('kind')=='recovery_menu_stop20000' and
+                post['t_ns']<=e['t_ns']<=t_ns and int(str(e.get('registers',{}).get('X19','0')),0)&0x20000),None)
+        reasons=[]
+        if t_ns-press['t_ns']<self.minimum_ns:reasons.append('minimum-hold')
+        if post is None:reasons.append('stop107-not-observed')
+        if consume is None:reasons.append('stop20000-not-entered')
+        row=dict(label=label,t_ns=t_ns,press_t_ns=press['t_ns'],ready=not reasons,reasons=reasons,
+                 status='waiting' if reasons else 'ready',guest_state_modified=False,
+                 witness_ids=[e.get('event_id') for e in (post,consume) if e is not None],
+                 witness_t_ns=[e['t_ns'] for e in (post,consume) if e is not None],
+                 scope='Native stop107 notification then CSEQ task20000 entry; not whole teardown completion')
+        self.rows.append(row)
+        if reasons and t_ns-press['t_ns']>=STOP_WAIT_NS:
+            row['status']='timeout'
+            raise RuntimeError('MENU stop gate timeout before release: '+','.join(reasons))
+        return row['ready']
 
 class Gate:
     def __init__(self,guest,enabled=False,*,shared=None):

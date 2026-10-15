@@ -6,6 +6,48 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
 import z8_heif_rearm as rearm
 
 class RearmTests(unittest.TestCase):
+    def stop_guest(self):
+        events=[dict(kind='input_queued',label='shot2-menu',t_ns=100)]
+        g=SimpleNamespace(data={'capture_trace':{'events':events}})
+        return g,events
+    def test_menu_release_requires_fresh_ordered_native_stop_witnesses(self):
+        g,e=self.stop_guest();gate=rearm.StopReleaseGate(g,True,minimum_ns=400)
+        self.assertFalse(gate.sample('shot2-menu-release',500))
+        e.append(dict(kind='recovery_menu_stop107',t_ns=550,event_id='p'))
+        self.assertFalse(gate.sample('shot2-menu-release',550))
+        e.append(dict(kind='recovery_menu_stop20000',t_ns=560,event_id='c',registers={'X19':'0x20000'}))
+        self.assertTrue(gate.sample('shot2-menu-release',560))
+        self.assertEqual(gate.rows[-1]['witness_ids'],['p','c'])
+    def test_menu_gate_ignores_prepress_or_wrong_task_events(self):
+        g,e=self.stop_guest();e[:0]=[dict(kind='recovery_menu_stop107',t_ns=10),dict(kind='recovery_menu_stop20000',t_ns=20,registers={'X19':'0x20000'})]
+        gate=rearm.StopReleaseGate(g,True,minimum_ns=400)
+        self.assertFalse(gate.sample('shot2-menu-release',500))
+        e.append(dict(kind='recovery_menu_stop107',t_ns=550))
+        e.append(dict(kind='recovery_menu_stop20000',t_ns=560,registers={'X19':'0x10000'}))
+        self.assertFalse(gate.sample('shot2-menu-release',560))
+    def test_menu_gate_timeout_default_off_and_minimum_hold(self):
+        g,e=self.stop_guest();off=rearm.StopReleaseGate(g,False)
+        self.assertTrue(off.sample('anything',0));self.assertNotIn('heif_menu_stop_gate',g.data['capture_trace'])
+        gate=rearm.StopReleaseGate(g,True,minimum_ns=400)
+        e.extend([dict(kind='recovery_menu_stop107',t_ns=200),dict(kind='recovery_menu_stop20000',t_ns=210,registers={'X19':'0x20000'})])
+        self.assertFalse(gate.sample('shot2-menu-release',499));self.assertTrue(gate.sample('shot2-menu-release',500))
+        g,e=self.stop_guest();gate=rearm.StopReleaseGate(g,True)
+        with self.assertRaisesRegex(RuntimeError,'MENU stop gate timeout'):gate.sample('shot2-menu-release',100+rearm.STOP_WAIT_NS)
+        self.assertEqual(gate.rows[-1]['status'],'timeout')
+    def test_menu_gate_bounds_and_reversed_event_order(self):
+        g,e=self.stop_guest();gate=rearm.StopReleaseGate(g,True,minimum_ns=400)
+        e.extend([dict(kind='recovery_menu_stop20000',t_ns=200,registers={'X19':'0x20000'}),dict(kind='recovery_menu_stop107',t_ns=300)])
+        self.assertFalse(gate.sample('shot2-menu-release',500))
+        with self.assertRaises(ValueError):gate.sample('shot2-menu-release',499)
+        with self.assertRaises(ValueError):gate.sample('full',501)
+        gate.samples=rearm.STOP_MAX_SAMPLES
+        with self.assertRaises(ValueError):gate.sample('shot2-menu-release',502)
+    def test_intershot_deadlines_use_actual_queue_time_only_when_enabled(self):
+        self.assertEqual(rearm.contact_deadline(False,'shot2-menu',100,130,400),500)
+        self.assertEqual(rearm.contact_deadline(True,'shot2-menu',100,130,400),530)
+        self.assertEqual(rearm.contact_deadline(True,'full',100,130,400),500)
+        for args in ((True,'shot2-menu',130,100,400),(True,'shot2-menu',100,130,-1)):
+            with self.assertRaises(ValueError):rearm.contact_deadline(*args)
     def test_gate_does_not_expand_existing_recovery_ram_budget(self):
         import z8_capture_recovery
         g,_,_,_=self.guest();shared=z8_capture_recovery.Observer(g)

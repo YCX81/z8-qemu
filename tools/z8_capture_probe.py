@@ -26,6 +26,7 @@ import z8_still_hevc_observer
 import z8_capture_recovery
 import z8_153_fault
 import z8_heif_rearm
+import z8_heif_menu_boundary
 import z8_writer_integration
 from z8_writer_integration import WriterSession, RESERVED, without_reserved
 
@@ -130,6 +131,11 @@ def record_gate_launch(g):
         raise ValueError('Owned QEMU argv must be a bounded string vector')
     g.data['qemu_launch']=dict(argv=list(argv),guest_state_modified=False,
         scope='Owned Popen args after final resource attachment, before boot; no QOM/RAM access or execution change')
+    if getattr(g,'_heif_capture_status_observer',False):
+        if type(g.proc.pid) is not int or g.proc.pid<=0:raise ValueError('Owned QEMU PID must be positive')
+        g.data['qemu_launch']['owned_pid']=g.proc.pid
+        with (g.out/'owned-qemu.json').open('x') as f:
+            json.dump(g.data['qemu_launch'],f,indent=2);f.write('\n')
 
 
 def capture_first_fault(g, failure):
@@ -253,6 +259,15 @@ def contact_sequence(args):
     menu_cycle=getattr(args,'heif_intershot_menu_cycle',False)
     menu_exit=getattr(args,'heif_menu_exit_key','half')
     native_gate=getattr(args,'heif_native_rearm_gate',False)
+    if getattr(args,'heif_stop_wait_return_only',False) and not getattr(args,'heif_capture_status_observer',False):
+        raise ValueError('Stop wait return-only observation requires capture status observer')
+    if getattr(args,'heif_capture_status_observer',False) and not getattr(args,'heif_menu_at_task800',False):
+        raise ValueError('Capture status observer requires the explicit MENU task800 experiment')
+    if getattr(args,'heif_menu_at_task800',False) and not (
+            native_gate and menu_cycle and menu_exit=='half' and getattr(args,'heif_menu_release_after_stop',False)):
+        raise ValueError('MENU task800 boundary requires native gate, stop release gate and HALF menu cycle')
+    if getattr(args,'heif_menu_release_after_stop',False) and not (native_gate and menu_cycle):
+        raise ValueError('MENU release ordering requires the native rearm gate and intershot MENU cycle')
     if menu_exit not in ('half','menu') or ((native_gate or menu_exit!='half') and not menu_cycle):
         raise ValueError('Native rearm gate and MENU exit key require the explicit intershot menu cycle')
     if shots not in (1,2) or (shots==2 and (args.menu_only or args.wait_capture_work or args.settle>10 or
@@ -569,6 +584,8 @@ class CapturePeer(Peer):
         self.trace_points = dict(POINTS)
         self.still_hevc_observer = None
         self.recovery_observer = z8_capture_recovery.Observer(guest) if getattr(guest,'_capture_recovery_observer_enabled',False) else None
+        self.menu_boundary = z8_heif_menu_boundary.MenuBoundary(guest,
+            getattr(guest,'_heif_menu_at_task800',False),self.recovery_observer)
         if getattr(guest, '_still_hevc_observer_enabled', False):
             self.still_hevc_observer = z8_still_hevc_observer.Observer(guest)
             guest._still_hevc_observer = self.still_hevc_observer
@@ -640,6 +657,8 @@ class CapturePeer(Peer):
         self.active_contact = dict(label=label, expected=expected, entered=False)
         if label=='shot2-menu' and getattr(self,'recovery_observer',None) is not None:
             self.recovery_observer.intershot_started=True
+        if label=='shot2-leave-menu-half' and getattr(self,'recovery_observer',None) is not None:
+            self.recovery_observer.half_started=True
         self.arm(self.consumer, 'capture_key_consumer')
         for pc, name in self.trace_points.items():
             recovery=getattr(self,'recovery_observer',None)
@@ -725,6 +744,13 @@ class CapturePeer(Peer):
                 registers={k:hex(regs[k]) for k in
                     ('X00','X01','X02','X03','X08','X09','X10','X12','X19','X20','X21','X22','X24','X25','X26','X27','X30','SP')})
             observer = getattr(self, 'still_hevc_observer', None)
+            boundary=getattr(self,'menu_boundary',None)
+            if boundary is not None and pc in z8_heif_menu_boundary.POINTS:
+                if sum(r['PC']==pc for _,r in cpu_registers)!=1:
+                    raise RuntimeError('Ambiguous MENU boundary CPU')
+                next_pc=boundary.observe(pc,cpu,regs,self.now())
+                if next_pc is not None:self.arm(next_pc,'capture_'+z8_heif_menu_boundary.POINTS[next_pc])
+                fields['menu_boundary']=dict(boundary.row)
             if observer is not None and pc in z8_still_hevc_observer.POINTS:
                 fields['still_hevc'] = observer.observe(pc, cpu, regs)
             recovery=getattr(self,'recovery_observer',None)
@@ -825,13 +851,19 @@ def run(args):
         raise ValueError('--still-153-observer requires pinned --still-hevc-observer')
     guest._heif_intershot_menu_cycle = bool(getattr(args,'heif_intershot_menu_cycle',False))
     guest._heif_native_rearm_gate = bool(getattr(args,'heif_native_rearm_gate',False))
+    guest._heif_menu_release_after_stop = bool(getattr(args,'heif_menu_release_after_stop',False))
+    guest._heif_menu_at_task800 = bool(getattr(args,'heif_menu_at_task800',False))
+    guest._heif_capture_status_observer = bool(getattr(args,'heif_capture_status_observer',False))
+    guest._heif_stop_wait_return_only = bool(getattr(args,'heif_stop_wait_return_only',False))
     if guest._heif_intershot_menu_cycle:
         exit_key=getattr(args,'heif_menu_exit_key','half')
         guest.data['heif_intershot_intervention']=dict(kind='one-menu-'+exit_key+'-exit-cycle',
             ordinary_two_shot_recovery_verified=False,guest_ram_written=False,
             scope='External input experiment: run12 MENU caused original task10000/set800; no model event injection',
             native_rearm_gate=guest._heif_native_rearm_gate,
-            recovery_point_profile='menu-cycle-13-plus-5-once-intershot' if guest._heif_native_rearm_gate else 'menu-cycle-existing-13-points')
+            menu_release_after_native_stop=guest._heif_menu_release_after_stop,
+            recovery_point_profile=('menu-cycle-13-plus-7-once-intershot' if guest._heif_menu_release_after_stop else
+                ('menu-cycle-13-plus-5-once-intershot' if guest._heif_native_rearm_gate else 'menu-cycle-existing-13-points')))
     if guest._capture_recovery_observer_enabled and not guest._still_hevc_observer_enabled:
         raise ValueError('--capture-recovery-observer requires pinned --still-hevc-observer')
     if guest._still_hevc_export_c1 and not guest._still_hevc_observer_enabled:
@@ -892,6 +924,8 @@ def run(args):
         source_paths += [Path(__file__).with_name(n) for n in ('z8_capture_recovery.py','z8_capture_readiness.py')]
     if guest._heif_native_rearm_gate:
         source_paths.append(Path(__file__).with_name('z8_heif_rearm.py'))
+    if guest._heif_menu_at_task800:
+        source_paths.append(Path(__file__).with_name('z8_heif_menu_boundary.py'))
     if args.capture_pixels:
         source_paths += [Path(__file__).with_name(name) for name in
                          ('z8_capture_pixels.py','z8_photo_sequence.py')]
@@ -919,6 +953,8 @@ def run(args):
             boot(g)
             peer=CapturePeer(g,journal); clock=make_boundary_peer(g)
             native_gate=z8_heif_rearm.Gate(g,guest._heif_native_rearm_gate,shared=peer.recovery_observer)
+            menu_stop_gate=z8_heif_rearm.StopReleaseGate(g,guest._heif_menu_release_after_stop,
+                                                       minimum_ns=args.navigation_press_ms*1_000_000)
             if args.gpio:
                 g.data['z8_capture_gpio_bindings']=read_gpio_bindings(g)
             if args.rtc_status:
@@ -938,15 +974,19 @@ def run(args):
                 if 'Z9_UNKNOWN' in g.log():
                     raise RuntimeError('Unmodeled hardware access; inspect the captured first fault')
                 running=g.qmp.command('query-status')['running']
+                next_label=contacts[index]['label'] if index<len(contacts) else None
                 if not running:
                     handled=peer.handle()
-                    if not handled and not explicit_stop:
+                    if not handled and not explicit_stop and not peer.menu_boundary.holds(next_label):
                         raise RuntimeError('Guest stopped outside registered input/trace boundaries')
-                    explicit_stop=False; g.qmp.command('cont'); continue
-                clock.tick()
+                    explicit_stop=False
+                    if not peer.menu_boundary.holds(next_label):
+                        g.qmp.command('cont'); continue
+                if running:clock.tick()
                 now=peer.now()
+                peer.menu_boundary.check(now)
                 eligible=peer.active_contact is None and now>=ready_at
-                if eligible and index<len(contacts) and contacts[index]['label']==heif_intershot_gate_label(args):
+                if eligible and index<len(contacts) and contacts[index]['label']==heif_intershot_gate_label(args) and not peer.menu_boundary.phase.startswith('waiting'):
                     observed={key:state(g,name) for key,name in (
                         ('codec','z8-still-hevc-codec-state'),('protocol','z8-still-hevc-state'),
                         ('c1','z8-capture-hlg-pipeline-state'),('thumbnail','z8-capture-hlg-thumbnail-state'),
@@ -956,6 +996,13 @@ def run(args):
                     g.data['capture_trace']['heif_intershot_gate']=dict(ready=eligible,t_ns=now,states=observed,receipts=receipts,
                         scope='Read-only first photo codec/source retirement after explicit gap; not writer durability or rearm proof')
                     if not eligible:ready_at=now+100_000_000
+                    if not eligible and peer.menu_boundary.holds(next_label):
+                        raise RuntimeError('Photo retirement changed at held MENU boundary')
+                if eligible and peer.menu_boundary.enabled and next_label=='shot2-menu':
+                    eligible=z8_heif_menu_boundary.prepare(peer)
+                if eligible and menu_stop_gate.enabled and index<len(contacts) and contacts[index]['label']=='shot2-menu-release':
+                    eligible,now=z8_heif_rearm.pause_and_sample(peer,menu_stop_gate,contacts[index]['label'])
+                    if not eligible:ready_at=now+z8_heif_rearm.POLL_NS
                 if eligible and native_gate.enabled and index<len(contacts) and contacts[index]['label'] in z8_heif_rearm.LABELS:
                     # Pause only to read a coherent snapshot. A failed sample
                     # leaves index unchanged and ordinary device service runs.
@@ -1006,15 +1053,23 @@ def run(args):
                         journal.add('gpio_input_set',peer.now(),label=label,levels=int(half)|(int(full)<<1),
                                     input_route='gpio',causal_scope='External GPIO levels only; not original MCU FULL consumption')
                     peer.begin(label,item['body'],item['expected'])
+                    if peer.menu_boundary.holds(label):peer.menu_boundary.sent(peer.now())
                     print('Queued Z8 contact',label,flush=True)
                     index+=1
                     gap=max(item['gap'],args.settle*1_000_000_000) if index==len(contacts) else item['gap']
-                    ready_at=now+gap
+                    if menu_stop_gate.enabled and label.startswith('shot2-'):
+                        queued_at=peer.now()
+                        ready_at=z8_heif_rearm.contact_deadline(True,label,now,queued_at,gap)
+                        journal.add('intershot_contact_deadline',queued_at,label=label,sampled_t_ns=now,
+                                    gap_ns=gap,next_due_ns=ready_at,clock_anchor='post-begin stopped clock')
+                    else:ready_at=now+gap
                     g.qmp.command('cont')
                 if time.monotonic()>=next_snapshot:
                     g.qmp.command('stop'); peer.handle()
                     g.qmp.command('screendump',filename=str(g.out/f'probe-{snapshots:03}.ppm'))
                     snapshots+=1; next_snapshot=time.monotonic()+15
+                    if peer.menu_boundary.holds(contacts[index]['label'] if index<len(contacts) else None):
+                        continue
                     g.qmp.command('cont')
                 channels=state(g,'serial-state')
                 if clock_devices(peer,spi8,spi9,channels):
@@ -1083,6 +1138,14 @@ def main():
                    help='Explicit intershot experiment only: exit MENU with HALF (existing default) or another MENU press/release')
     p.add_argument('--heif-native-rearm-gate',action='store_true',
                    help='Default off: bounded read-only native-state/FULL-permission/liveview gate before shot2 release and FULL; requires intershot cycle')
+    p.add_argument('--heif-menu-release-after-stop',action='store_true',
+                   help='Default off: intershot gaps use actual queue time; hold MENU until native stop107 and task20000 entry (5s bound); requires native rearm gate')
+    p.add_argument('--heif-menu-at-task800',action='store_true',
+                   help='Default off: queue external MENU at a fresh native task800 boundary (2s bound); requires HALF exit and both gates')
+    p.add_argument('--heif-capture-status-observer',action='store_true',
+                   help='Default off: bounded property2620 snapshots and first native list append after MENU; requires task800 experiment')
+    p.add_argument('--heif-stop-wait-return-only',action='store_true',
+                   help='Default off: observe stop wait only after return, removing pre-wait breakpoints; requires capture status observer')
     p.add_argument('--still-153-observer',action='store_true',
                    help='Default off; pinned HEVC observer required; at existing153 strict fault save bounded QOM and both RAM programs')
     run(p.parse_args())

@@ -15,6 +15,39 @@ import z8_capture_probe as probe
 
 
 class FirstFaultSnapshotTests(unittest.TestCase):
+    def test_capture_status_pid_receipt_binds_owned_popen(self):
+        with tempfile.TemporaryDirectory() as d:
+            g=SimpleNamespace(data={},out=Path(d),proc=SimpleNamespace(args=['/bin/qemu'],pid=123),
+                _heif_native_rearm_gate=True,_heif_capture_status_observer=True)
+            probe.record_gate_launch(g)
+            self.assertEqual(json.loads((g.out/'owned-qemu.json').read_text())['owned_pid'],123)
+    def test_capture_status_observer_defaults_off_and_requires_boundary(self):
+        argv=['probe','--firmware','main','--qemu','qemu','--raw','raw','--output','out']
+        with patch.object(sys,'argv',argv),patch.object(probe,'run') as run:probe.main()
+        self.assertFalse(run.call_args.args[0].heif_capture_status_observer)
+        a=self.menu_cycle_args();a.heif_capture_status_observer=True
+        with self.assertRaises(ValueError):probe.contact_sequence(a)
+        a.heif_menu_at_task800=True;a.heif_menu_release_after_stop=True;a.heif_native_rearm_gate=True
+        probe.contact_sequence(a)
+    def test_task800_boundary_requires_explicit_half_gates_and_defaults_off(self):
+        argv=['probe','--firmware','main','--qemu','qemu','--raw','raw','--output','out']
+        with patch.object(sys,'argv',argv),patch.object(probe,'run') as run:probe.main()
+        self.assertFalse(run.call_args.args[0].heif_menu_at_task800)
+        a=self.menu_cycle_args();a.heif_menu_at_task800=True
+        with self.assertRaises(ValueError):probe.contact_sequence(a)
+        a.heif_native_rearm_gate=True;a.heif_menu_release_after_stop=True
+        before=probe.contact_sequence(a);a.heif_menu_at_task800=False
+        self.assertEqual(before,probe.contact_sequence(a))
+        a.heif_menu_at_task800=True;a.heif_menu_exit_key='menu'
+        with self.assertRaises(ValueError):probe.contact_sequence(a)
+    def test_menu_release_gate_default_off_and_requires_native_gate(self):
+        argv=['probe','--firmware','main','--qemu','qemu','--raw','raw','--output','out']
+        with patch.object(sys,'argv',argv),patch.object(probe,'run') as run:probe.main()
+        self.assertFalse(run.call_args.args[0].heif_menu_release_after_stop)
+        a=self.menu_cycle_args();a.heif_menu_release_after_stop=True
+        with self.assertRaises(ValueError):probe.contact_sequence(a)
+        a.heif_native_rearm_gate=True;before=probe.contact_sequence(a)
+        a.heif_menu_release_after_stop=False;self.assertEqual(before,probe.contact_sequence(a))
     def test_gate_launch_receipt_uses_owned_popen_argv_and_defaults_off(self):
         g=SimpleNamespace(data={})
         probe.record_gate_launch(g);self.assertEqual(g.data,{})
