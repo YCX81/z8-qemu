@@ -10,11 +10,12 @@ typedef struct NikonRawPixels {
     uint8_t *tone;
 } NikonRawPixels;
 
-static NikonRawPixels *nikon_raw_pixels_new(const uint8_t *samples,
-    unsigned width, unsigned height, unsigned black, unsigned white)
+static NikonRawPixels *nikon_raw_pixels_new_bounded(const uint8_t *samples,
+    unsigned width, unsigned height, unsigned black, unsigned white,
+    unsigned max_width, unsigned max_height, uint64_t max_samples)
 {
-    if (!width || !height || ((width | height) & 1) || width > 8192 ||
-        height > 8192 || (uint64_t)width * height > 16 * MiB || black >= white || white > 65535) {
+    if (!samples || !width || !height || ((width | height) & 1) || width > max_width ||
+        height > max_height || (uint64_t)width * height > max_samples || black >= white || white > 65535) {
         return NULL;
     }
     NikonRawPixels *p = g_new0(NikonRawPixels, 1);
@@ -30,6 +31,12 @@ static NikonRawPixels *nikon_raw_pixels_new(const uint8_t *samples,
         p->samples[i] = lduw_le_p(samples + i * 2);
     }
     return p;
+}
+
+static NikonRawPixels *nikon_raw_pixels_new(const uint8_t *samples,
+    unsigned width, unsigned height, unsigned black, unsigned white)
+{
+    return nikon_raw_pixels_new_bounded(samples,width,height,black,white,8192,8192,16 * MiB);
 }
 
 static void nikon_raw_pixels_rgb(const NikonRawPixels *p, unsigned x, unsigned y,

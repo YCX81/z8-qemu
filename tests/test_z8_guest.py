@@ -6,6 +6,20 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+
+
+class VideoC1Properties(unittest.TestCase):
+    def test_c1_options_remain_explicit_and_boolean(self):
+        import z8_guest
+        from z8_properties import load_model_profile
+        names=('z8-video-c1-model','z8-video-c1-primary-boundaries-model',
+               'z8-video-c1-source-end-model','z8-video-c1-fourth-output-model',
+               'z8-video-processing-config-model')
+        defaults=load_model_profile()['properties']
+        for name in names:
+            self.assertNotIn(name+'=on',defaults)
+            self.assertEqual(z8_guest.validate_properties([name+'=on']),[name+'=on'])
+            with self.assertRaises(ValueError):z8_guest.validate_properties([name+'=guess'])
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))

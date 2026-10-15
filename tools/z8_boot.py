@@ -71,8 +71,12 @@ def observe(g, points, *, timeout=30):
             g.rsp(f'z1,{pc:x},4')
 
 
-def boot(g, progress=print):
+def boot(g, progress=print, *, status68=None):
     profile = load_configuration(g)
+    power_body = status_body({0x1c: 2})
+    if status68 is not None:
+        from z8_video_mcu import status68_input
+        power_body = status68_input(power_body, status68)
     bindings, config = profile['bindings'], profile['boot']
     points = config['points']
     record = dict(profile_sha256=sha(PROFILE), classification='native_Z8_boot_with_synthetic_MCU_inputs',
@@ -80,6 +84,7 @@ def boot(g, progress=print):
                   physical_protocol_verified=False,
                   rx_retirement_semantics=profile['rx_retirement_semantics'])
     g.data['z8_boot'] = record
+    record.update(status68_input=status68, power_status_input_body_hex=power_body.hex())
 
     def accepted(stage):
         strict_check(g)
@@ -101,7 +106,7 @@ def boot(g, progress=print):
     g.check('original Z8 RX GPIO handle is model-specific pin object', handle == 0xa02809148)
     g.check('original Z8 RX GPIO uses IRQ58 descriptor', descriptor == 0xa0280c1e0)
     accepted('rx_task_irq_initialized')
-    deliver(g, frames(status_body({0x1c: 2}))[0], prefix='z8-power-', bindings=bindings)
+    deliver(g, frames(power_body)[0], prefix='z8-power-', bindings=bindings)
     _, regs = at(g, points['power_status'])
     g.check('original Z8 power status accepted', regs['X01'] == int(config['expected_power_status_event'], 0))
     _, regs = at(g, points['system_power_event'])
@@ -121,6 +126,7 @@ def boot(g, progress=print):
     strict_check(g)
     body = bytearray(112)
     body[0] = 3
+    record['battery_status_input_body_hex'] = bytes(body).hex()
     deliver(g, frames(body, family=4)[0], prefix='z8-battery-', bindings=bindings)
     # This is the original lens service send-callback return reached after
     # the synthetic battery frame. It does not establish battery health.

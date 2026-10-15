@@ -60,7 +60,7 @@ class BootContract(unittest.TestCase):
             self.assertEqual(z8_boot.load_configuration(guest, path)['bindings'], PROFILE['bindings'])
 
     def run_boot(self, wrong_event=False, strict_after_ready=False, wrong_rx_handle=False,
-                 final_rx_state=0, event_address=0xa00001000):
+                 final_rx_state=0, event_address=0xa00001000, status68=None):
         guest = checked_guest()
         points = PROFILE['boot']['points']
         guest.ram_mib = 1024
@@ -95,7 +95,7 @@ class BootContract(unittest.TestCase):
                 patch.object(z8_boot, 'observe') as observe:
             error = None
             try:
-                z8_boot.boot(guest, progress=lambda _: None)
+                z8_boot.boot(guest, progress=lambda _: None, status68=status68)
             except (AssertionError, RuntimeError) as exc:
                 error = exc
             self.assertNotIn(20, [call.args[1] for call in settle.call_args_list])
@@ -117,6 +117,18 @@ class BootContract(unittest.TestCase):
             PROFILE['boot']['observe_after_lens'], PROFILE['boot']['observe_after_half_key']])
         self.assertEqual(deliver.call_args_list[0].args[1][8 + 0x1c], 2)
         self.assertEqual(deliver.call_args_list[-2].args[1][8 + 7], 1)
+
+    def test_optional_boot_status_enum_preserves_other_input_bytes(self):
+        baseline, _, original, _, _ = self.run_boot()
+        guest, error, delivered, _, _ = self.run_boot(status68=1)
+        self.assertIsNone(error)
+        before = original.call_args_list[0].args[1]
+        after = delivered.call_args_list[0].args[1]
+        differences = [i for i, (a, b) in enumerate(zip(before, after)) if a != b]
+        self.assertEqual(differences, [8 + 0x68, 255])
+        self.assertEqual(sum(after) & 255, 255)
+        self.assertEqual(guest.data['z8_boot']['status68_input'], 1)
+        self.assertIsNone(baseline.data['z8_boot']['status68_input'])
 
     def test_old_model_event_does_not_advance_boot_stage(self):
         guest, error, deliver, receive, _ = self.run_boot(wrong_event=True)

@@ -39,12 +39,29 @@ def media_arguments(image, firmware, *, create=False):
 
 def validate_properties(properties):
     supported = {item.split('=', 1)[0] for item in load_model_profile()['properties']}
+    video_boolean = {'z8-secondary-resample-model', 'z8-video-interface-model',
+                     'z8-video-ring-stop-model', 'z8-video-c1-model',
+                     'z8-video-c1-primary-boundaries-model', 'z8-video-c1-source-end-model',
+                     'z8-video-c1-fourth-output-model', 'z8-video-processing-config-model'}
+    supported.update(video_boolean)
+    # Explicit opt-in for portrait experiments; no change to the default model
+    # profile or claim about physical GPU precision.
+    supported.add('z8-secondary-resample-model')
+    supported.add('z8-video-interface-model')
+    supported.add('z8-video-ring-stop-model')
+    supported.add('raw-pipeline-151c-completion-model')
+    supported.add('raw-pipeline-1514-completion-model')
+    supported.add('raw-source-boundary-model')
+    supported.add('raw-pipeline-input-pair-model')
+    supported.add('z8-video-serial-input')
     seen = set()
     result = []
     for item in properties:
         if not isinstance(item, str) or not re.fullmatch(r'[a-z0-9-]+=[^,\s\x00]+', item):
             raise ValueError('Malformed functional device property')
         name = item.split('=', 1)[0]
+        if name in video_boolean and item.split('=', 1)[1] not in ('on', 'off'):
+            raise ValueError('Optional video/rotation model must be on or off')
         if name not in supported or name in seen:
             raise ValueError('Unknown or duplicate functional device property: ' + name)
         seen.add(name)
