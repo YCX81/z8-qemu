@@ -6,6 +6,8 @@ Documentation updated: **2026-10-13**. This workspace ports Nikon Z8 C3.11 to th
 
 **Assisted original-firmware menus, synthetic live view and an ordinary post-trigger NEF have recorded local QEMU acceptance. RAW pre-release capture remains incomplete.** This is an experimental emulator, not camera-installable firmware. It does not connect to or flash a physical camera.
 
+See [video data progress](docs/z8-video-data.md), [orientation experiments](docs/z8-orientation.md), and [video pipeline](docs/z8-video-pipeline.md). The frozen O checkpoint reaches the closing JPEG path; a playable recording has not been accepted.
+
 The status below was reconciled against source snapshot `a97f5df` and the recorded HALF20 results on 2026-10-13. This documentation update did not rerun firmware, verify the current binary or test physical hardware. Historical results belong to their recorded inputs, sources and binaries. Detailed research notes are mostly in Chinese; see the [feature TODO](docs/TODO.md) and [implementation record](docs/z8-status.md).
 
 ## Current results and limits
@@ -50,7 +52,7 @@ The current tree also contains small instruction guards and test literals derive
 
 ## Build and test
 
-Use Linux / WSL, Python 3.12+ and the dependencies in [build instructions](docs/build.md): GCC/Clang, Ninja, patch, pkg-config, GLib, Pixman, zlib, libfdt and libjpeg development headers. Capture work additionally needs exfatprogs and `requirements-capture.txt`; slot experiments use `requirements-c10.txt`.
+Use Linux / WSL, Python 3.12+ and the dependencies in [build instructions](docs/build.md): GCC/Clang, Ninja, patch, pkg-config, GLib, Pixman, zlib, libfdt, libjpeg, x264 and x265 development headers. Capture work additionally needs exfatprogs and `requirements-capture.txt`; slot experiments use `requirements-c10.txt`.
 
 From the repository directory in Linux / WSL:
 

@@ -21,6 +21,13 @@ SOURCES = ['qemu/nikon-z9-lab.c','qemu/nikon-z9-pixels.h','qemu/nikon-raw-pixels
 SOURCES.append('qemu/arm-service-events.patch')
 SOURCES.append('qemu/nikon-persistent-media.h')
 SOURCES.append('qemu/nikon-sensor-tag.h')
+SOURCES.append('qemu/nikon-buffer-ownership.h')
+SOURCES.append('qemu/nikon-z8-video-admission.h')
+SOURCES.extend(['qemu/nikon-z8-jpeg-types.h', 'qemu/nikon-z8-jpeg-sources.h', 'qemu/nikon-z8-jpeg.h'])
+SOURCES.append('qemu/nikon-expeed-lossless.h')
+SOURCES.extend(['qemu/nikon-z8-lossless-u16.h', 'qemu/nikon-z8-hsfc-encode.h'])
+SOURCES.append('qemu/nikon-z8-hsfc153c.h')
+SOURCES.extend(['qemu/nikon-bayer-packet.h', 'qemu/nikon-z8-hsfc-pixels.h', 'qemu/nikon-z8-hsfc-decode.h'])
 SOURCES.extend(['qemu/nikon-producer-journal.h','qemu/nikon-producer-journal-qemu.h'])
 SOURCES.append('qemu/designware-dma.patch')
 SOURCES.append('qemu/nvme-completion-trace.patch')
@@ -28,6 +35,12 @@ SOURCES.append('qemu/nvme-audit-state.patch')
 SOURCES.extend('qemu/' + name for name in (
     'nikon-z9-pcie.h', 'nikon-z9-d980.h', 'nikon-z9-jpeg.h',
     'nikon-z9-capture-nv16.h', 'nikon-z9-thumbnail-nv16.h'))
+SOURCES.extend('qemu/'+name for name in (
+    'nikon-z8-video-ring.h','nikon-z8-input-pair.h','nikon-z8-video-data.h',
+    'nikon-z8-video-processing.h','nikon-z8-wave5.h','nikon-z9-wave5.h','nikon-wave5-codec.h','nikon-z8-yuv.h','nikon-z8-yuv-wave5.h','nikon-z8-yuv-dma.h','nikon-z8-yuv-single.h',
+    'nikon-z9-pcie.h','nikon-z8-pcie-config.h','designware-dma.patch','nvme-audit-state.patch','nvme-completion-trace.patch'))
+SOURCES.append('qemu/nikon-z8-packet.h')
+SOURCES = list(dict.fromkeys(SOURCES))
 
 def digest(path):
     h = hashlib.sha256()

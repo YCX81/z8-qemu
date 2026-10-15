@@ -419,6 +419,9 @@ class ContactContracts(unittest.TestCase):
         returned = dict(seq=2, kind='file_writer_return', registers={'X00': '0x0'})
         self.assertFalse(probe.ordinary_work_idle(raw, jpeg, [entry], baseline))
         self.assertTrue(probe.ordinary_work_idle(raw, jpeg, [entry, returned], baseline))
+        self.assertTrue(probe.ordinary_work_idle(dict(raw,acks=4), jpeg, [entry,returned], baseline))
+        self.assertFalse(probe.ordinary_work_idle(dict(raw,acks=0), jpeg, [entry,returned], baseline))
+        self.assertFalse(probe.ordinary_work_idle(dict(raw,acks=True), jpeg, [entry,returned], baseline))
         self.assertFalse(probe.ordinary_work_idle(raw, jpeg, [returned], dict(baseline, raw_jobs=1)))
         self.assertFalse(probe.ordinary_work_idle(raw, jpeg, [dict(returned, registers={'X00': '0x3'})], baseline))
 

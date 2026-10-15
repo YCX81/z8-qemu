@@ -107,7 +107,7 @@ static char *get_producer_generation_journal_state(Object *obj, Error **errp)
     NikonZ9State *s = NIKON_Z9_LAB(obj);
     NJournal *j = &s->producer_journal;
     static const char *kinds[] = {"none", "d980_ram", "151_nv16", "151_raw", "1540_raw_copy"};
-    static const char *formats[] = {"none", "packed12le", "packed14le", "NV16_Y_UV"};
+    static const char *formats[] = {"none", "packed12le", "packed14le", "NV16_Y_UV", "nikon-f0-lossless14"};
     static const char *states[] = {"no_monitored_overlap_since_completion",
         "overwritten_by_monitored_write", "reset_barrier", "coverage_unknown"};
     GString *o = g_string_new(NULL);
@@ -120,7 +120,7 @@ static char *get_producer_generation_journal_state(Object *obj, Error **errp)
         "\"native_owner_verified\":false,\"native_allocation_generation_verified\":false,"
         "\"cpu_and_other_dma_writes_tracked\":false,\"same_content_aba_excluded\":false,"
         "\"historical_retention_verified\":false,\"reset1540_tracked\":false,"
-        "\"coverage\":\"D980 RAM,151 instance0 NV16/RAW,1540 RAW copy destination writes only\","
+        "\"coverage\":\"D980 RAM,151 instance0 NV16/RAW,1540 packed or F0 destination writes only\","
         "\"scope\":\"Metadata only; hashes are RAM readback, not global RAM lifetime or native ownership."
         " QEMU/GLib unrecoverable OOM semantics retained.\",\"first_failure\":{"
         "\"code\":%u,\"kind\":%u,\"operation_id\":%" PRIu64

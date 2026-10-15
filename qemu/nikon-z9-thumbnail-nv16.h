@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Native-derived A2 RAM -> B4/F4; functional nearest NV16, no physical ISP.
  * Only current owned capture output1/2 may supply a finite request. */
-static bool capture_thumbnail_prepare(NikonZ9State *s)
+static bool capture_thumbnail_admit(NikonZ9State *s, bool latch)
 {
     const uint32_t *a = s->engine1542_config[2];
     const uint32_t *b = s->engine1542_config[7];
@@ -12,7 +12,7 @@ static bool capture_thumbnail_prepare(NikonZ9State *s)
     uint64_t p[4] = { y, uv, capture_nv16_address(b, 0x20), capture_nv16_address(b, 0x28) };
     uint64_t n[4] = { (uint64_t)pitch * h, (uint64_t)pitch * h, (uint64_t)op * oh, (uint64_t)op * oh };
     int owner = -1;
-    if (!s->capture_nv16_jobs || s->capture_thumbnail_consumed_nv16 == s->capture_nv16_jobs ||
+    if ((!s->engine15e2_bank1_model && (!s->capture_nv16_jobs || s->capture_thumbnail_consumed_nv16 == s->capture_nv16_jobs)) ||
         a[8 / 4] != 0x10000000 || b[0xc / 4] != 0x41000010 || b[0x10 / 4] != 1 ||
         b[0x40 / 4] != 0x22 || b[0x3c / 4] != op ||
         (f[0] != 2 && f[0] != 4) || (f[1] != 1 && f[1] != 4) ||
@@ -21,10 +21,16 @@ static bool capture_thumbnail_prepare(NikonZ9State *s)
         !f[0x10 / 4] || !f[0x14 / 4] || f[0x20 / 4] > 7 ||
         capture_nv16_coordinate(f, ow - 1, false) >= w ||
         capture_nv16_coordinate(f, oh - 1, true) >= h) { return false; }
+    Z8JpegSource *parent=NULL;
+    if (s->engine15e2_bank1_model) {
+        parent=jpeg_source_tuple(s,Z8_JPEG_NV16,-1,y,uv,w,h,pitch);
+        if (parent && parent->index>0 && jpeg_source_hash_valid(s,parent)) { owner=parent->index; }
+    } else {
     for (unsigned j = 1; j < 3; j++) {
         if (y == s->capture_nv16_y[j] && uv == s->capture_nv16_uv[j] &&
             w == s->capture_nv16_w[j] && h == s->capture_nv16_h[j] &&
             pitch == s->capture_nv16_stride[j]) { owner = j; }
+    }
     }
     if (owner < 0) { return false; }
     for (unsigned j = 0; j < 4; j++) {
@@ -33,11 +39,24 @@ static bool capture_thumbnail_prepare(NikonZ9State *s)
             if (p[j] < p[k] + n[k] && p[k] < p[j] + n[j]) { return false; }
         }
     }
+    if (!latch) { return true; }
+    if (s->engine15e2_bank1_model) {
+        jpeg_sources_cancel_tokens(s,&s->jpeg_sources.thumb_token,1);
+        Z8JpegSource *r=jpeg_source_reserve(s,Z8_JPEG_THUMB,0,s->capture_thumbnail_jobs+1,
+            p[2],p[3],ow,oh,op,parent);
+        if (!r) { return false; }
+        s->jpeg_sources.thumb_token=r->generation;
+    }
     memcpy(s->capture_thumbnail_output, b, sizeof(s->capture_thumbnail_output));
     memcpy(s->capture_thumbnail_geometry, f, sizeof(s->capture_thumbnail_geometry));
     s->capture_thumbnail_source_owner = owner;
     s->capture_thumbnail_requests++;
     return true;
+}
+
+static bool capture_thumbnail_prepare(NikonZ9State *s)
+{
+    return capture_thumbnail_admit(s, true);
 }
 
 static void capture_thumbnail_run(NikonZ9State *s)
@@ -50,8 +69,15 @@ static void capture_thumbnail_run(NikonZ9State *s)
     uint64_t y = capture_nv16_address(a, 0x20), uv = capture_nv16_address(a, 0x28);
     uint64_t ty = capture_nv16_address(b, 0x20), tuv = capture_nv16_address(b, 0x28);
     uint8_t *input = g_malloc(source_n * 2), *output = g_malloc(target_n * 2);
-    bool ok = address_space_read(&address_space_memory, y, MEMTXATTRS_UNSPECIFIED, input, source_n) == MEMTX_OK &&
+    Z8JpegSource *record=s->engine15e2_bank1_model?jpeg_source_get(s,s->jpeg_sources.thumb_token):NULL;
+    Z8JpegSource *parent=record?jpeg_source_get(s,record->parent_generation):NULL;
+    bool ok = (!s->engine15e2_bank1_model || (parent && jpeg_source_hash_valid(s,parent))) && address_space_read(&address_space_memory, y, MEMTXATTRS_UNSPECIFIED, input, source_n) == MEMTX_OK &&
         address_space_read(&address_space_memory, uv, MEMTXATTRS_UNSPECIFIED, input + source_n, source_n) == MEMTX_OK;
+    if (ok && parent) {
+        char *ys=g_compute_checksum_for_data(G_CHECKSUM_SHA256,input,source_n);
+        char *us=g_compute_checksum_for_data(G_CHECKSUM_SHA256,input+source_n,source_n);
+        ok=!strcmp(ys,parent->y_sha)&&!strcmp(us,parent->uv_sha);g_free(ys);g_free(us);
+    }
     memset(output, 0, target_n); memset(output + target_n, 128, target_n);
     /* Build all visible bytes before any write or input-boundary event.
      * The declared nearest convention matches the existing functional stream
@@ -68,15 +94,32 @@ static void capture_thumbnail_run(NikonZ9State *s)
             output[target_n + (size_t)r * op + x + 1] = input[source_n + (size_t)sy * pitch + sx + 1];
         }
     }
+    if (ok && s->engine15e2_bank1_model) {
+        NBSpan spans[2]={{ty,target_n},{tuv,target_n}};
+        ok=jpeg_sources_write_begin(s,spans,2);
+    }
     if (ok) {
         ok = address_space_write(&address_space_memory, ty, MEMTXATTRS_UNSPECIFIED, output, target_n) == MEMTX_OK &&
             address_space_write(&address_space_memory, tuv, MEMTXATTRS_UNSPECIFIED, output + target_n, target_n) == MEMTX_OK;
     }
     g_free(input); g_free(output);
-    if (!ok) { s->capture_thumbnail_failed = true; return; }
+    if (!ok) {
+        s->capture_thumbnail_failed = true;
+        if (s->engine15e2_bank1_model) {
+            jpeg_sources_cancel_tokens(s,&s->jpeg_sources.thumb_token,1);engine15e2_deferred_input_notify(s);unknown_access(s,0x15421204,1,4,true);
+        }
+        return;
+    }
+    if (s->engine15e2_bank1_model) {
+        if (!jpeg_source_publish(s,record)) {
+            s->capture_thumbnail_failed=true;jpeg_sources_cancel_tokens(s,&s->jpeg_sources.thumb_token,1);
+            engine15e2_deferred_input_notify(s);unknown_access(s,0x15421204,1,4,true);return;
+        }
+        s->jpeg_sources.thumb_token=0;
+    }
     s->capture_thumbnail_jobs++; s->capture_thumbnail_bytes += target_n * 2;
     s->capture_thumbnail_input_bytes += source_n * 2;
-    s->capture_thumbnail_consumed_nv16 = s->capture_nv16_jobs;
+    s->capture_thumbnail_consumed_nv16 = parent?parent->producer_job:s->capture_nv16_jobs;
     s->capture_thumbnail_y = ty; s->capture_thumbnail_uv = tuv;
     s->capture_thumbnail_w = ow; s->capture_thumbnail_h = oh; s->capture_thumbnail_stride = op;
     /* Original native512 succeeds and ACKs without an explicit input stop.
@@ -88,6 +131,7 @@ static void capture_thumbnail_run(NikonZ9State *s)
      * Do not synthesize C2/B4 completions or write original task flags. */
     s->engine1542_pending[2] |= 0x11;
     raw_pipeline_irq_update(s);
+    if (s->engine15e2_bank1_model) { engine15e2_deferred_input_notify(s); }
     fprintf(stderr, "Z9_THUMBNAIL_NV16 job=%" PRIu64 " input=%" PRIx64 "/%" PRIx64
         " output=%" PRIx64 "/%" PRIx64 " geometry=%ux%u stride=%u; actual owned RAM\n",
         s->capture_thumbnail_jobs, y, uv, ty, tuv, ow, oh, op);

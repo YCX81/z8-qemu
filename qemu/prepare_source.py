@@ -66,14 +66,19 @@ for filename, marker, addition in [
         path.write_text(body + addition)
 path = root / 'hw/arm/Kconfig'
 body = path.read_text()
-block = body[body.index('config NIKON_Z9_LAB'):]
-if '    select PCI_EXPRESS_DESIGNWARE' not in block.split('\nconfig ', 1)[0]:
-    body = body.replace('config NIKON_Z9_LAB\n',
-                        'config NIKON_Z9_LAB\n    select PCI_EXPRESS_DESIGNWARE\n    select NVME_PCI\n    select SPDM_SOCKET\n', 1)
-    path.write_text(body)
+block = body[body.index('config NIKON_Z9_LAB'):].split('\nconfig ', 1)[0]
+for select in ('PCI_EXPRESS_DESIGNWARE', 'NVME_PCI', 'SPDM_SOCKET'):
+    if '    select ' + select not in block:
+        body = body.replace('config NIKON_Z9_LAB\n',
+                            'config NIKON_Z9_LAB\n    select ' + select + '\n', 1)
+path.write_text(body)
 path = root / 'hw/arm/meson.build'
 body = path.read_text()
 line = "arm_ss.add(when: 'CONFIG_NIKON_Z9_LAB', if_true: files('nikon-z9-lab.c'))\n"
+for dependency in ('x265','x264'):
+    entry=f"arm_ss.add(when: 'CONFIG_NIKON_Z9_LAB', if_true: dependency('{dependency}', required: true))\n"
+    if entry not in body:body+=entry
+path.write_text(body)
 if line not in body:
     body = body.replace("hw_arch += {'arm': arm_ss}", line + "hw_arch += {'arm': arm_ss}")
     path.write_text(body)

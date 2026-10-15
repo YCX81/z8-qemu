@@ -336,6 +336,10 @@ static void z9_pcie_init(NikonZ9State *s, MemoryRegion *mem, DeviceState *gic)
     if (!s->pcie_dbi_model) {
         return;
     }
+    if (s->pcie_dbi_host) {
+        error_report("PCIe host initialized twice; refusing MemoryRegion reuse");
+        exit(1);
+    }
     DeviceState *dev = qdev_new(TYPE_DESIGNWARE_PCIE_HOST);
     object_property_add_child(OBJECT(s), "pcie-host", OBJECT(dev));
     s->pcie_dbi_host = dev;

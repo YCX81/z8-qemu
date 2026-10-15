@@ -27,7 +27,9 @@ HEADER = 72
 
 class Machine:
     def __init__(self, binary, folder, kernel, properties=(), machine='nikon-z8-bringup',
-                 ignore_file_size_signal=False):
+                 ignore_file_size_signal=False, accelerator=None):
+        if accelerator not in (None,'qtest'):
+            raise ValueError('Only explicit QTest acceleration is supported by this test owner')
         self.folder = Path(folder)
         self.folder.mkdir()
         self.log_path = self.folder / 'stderr.log'
@@ -42,6 +44,7 @@ class Machine:
                         '-serial', 'none', '-monitor', 'none', '-qtest-log', '/dev/null',
                         '-qmp', f'unix:{sockets}/qmp.sock,server=on,wait=off',
                         '-qtest', f'unix:{sockets}/qtest.sock,server=on,wait=off']
+        if accelerator:self.command+=['-accel',accelerator]
         self.proc = subprocess.Popen(self.command, stdin=subprocess.DEVNULL,
                                      stdout=subprocess.DEVNULL, stderr=self.log,
                                      preexec_fn=(lambda: signal.signal(signal.SIGXFSZ, signal.SIG_IGN))

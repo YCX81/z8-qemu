@@ -6,15 +6,19 @@ remain functional hypotheses. No physical sensor/panel calibration is supplied.
 """
 import hashlib
 import json
+import struct
 
 MAIN_SHA = '2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853'
 
 
-def plan(*, zero_parameters=False, native_sampling=False, battery_limits=False):
+def plan(*, zero_parameters=False, native_sampling=False, battery_limits=False,
+         orientation_sampling=False):
     if zero_parameters and native_sampling:
         raise ValueError('Zero control and native-derived sampling are separate experiments')
     if battery_limits and not native_sampling:
         raise ValueError('Battery limits require the explicit native-sampling parameter image')
+    if orientation_sampling and not native_sampling:
+        raise ValueError('Orientation sampling requires the explicit native-sampling parameter image')
     entries = [
         ('version',0x47f62dd4,bytes.fromhex('1500'),'C3.11-compatible synthetic version tag'),
         ('primary-gate',0x47e8b568,bytes.fromhex('01000000'),'synthetic first halfword gate, not sensor programming'),
@@ -41,15 +45,25 @@ def plan(*, zero_parameters=False, native_sampling=False, battery_limits=False):
                 # no mode, fault flag, temperature sample or task state is edited.
                 body[0xb7e0:0xb7e8] = bytes.fromhex('580000004d000000')
                 meaning += '; virtual battery thresholds88/77 from the native alternative-mode branch'
+            if orientation_sampling:
+                # Item16: group12 + a400. 40c8ac54 reads interval +20;
+                # 40c8ae64..78 reads window +2c and high/low trims +34/+30. Its alternate
+                # 40c8ae38..60 path uses 5/1/1. A zero window returns zero
+                # at 40c8c00c, regardless of the actual I2C samples.
+                struct.pack_into('<I', body, 0xa420, 20)
+                struct.pack_into('<3I', body, 0xa42c, 5, 1, 1)
+                meaning += '; synthetic orientation interval20 and native-derived trimmed window5/1/1'
         entries.append(('parameters',0x462e0000,bytes(body),meaning))
     return [dict(name=name,address=address,data=data,meaning=meaning,synthetic=True)
             for name,address,data,meaning in entries]
 
 
-def attach(guest, *, zero_parameters=False, native_sampling=False, battery_limits=False):
+def attach(guest, *, zero_parameters=False, native_sampling=False, battery_limits=False,
+           orientation_sampling=False):
     if guest.data.get('firmware_sha256') != MAIN_SHA:
         raise ValueError('Virtual inputs require the identity-checked Z8 C3.11 MAIN')
-    entries = plan(zero_parameters=zero_parameters,native_sampling=native_sampling,battery_limits=battery_limits)
+    entries = plan(zero_parameters=zero_parameters,native_sampling=native_sampling,
+                   battery_limits=battery_limits,orientation_sampling=orientation_sampling)
     paths = [guest.out / ('z8-rom-' + item['name'] + '.bin') for item in entries]
     metadata = guest.out / 'z8-virtual-rom.json'
     if metadata.exists() or any(path.exists() for path in paths):
@@ -80,6 +94,13 @@ def attach(guest, *, zero_parameters=False, native_sampling=False, battery_limit
             native_mode=1,source_mode=2,physical_units_verified=False,
             comparison='original signed threshold <= signed-byte sample sets the fault',
             scope='Native alternative-mode values used as explicit virtual thresholds; not factory calibration')
+    if orientation_sampling:
+        record['orientation_sampling_derivation'] = dict(
+            interval=20,window_samples=5,discard_high=1,discard_low=1,
+            resource_fields=['0x462ea420','0x462ea42c','0x462ea430','0x462ea434'],
+            source_pcs=['0x40c8ae38','0x40c8ae64','0x40c8be90','0x40c8c00c'],
+            physical_calibration_verified=False,physical_timing_verified=False,
+            scope='Explicit synthetic sampling; original driver/filter/classifier run unchanged; zero angular calibration remains unverified')
     metadata.write_text(json.dumps(record,indent=2)+'\n')
     guest.command += commands
     guest.data['z8_virtual_rom_inputs'] = record

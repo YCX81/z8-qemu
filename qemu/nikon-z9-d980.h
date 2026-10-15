@@ -121,6 +121,7 @@ static uint8_t *primary_d980_pack14(const NikonRawPixels *p,
 
 static bool primary_d980_receive(NikonZ9State *s, bool single_input)
 {
+    if (s->primary_video_active) { return false; }
     /* Guard both periodic and single entry before bank indexing, packing,
      * tag generation, RAM translation, DMA and completion publication. */
     if (z8_d980_internal_profile(s, s->primary_d980_latched)) {
@@ -148,6 +149,10 @@ static bool primary_d980_receive(NikonZ9State *s, bool single_input)
         s->primary_d980_rejects++;
         unknown_access(s, 0x150d9800, s->primary_d980_latched[0], 4, true);
         return false;
+    }
+    if (!nb_writable(&s->output_owner,(NBSpan){physical,(uint64_t)pitch*h})) {
+        s->primary_d980_rejects++;
+        unknown_access(s,0x150d9920,encoded,4,true); return false;
     }
     if (!s->primary_d980_cache || w != s->primary_d980_cache_width ||
         h != s->primary_d980_cache_height || pitch != s->primary_d980_cache_stride || s->primary_d980_latched[0] != s->primary_d980_cache_format) {

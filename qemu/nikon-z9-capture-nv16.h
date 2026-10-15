@@ -84,6 +84,10 @@ static bool capture_nv16_prepare(NikonZ9State *s)
     }
     s->capture_nv16_requested = true; s->capture_nv16_failed = false;
     s->capture_nv16_requests++;
+    if (s->engine15e2_bank1_model) {
+        jpeg_sources_cancel_tokens(s,s->jpeg_sources.nv16_tokens,3);
+        jpeg_sources_nv16_intents(s); /* Missing parent grants no JPEG waiter. */
+    }
     return true;
 }
 
@@ -91,6 +95,9 @@ static void capture_nv16_cancel(NikonZ9State *s)
 {
     if (s->capture_nv16_requested) {
         s->capture_nv16_requested = false; s->capture_nv16_cancels++;
+        if (s->engine15e2_bank1_model) {
+            jpeg_sources_cancel_tokens(s,s->jpeg_sources.nv16_tokens,3);engine15e2_deferred_input_notify(s);
+        }
     }
 }
 
@@ -103,7 +110,21 @@ static void capture_nv16_try(NikonZ9State *s)
     unsigned w = src[0x80 / 4] & 0x7fff, h = src[0x80 / 4] >> 16;
     unsigned stride = src[0x88 / 4];
     uint64_t y = capture_nv16_address(src, 0x100), uv = capture_nv16_address(src, 0x108);
-    if (!s->engine151_capture_jobs || s->capture_nv16_consumed151 == s->engine151_capture_jobs ||
+    Z8JpegSource *parent=NULL;
+    if (s->engine15e2_bank1_model) {
+        if (!jpeg_sources_nv16_intents(s)) {
+            if (s->jpeg_sources.nv16_tokens[0] || s->jpeg_sources.failure) {
+                s->capture_nv16_failed=true;jpeg_sources_cancel_tokens(s,s->jpeg_sources.nv16_tokens,3);
+                engine15e2_deferred_input_notify(s);unknown_access(s,0x15180030,1,4,true);
+            }
+            return;
+        }
+        Z8JpegSource *child=jpeg_source_get(s,s->jpeg_sources.nv16_tokens[0]);
+        parent=child?jpeg_source_get(s,child->parent_generation):NULL;
+        if (!parent || !jpeg_source_hash_valid(s,parent)) {
+            s->capture_nv16_failed=true;unknown_access(s,0x15180030,1,4,true);return;
+        }
+    } else if (!s->engine151_capture_jobs || s->capture_nv16_consumed151 == s->engine151_capture_jobs ||
         y != s->engine151_capture_y || uv != s->engine151_capture_uv ||
         w != s->engine151_capture_width || h != s->engine151_capture_height ||
         stride != s->engine151_capture_stride) { return; }
@@ -111,6 +132,11 @@ static void capture_nv16_try(NikonZ9State *s)
     uint8_t *input = g_malloc(plane * 2), *outputs[3] = {0};
     bool ok = address_space_read(&address_space_memory, y, MEMTXATTRS_UNSPECIFIED, input, plane) == MEMTX_OK &&
         address_space_read(&address_space_memory, uv, MEMTXATTRS_UNSPECIFIED, input + plane, plane) == MEMTX_OK;
+    if (ok && parent) {
+        char *ys=g_compute_checksum_for_data(G_CHECKSUM_SHA256,input,plane);
+        char *us=g_compute_checksum_for_data(G_CHECKSUM_SHA256,input+plane,plane);
+        ok=!strcmp(ys,parent->y_sha)&&!strcmp(us,parent->uv_sha);g_free(ys);g_free(us);
+    }
     /* Build every output before any write. Pointers/complete spans were
      * validated and latched together. No internal port is aliased to RAM. */
     for (unsigned j = 0; ok && j < 3; j++) {
@@ -132,6 +158,15 @@ static void capture_nv16_try(NikonZ9State *s)
             }
         }
     }
+    if (ok && s->engine15e2_bank1_model) {
+        NBSpan spans[6];
+        for (unsigned j=0;j<3;j++) {
+            const uint32_t *b=s->capture_nv16_output[j],*f=s->capture_nv16_geometry[j];
+            uint64_t bytes=(uint64_t)b[0x38/4]*f[0x30/4];
+            spans[j*2]=(NBSpan){jpeg_pair(b,0x20),bytes};spans[j*2+1]=(NBSpan){jpeg_pair(b,0x28),bytes};
+        }
+        ok=jpeg_sources_write_begin(s,spans,6);
+    }
     for (unsigned j = 0; ok && j < 3; j++) {
         const uint32_t *b = s->capture_nv16_output[j], *f = s->capture_nv16_geometry[j];
         size_t amount = (size_t)b[0x38 / 4] * f[0x30 / 4];
@@ -141,9 +176,15 @@ static void capture_nv16_try(NikonZ9State *s)
     }
     g_free(input);
     for (unsigned j = 0; j < 3; j++) { g_free(outputs[j]); }
-    if (!ok) { s->capture_nv16_failed = true; return; }
+    if (!ok) {
+        s->capture_nv16_failed = true;
+        if (s->engine15e2_bank1_model) {
+            jpeg_sources_cancel_tokens(s,s->jpeg_sources.nv16_tokens,3);engine15e2_deferred_input_notify(s);unknown_access(s,0x15180030,1,4,true);
+        }
+        return;
+    }
     s->capture_nv16_jobs++; s->capture_nv16_input_bytes += plane * 2;
-    s->capture_nv16_consumed151 = s->engine151_capture_jobs;
+    s->capture_nv16_consumed151 = parent ? parent->producer_job : s->engine151_capture_jobs;
     for (unsigned j = 0; j < 3; j++) {
         const uint32_t *b = s->capture_nv16_output[j], *f = s->capture_nv16_geometry[j];
         s->capture_nv16_y[j] = capture_nv16_address(b, 0x20);
@@ -151,6 +192,21 @@ static void capture_nv16_try(NikonZ9State *s)
         s->capture_nv16_w[j] = f[0x2c / 4]; s->capture_nv16_h[j] = f[0x30 / 4];
         s->capture_nv16_stride[j] = b[0x38 / 4];
         s->capture_nv16_bytes += (uint64_t)b[0x38 / 4] * f[0x30 / 4] * 2;
+    }
+    if (s->engine15e2_bank1_model) {
+        for (unsigned j=0;j<3;j++) {
+            Z8JpegSource *r=jpeg_source_get(s,s->jpeg_sources.nv16_tokens[j]);
+            if (!jpeg_source_publish(s,r)) {
+                for (unsigned k=0;k<3;k++) {
+                    Z8JpegSource *bad=jpeg_source_get(s,s->jpeg_sources.nv16_tokens[k]);
+                    if (bad) { bad->live=false;bad->reserved=false; }
+                    s->jpeg_sources.nv16_tokens[k]=0;
+                }
+                s->capture_nv16_failed=true;engine15e2_deferred_input_notify(s);
+                unknown_access(s,0x15180030,1,4,true);return;
+            }
+        }
+        memset(s->jpeg_sources.nv16_tokens,0,sizeof(s->jpeg_sources.nv16_tokens));
     }
     s->capture_nv16_requested = false;
     /* The original application waits for A1 input boundary bit4 separately
@@ -173,10 +229,9 @@ static void capture_nv16_try(NikonZ9State *s)
         s->capture_nv16_jobs, y, uv, s->capture_nv16_y[0], s->capture_nv16_uv[0], w, h);
 }
 
-static int capture_nv16_jpeg_owner(NikonZ9State *s)
+static int capture_nv16_jpeg_owner(NikonZ9State *s, const uint32_t *c)
 {
     if (!s->capture_nv16_model || !s->capture_nv16_jobs) { return -1; }
-    const uint32_t *c = s->engine15e2_config[0];
     for (unsigned j = 0; j < 3; j++) {
         if (s->capture_nv16_jpeg_consumed[j] != s->capture_nv16_jobs &&
             c[0x418 / 4] == s->capture_nv16_w[j] && c[0x41c / 4] == s->capture_nv16_h[j] &&
