@@ -12,7 +12,7 @@
 #define NJ_MAX_SPAN (UINT64_C(128) << 20)
 #define NJ_MAX_OPERATION (UINT64_C(256) << 20)
 enum { NJ_D980 = 1, NJ_NV16, NJ_RAW151, NJ_RAW1540 };
-enum { NJ_PACKED12 = 1, NJ_PACKED14, NJ_NV16_PLANES };
+enum { NJ_PACKED12 = 1, NJ_PACKED14, NJ_NV16_PLANES, NJ_F0_LOSSLESS14 };
 enum { NJ_NO_MONITORED_OVERLAP, NJ_OVERWRITTEN, NJ_RESET_BARRIER,
        NJ_COVERAGE_UNKNOWN };
 enum { NJ_PARENT_ROOT, NJ_PARENT_MATCH, NJ_PARENT_MISSING,
@@ -197,19 +197,23 @@ static inline void nj_begin(NJournal *j, NJToken *t, const NJOutput *out,
             } else { total += s.bytes; }
         }
         bool nv16 = o->format == NJ_NV16_PLANES;
+        bool f0 = o->format == NJ_F0_LOSSLESS14;
         uint64_t minimum_row = nv16 ? o->width :
             ((uint64_t)o->width * (o->format == NJ_PACKED12 ? 12 : 14) + 7) / 8;
         uint64_t expected_bytes = (uint64_t)o->stride * o->height;
         bool shape = o->width && o->height && o->stride >= minimum_row;
         for (unsigned k = 0; k < o->nspans; k++) {
-            shape &= o->spans[k].bytes == expected_bytes;
+            shape &= f0 ? o->spans[k].bytes > 4 && o->spans[k].bytes <= expected_bytes :
+                          o->spans[k].bytes == expected_bytes;
         }
         if (!shape ||
             o->kind < NJ_D980 || o->kind > NJ_RAW1540 ||
-            o->format < NJ_PACKED12 || o->format > NJ_NV16_PLANES ||
+            o->format < NJ_PACKED12 || o->format > NJ_F0_LOSSLESS14 ||
             (nv16 ? o->nspans != 2 : o->nspans != 1) ||
             ((o->kind == NJ_NV16) != nv16) ||
-            ((o->kind == NJ_RAW151 || o->kind == NJ_RAW1540) && o->format != NJ_PACKED14)) {
+            (f0 && (o->kind != NJ_RAW1540 || (o->width & 3))) ||
+            (o->kind == NJ_RAW151 && o->format != NJ_PACKED14) ||
+            (o->kind == NJ_RAW1540 && o->format != NJ_PACKED14 && !f0)) {
             nj_fail(j, NJ_FAIL_BOUNDS, o->kind, t->operation_id, o->spans[0], ns);
             good = false;
         }

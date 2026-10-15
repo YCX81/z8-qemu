@@ -35,7 +35,7 @@ class ProducerJournalHelpers(unittest.TestCase):
 
     def check_core(self, optimized):
         result = self.compile_and_run('test_producer_journal.c', optimized)
-        self.assertIn('journal helper scenarios passed: 11', result)
+        self.assertIn('journal helper scenarios passed: 12', result)
 
     def check_adapter(self, optimized):
         data = json.loads(self.compile_and_run('test_producer_journal_adapter.c', optimized))

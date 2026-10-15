@@ -90,6 +90,18 @@ static void raw_pipeline_tick(void *opaque)
     bool halves[3];
     if (!s->raw_pipeline_model) { return; }
     timer_mod(s->raw_pipeline_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 33333333);
+    if (s->z8_primary_frame_boundary_model &&
+        (s->z8_primary_frame_pending || (s->engine150c_stop_requested & 2))) {
+        return;
+    }
+    if (s->z8_primary_frame_sync_model &&
+        (s->z8_primary_sync_pending || (s->engine150c_stop_requested & 2))) {
+        return;
+    }
+    if (s->z8_primary_input_boundary_model &&
+        (s->z8_primary_input_pending || (s->engine150c_stop_requested & 2))) {
+        return;
+    }
     /* Stopped-source reset profile: input clock and primary source unit
      * own new pixel work. Holding/resetting primary cancels future work,
      * without acknowledging a completed downstream frame on its behalf. */
@@ -229,6 +241,42 @@ static void raw_pipeline_tick(void *opaque)
         s->raw_pipeline_wait_bank = true;
         s->raw_pipeline_batches++;
     }
+    /* Z8 C3.11: primary subgroup0 bit3 reaches410b0a78/0aa0,
+     * event04220002, then40e8b880/894 sets B498 flags0xc. RAW34
+     * observed original type11 waits for bit3 timing out with flags0.
+     * This optional combined ISP boundary follows ALL six actual preview
+     * plane writes above. It is not a D980 RAM/RAW completion and does
+     * not claim the physical source or line timing of this hardware bit.
+     * The original primary W1C owns reuse; reset cancels independently. */
+    if (s->z8_primary_frame_boundary_model) {
+        s->z8_primary_frame_pending = 8;
+        s->z8_primary_frame_completions++;
+        engine150c_stop_irq_update(s);
+    }
+    /* C3.11 subgroup1 bit31 -> 410b0fa0 -> event04220013 ->
+     * 40e8b9cc/ba60. The native subscriber copies its two submitted frame
+     * records and signals B498 bit19 when its current mode is6. We model
+     * this synchronization AFTER all six real preview writes. This is an
+     * explicit combined-ISP timing assumption, not recovered silicon timing
+     * or a software flag injection. Masking, W1C and reset are independent
+     * of subgroup0 bit3 and of the existing source boundary causes. */
+    if (s->z8_primary_frame_sync_model) {
+        s->z8_primary_sync_pending = 0x80000000U;
+        s->z8_primary_sync_completions++;
+        engine150c_stop_irq_update(s);
+    }
+    /* C3.11 group0 bit5 ->410b0b20 ->04220004 ->40e8b918/950.
+     * The original subscriber accepts its first source record and sets
+     * B498 flag2. RAW52 repeatedly waited80000002 with returned flags0.
+     * A combined functional input boundary follows all six completed
+     * preview writes; no configured-only completion or software flag edit.
+     * Its physical timing remains a hypothesis, independent of bits3/31. */
+    if (s->z8_primary_input_boundary_model) {
+        s->z8_primary_input_pending = 0x20;
+        s->z8_primary_input_completions++;
+        engine150c_stop_irq_update(s);
+    }
+    z8_hsfc152c_frame(s);
     raw_pipeline_irq_update(s);
     /* Native255 CAPTG waits in410b6c50 for the second input's boundary.
      * The original ISR supplies +210 in payload+4; PPC410b677c maps bit30
@@ -351,4 +399,83 @@ static char *get_raw_pipeline_151c_completion_state(Object *obj, Error **errp)
         s->raw_pipeline_151c_completion_model ? "true" : "false",
         e->stream_frames, e->stream_acks, e->stream_cancelled,
         e->pending & 0x08100000);
+}
+
+static bool get_z8_primary_frame_boundary_model(Object *obj, Error **errp)
+{
+    return NIKON_Z9_LAB(obj)->z8_primary_frame_boundary_model;
+}
+
+static void set_z8_primary_frame_boundary_model(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (!object_dynamic_cast(obj, MACHINE_TYPE_NAME("nikon-z8-bringup")) ||
+        s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp, "z8-primary-frame-boundary-model requires Z8 at machine creation");
+        return;
+    }
+    s->z8_primary_frame_boundary_model = value;
+}
+
+static char *get_z8_primary_frame_boundary_state(Object *obj, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    return g_strdup_printf("{\"enabled\":%s,\"pending\":%u,\"completions\":%" PRIu64
+        ",\"acks\":%" PRIu64 ",\"cancelled\":%" PRIu64
+        ",\"physical_timing_verified\":false,\"raw_pixels_verified\":false,"
+        "\"scope\":\"Z8 primary bit3 after six actual combined-preview plane writes; not RAW output\"}",
+        s->z8_primary_frame_boundary_model ? "true" : "false", s->z8_primary_frame_pending,
+        s->z8_primary_frame_completions, s->z8_primary_frame_acks, s->z8_primary_frame_cancelled);
+}
+
+static bool get_z8_primary_frame_sync_model(Object *obj, Error **errp)
+{
+    return NIKON_Z9_LAB(obj)->z8_primary_frame_sync_model;
+}
+
+static void set_z8_primary_frame_sync_model(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (!object_dynamic_cast(obj, MACHINE_TYPE_NAME("nikon-z8-bringup")) ||
+        s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp, "z8-primary-frame-sync-model requires Z8 at machine creation");
+        return;
+    }
+    s->z8_primary_frame_sync_model = value;
+}
+
+static char *get_z8_primary_frame_sync_state(Object *obj, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    return g_strdup_printf("{\"enabled\":%s,\"pending\":%u,\"completions\":%" PRIu64
+        ",\"acks\":%" PRIu64 ",\"cancelled\":%" PRIu64
+        ",\"group1_mask\":%u,\"active_units\":%u,\"physical_timing_verified\":false,"
+        "\"scope\":\"Z8 subgroup1 bit31 after six actual preview planes; functional frame synchronization\"}",
+        s->z8_primary_frame_sync_model ? "true" : "false", s->z8_primary_sync_pending,
+        s->z8_primary_sync_completions, s->z8_primary_sync_acks, s->z8_primary_sync_cancelled,
+        s->engine_150c_init[0x20c / 4], s->engine150c_active);
+}
+
+static bool get_z8_primary_input_boundary_model(Object *obj, Error **errp)
+{ return NIKON_Z9_LAB(obj)->z8_primary_input_boundary_model; }
+
+static void set_z8_primary_input_boundary_model(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (!object_dynamic_cast(obj, MACHINE_TYPE_NAME("nikon-z8-bringup")) ||
+        s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp, "z8-primary-input-boundary-model requires Z8 at machine creation"); return;
+    }
+    s->z8_primary_input_boundary_model = value;
+}
+
+static char *get_z8_primary_input_boundary_state(Object *obj, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    return g_strdup_printf("{\"enabled\":%s,\"pending\":%u,\"completions\":%" PRIu64
+        ",\"acks\":%" PRIu64 ",\"cancelled\":%" PRIu64
+        ",\"physical_timing_verified\":false,\"raw_pixels_verified\":false,"
+        "\"scope\":\"Z8 group0 bit5 after six actual preview planes; functional input boundary\"}",
+        s->z8_primary_input_boundary_model ? "true" : "false", s->z8_primary_input_pending,
+        s->z8_primary_input_completions, s->z8_primary_input_acks, s->z8_primary_input_cancelled);
 }

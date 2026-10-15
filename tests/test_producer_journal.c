@@ -243,6 +243,30 @@ static void test_shape_contract(GChecksum *c)
     nj_finish(&j, &t, true, 36, digest, c); CHECK(j.count == 2);
     checks++;
 }
+static void test_f0_pitch_abi(GChecksum *c)
+{
+    NJournal j = {.enabled = true}; NJOutput input = output(NJ_D980, 32, 64);
+    complete(&j, &input, 1, (NJParent){0}, c);
+    uint8_t sha[32]; CHECK(digest(c, 32, 64, sha));
+    NJParent p = nj_parent(&j, &input, sha, true);
+    NJOutput raw = output(NJ_RAW151, 512, 64);
+    memcpy(ram + 512, ram + 32, 64); complete(&j, &raw, 1, p, c);
+    CHECK(digest(c, 512, 64, sha)); p = nj_parent(&j, &raw, sha, true);
+    NJOutput f0 = output(NJ_RAW1540, 1024, 24); f0.format = NJ_F0_LOSSLESS14;
+    NJToken t; nj_begin(&j, &t, &f0, 1, p, 30); CHECK(t.publishable);
+    nj_finish(&j, &t, true, 31, digest, c);
+    CHECK(j.count == 3 && j.records[2].output.stride == 16 && j.records[2].output.spans[0].bytes == 24);
+    NJOutput bad = f0; bad.stride = 0;
+    nj_begin(&j, &t, &bad, 1, p, 32); CHECK(!t.publishable);
+    bad = f0; bad.spans[0].bytes = 65;
+    nj_begin(&j, &t, &bad, 1, p, 33); CHECK(!t.publishable);
+    bad = f0; bad.spans[0].bytes = 4;
+    nj_begin(&j, &t, &bad, 1, p, 34); CHECK(!t.publishable);
+    bad = f0; bad.width = 7;
+    nj_begin(&j, &t, &bad, 1, p, 35); CHECK(!t.publishable);
+    checks++;
+}
+
 int main(void)
 {
     for (unsigned i = 0; i < sizeof(ram); i++) ram[i] = (i * 31 + 7) & 255;
@@ -251,7 +275,7 @@ int main(void)
     test_partial_and_readback_fail(c); test_edges_and_unknown(c);
     test_limits_and_reset(c); test_parent_before_inplace_and_reset(c);
     test_parent_failures(c); test_bounds_and_atomic_capacity(c); test_token_barrier(c);
-    test_shape_contract(c);
+    test_shape_contract(c); test_f0_pitch_abi(c);
     g_checksum_free(c);
     printf("journal helper scenarios passed: %u\n", checks);
     return 0;

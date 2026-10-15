@@ -103,6 +103,7 @@ FILES.update({'docs/z8-producer-journal.md', 'qemu/nikon-producer-journal.h',
               'tests/test_producer_journal_contract.py', 'tests/test_z8_producer_journal.py'})
 FILES.update({'docs/z8-d980-internal-wide.md', 'tests/test_z8_d980_wide_internal.py'})
 FILES.update({'docs/z8-experiment-assumptions.md', 'docs/verification/raw-research-log-20261013.md', 'docs/z8-model-split-plan.md', 'docs/z8-public-review-20261013.md'})
+FILES.update({'docs/z8-capture-stream-rearm.md', 'tests/lossless_u16_wrapper.c', 'docs/publication-checkpoint-20261015.md', 'tests/test_bayer_packet_helpers.py', 'qemu/nikon-z8-hsfc-encode.h', 'qemu/nikon-bayer-packet.h', 'docs/z8-hsfc-dual-encoder.md', 'tests/test_lossless_u16.py', 'docs/raw-precapture-shared146.md', 'tests/test_z8_hsfc151_pixels.py', 'tests/test_z8_hsfc152c_control.py', 'qemu/nikon-z8-hsfc-decode.h', 'RAW-WORK-STATE.md', 'tests/test_z8_hsfc153c_lossless.py', 'qemu/nikon-expeed-lossless.h', 'tests/test_z8_primary_input_boundary.py', 'tests/test_z8_hsfc153_u16.py', 'tools/z8_f0_reader.py', 'tests/test_z8_primary_frame_boundary.py', 'qemu/nikon-z8-lossless-u16.h', 'tests/test_bayer_packet.c', 'tests/test_z8_hsfc1530_u16.py', 'tests/test_z8_decoder_reset.py', 'tests/test_z8_hsfc1540_lossless.py', 'tests/test_z8_lossless14_lineage.py', 'tests/test_lossless14_codec.py', 'tests/test_z8_hsfc1530_decode.py', 'tests/test_z8_hsfc1538_identity.py', 'tests/test_z8_primary_frame_sync.py', 'docs/z8-hsfc-raw-transport.md', 'docs/raw153c-integration-checkpoint.md', 'docs/z8-primary-frame-boundary.md', 'tests/test_z8_capture_stream_rearm.py', 'tests/test_z8_hsfc152c_end.py', 'tests/test_z8_hsfc152c_pixels.py', 'qemu/nikon-z8-hsfc-pixels.h', 'tests/lossless14_wrapper.c', 'qemu/nikon-z8-hsfc153c.h'})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),
@@ -110,6 +111,8 @@ SECRET_PATTERNS = [
 ]
 
 def validate(path, data):
+    # Hash canonical Git text without rewriting CRLF source working copies.
+    data = data.replace(b'\r\n', b'\n')
     if path not in FILES | {MANIFEST}: raise ValueError('Unreviewed public path: '+path)
     # Reviewed functional capture/peripheral code grows this one model. All
     # other files retain the 512-KiB ceiling; binary/hex guards still apply.
@@ -132,6 +135,7 @@ def main():
     for directory,dirs,files in os.walk(ROOT):
         dirs[:] = [name for name in dirs if name not in IGNORED]
         for name in files:
+            if name == '.git': continue  # Linked worktrees use a metadata file.
             path = Path(directory)/name
             if path.is_symlink(): raise ValueError('Symlink in public tree: '+str(path))
             discovered.add(path.relative_to(ROOT).as_posix())
@@ -145,8 +149,8 @@ def main():
     validate(MANIFEST,(ROOT/MANIFEST).read_bytes())
     commits = 0; blobs = set()
     if (ROOT/'.git').exists():
-        # Inspect all refs, rather than only the currently visible checkout.
-        refs = git('rev-list','--all').decode().splitlines()
+        # Inspect this publication and its ancestors; audit divergent branches separately.
+        refs = git('rev-list','HEAD').decode().splitlines()
         commits = len(refs)
         for ref in refs:
             tree = git('ls-tree','-rz','--full-tree',ref).split(b'\0')
@@ -167,7 +171,7 @@ def main():
             if stage != '0' or mode not in ('100644','100755'):
                 raise ValueError('Unexpected index entry: '+name)
             staged_hash = validate(name,git('cat-file','blob',oid))
-            if staged_hash != hashlib.sha256((ROOT/name).read_bytes()).hexdigest():
+            if staged_hash != validate(name,(ROOT/name).read_bytes()):
                 raise ValueError('Staged content differs from reviewed worktree: '+name)
             tracked.add(name)
         if tracked != FILES | {MANIFEST}: raise ValueError('Git index differs from reviewed inventory')

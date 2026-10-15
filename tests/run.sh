@@ -3,6 +3,8 @@
 set -eu
 cd "$(dirname "$0")/.."
 # Discovery includes test_producer_journal_helpers.py: both C helpers at -O0 and -O2 -DNDEBUG.
+# Standalone D980 ->151 ->1540 F0/lineage QTest is test_z8_lossless14_lineage.py
+# (requires explicit --qemu and fresh --output; separate from main's codec test).
 python3 -B -m unittest discover -s tests -v
 test_binary=$(mktemp)
 trap 'rm -f "$test_binary"' EXIT HUP INT TERM
