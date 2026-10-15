@@ -91,7 +91,8 @@ def ordinary_work_idle(raw, jpeg, events, baseline):
     returned = [e for e in events if e['seq'] >= baseline['event_start']
                 and e['kind'] == 'file_writer_return']
     return bool(raw.get('jobs', 0) > baseline['raw_jobs'] and not raw.get('pending', True)
-        and raw.get('acks') == raw.get('jobs') and jpeg.get('jobs', 0) >= baseline['jpeg_jobs'] + 3
+        and type(raw.get('acks')) is int and raw['acks'] >= raw.get('jobs',0)
+        and jpeg.get('jobs', 0) >= baseline['jpeg_jobs'] + 3
         and not jpeg.get('requested', True) and not jpeg.get('pending', 1)
         and not jpeg.get('core', 1) and jpeg.get('acks') == jpeg.get('core_acks') == jpeg.get('jobs')
         and returned and all(int(e['registers']['X00'], 16) & 0xffffffff == 0 for e in returned))
@@ -503,7 +504,8 @@ class CapturePeer(Peer):
         writer_session = getattr(self, 'writer_session', None)
         writer_handled = writer_session.handle() if writer_session else False
         if self.g.data.get('capture_pixels_enabled'):
-            from z8_capture_pixels import capture_d980, capture_raw_output
+            from z8_capture_pixels import capture_d980
+            from z8_photo_sequence import capture_photo_output
             d980=state(self.g,'primary-d980-state')
             if d980.get('frames',0)>self.last_pixel_frame:
                 receipt=capture_d980(self.g,f'd980-{d980["frames"]:05}')
@@ -512,7 +514,8 @@ class CapturePeer(Peer):
                 print('Saved actual D980 producer',self.last_pixel_frame,flush=True)
             raw=state(self.g,'engine151-raw-output-state')
             if raw.get('jobs',0)>self.last_raw_job:
-                receipt=capture_raw_output(self.g,f'raw-{raw["jobs"]:05}')
+                previous=self.g.data.get('raw_output_snapshots',[])
+                receipt=capture_photo_output(self.g,f'raw-{raw["jobs"]:05}',previous[-1] if previous else None)
                 self.g.data.setdefault('raw_output_snapshots',[]).append(receipt)
                 self.last_raw_job=raw['jobs']
                 print('Saved actual RAW output',self.last_raw_job,flush=True)
@@ -675,7 +678,9 @@ def run(args):
                   Path(__file__).with_name('z8_capture_readiness.py'),
                   Path(__file__).with_name('z8_nvme_evidence.py'),
                   Path(__file__).with_name('z8_capture_resources.py')]
-    if args.capture_pixels:source_paths.append(Path(__file__).with_name('z8_capture_pixels.py'))
+    if args.capture_pixels:
+        source_paths += [Path(__file__).with_name(name) for name in
+                         ('z8_capture_pixels.py','z8_photo_sequence.py')]
     if writer_enabled:
         source_paths += [Path(__file__).with_name(name) for name in
                         ('z8_writer_observer.py','z8_writer_integration.py',

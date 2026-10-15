@@ -21,6 +21,8 @@ SOURCES = ['qemu/nikon-z9-lab.c','qemu/nikon-z9-pixels.h','qemu/nikon-raw-pixels
 SOURCES.append('qemu/arm-service-events.patch')
 SOURCES.append('qemu/nikon-persistent-media.h')
 SOURCES.append('qemu/nikon-sensor-tag.h')
+SOURCES.append('qemu/nikon-buffer-ownership.h')
+SOURCES.append('qemu/nikon-expeed-lossless.h')
 SOURCES.extend(['qemu/nikon-producer-journal.h','qemu/nikon-producer-journal-qemu.h'])
 SOURCES.append('qemu/designware-dma.patch')
 SOURCES.append('qemu/nvme-completion-trace.patch')

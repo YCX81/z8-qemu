@@ -35,6 +35,8 @@
 #include "nikon-raw-pixels.h"
 #include "nikon-sensor-tag.h"
 #include "nikon-producer-journal.h"
+#include "nikon-buffer-ownership.h"
+#include "nikon-expeed-lossless.h"
 
 #define TYPE_NIKON_Z9_LAB MACHINE_TYPE_NAME("nikon-z9-lab")
 #define Z9_NAND_MAIN 2048u
@@ -179,6 +181,7 @@ typedef struct Z9Engine1518 {
 struct NikonZ9State {
     MachineState parent;
     NJournal producer_journal;
+    NBOwner output_owner;
     NJReadFailure producer_journal_read_failure;
     bool producer_journal_initialized;
     GChecksum *producer_journal_checksum;
@@ -514,6 +517,7 @@ struct NikonZ9State {
     bool engine1540_parameters_model;
     bool engine1540_control_model;
     bool engine1540_frame_pass_model;
+    bool engine1540_lossless14_model;
     qemu_irq engine1540_frame_irq;
     uint32_t engine1540_frame_pending, engine1540_frame_result_bytes;
     uint64_t engine1540_frame_jobs, engine1540_frame_bytes, engine1540_frame_frame;
@@ -786,8 +790,6 @@ struct NikonZ9State {
     uint8_t i2c_rx[4][16];
     unsigned i2c_rx_count[4], i2c_rx_head[4];
     uint8_t orientation_regs[0x32], orientation_pointer;
-    bool orientation_input_set;
-    uint64_t orientation_input_updates;
     uint64_t orientation_written;
     unsigned orientation_reads, orientation_writes, orientation_monitors;
     bool i2c_monitor[4];
@@ -1646,6 +1648,40 @@ static bool graphics_table_range(uint32_t address, unsigned count,
 
 static bool dma_ram_range(NikonZ9State *s, uint64_t addr, uint64_t bytes);
 #include "nikon-producer-journal-qemu.h"
+
+static bool get_output_ownership_model(Object *obj, Error **errp)
+{ return NIKON_Z9_LAB(obj)->output_owner.enabled; }
+static void set_output_ownership_model(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s=NIKON_Z9_LAB(obj);
+    if (s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp,"output ownership immutable after realization");return;
+    }
+    s->output_owner.enabled=value;
+}
+static char *get_output_ownership_state(Object *obj, Error **errp)
+{
+    NBOwner *o=&NIKON_Z9_LAB(obj)->output_owner;
+    GString *out=g_string_new(NULL);
+    g_string_append_printf(out,"{\"enabled\":%s,\"reserved\":%"PRIu64
+        ",\"completed\":%"PRIu64",\"acknowledged\":%"PRIu64
+        ",\"cancelled\":%"PRIu64",\"slots\":[",o->enabled?"true":"false",
+        o->reserved,o->completed,o->acknowledged,o->cancelled);
+    for (unsigned i=0;i<2;i++) {
+        NBSlot *p=&o->slots[i];
+        g_string_append_printf(out,"%s{\"producer\":\"%s\",\"held\":%s,\"complete\":%s,"
+            "\"job\":%"PRIu64",\"frame\":%"PRIu64",\"spans\":[",i?",":"",
+            i?"1540":"151",p->held?"true":"false",p->complete?"true":"false",p->job,p->frame);
+        for (unsigned k=0;k<p->count;k++) {
+            g_string_append_printf(out,"%s{\"pa\":%"PRIu64",\"bytes\":%"PRIu64"}",
+                k?",":"",p->spans[k].pa,p->spans[k].bytes);
+        }
+        g_string_append(out,"]}");
+    }
+    g_string_append(out,"],\"native_allocator_verified\":false,\"raw_precapture_verified\":false,"
+        "\"scope\":\"151 and1540 actual output leases until native W1C or accepted151 reset; D980/151/1540 writers only, CPU/other DMA and native pools unverified\"}");
+    return g_string_free(out,false);
+}
 static bool graphics_dma_address(NikonZ9State *s, uint32_t local,
                                  uint64_t bytes, uint64_t *physical);
 
@@ -5413,9 +5449,8 @@ static char *get_zr_lcd_control_state(Object *obj, Error **errp)
 /* Diagnostic peer inferred from the original 40c8b278/40c8c98c consumers:
  * ch3/address 1d, status bit3 and six big-endian left-justified 12-bit samples.
  * It is NOT an identified or cycle-accurate sensor. Configuration bytes retain
- * only the ranges written by this firmware path. Defaults to raw (0,0,1024).
- * orientation-input supplies bounded synthetic XYZ samples; no sample clock,
- * data-ready GPIO, physical axis calibration or self-test is modeled.
+ * only the ranges written by this firmware path. One stationary raw vector
+ * (0,0,1024) is supplied; no sample clock, data-ready GPIO or self-test modeled.
  */
 static bool orientation_config_byte(unsigned reg)
 {
@@ -11988,11 +12023,21 @@ static bool engine151_capture_pixels(NikonZ9State *s, unsigned i)
     bool raw_side = c[0x21c / 4] == 3;
     uint64_t raw_out = c[0x4c0 / 4] | ((uint64_t)c[0x4c4 / 4] << 32);
     if (raw_side && !engine151_raw_output_ready(s, i, source, inbytes, yaddr, uvaddr, plane)) { return false; }
+    NBSpan owned_spans[3] = {{yaddr,plane},{uvaddr,plane},{raw_out,inbytes}};
+    /* Reserve actual submitted destinations before the first DMA. A failed
+     * operation cancels the lease; only complete outputs earn native W1C. */
+    if (!nb_reserve(&s->output_owner,0,s->engine151_capture_jobs+1,
+                    s->primary_d980_frames,owned_spans,raw_side ? 3 : 2)) {
+        return false;
+    }
     /* Consume the actual completed guest RAM, never the host input/cache.
      * Validate both complete output spans before touching either plane. */
     uint8_t *input = g_malloc(inbytes), *pixels = g_malloc(plane * 2);
     if (address_space_read(&address_space_memory, source, MEMTXATTRS_UNSPECIFIED,
-            input, inbytes) != MEMTX_OK) { g_free(input); g_free(pixels); return false; }
+            input, inbytes) != MEMTX_OK) {
+        nb_cancel(&s->output_owner,0);
+        g_free(input); g_free(pixels); return false;
+    }
     uint8_t tone[16384];
     for (unsigned v = 0; v <= white; v++) {
         double t = v / (double)white;
@@ -12045,6 +12090,7 @@ static bool engine151_capture_pixels(NikonZ9State *s, unsigned i)
         address_space_write(&address_space_memory, uvaddr, MEMTXATTRS_UNSPECIFIED,
             pixels + plane, plane) != MEMTX_OK) {
         producer_journal_finish(s, &journal_token, false);
+        nb_cancel(&s->output_owner,0);
         g_free(input); g_free(pixels); return false;
     }
     if (raw_side) {
@@ -12054,6 +12100,7 @@ static bool engine151_capture_pixels(NikonZ9State *s, unsigned i)
         if (address_space_write(&address_space_memory, raw_out, MEMTXATTRS_UNSPECIFIED,
                 input, inbytes) != MEMTX_OK) {
             producer_journal_finish(s, &journal_token, false);
+            nb_cancel(&s->output_owner,0);
             g_free(input); g_free(pixels); return false;
         }
         s->engine151_raw_output_jobs++; s->engine151_raw_output_bytes += inbytes;
@@ -12080,6 +12127,9 @@ static bool engine151_capture_pixels(NikonZ9State *s, unsigned i)
      * maps it to processing flag1, while bit0 is stop flag4. Timing and pixel
      * semantics are functional hypotheses, never host-written OS flags. */
     s->engine151_capture_pending = true;
+    if (!nb_complete(&s->output_owner,0,s->engine151_capture_jobs)) {
+        unknown_access(s,0x15100008,1,4,true); return false;
+    }
     s->engine151_pending[i] |= 2;
     fprintf(stderr, "Z9_151_CAPTURE_PIXELS source=%" PRIx64 " y=%" PRIx64 " uv=%" PRIx64
         " bytes=%" PRIu64 " geometry=%ux%u crop=%u,%u stride=%u; simplified RGGB NV16\n",
@@ -12188,6 +12238,7 @@ static bool engine151_write(NikonZ9State *s, hwaddr addr, uint64_t value,
             nj_reset(&s->producer_journal, NJ_RAW151, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
         }
         if (i == 0 && s->engine151_capture_pixels_model) {
+            nb_cancel(&s->output_owner,0);
             if (s->engine151_capture_pending) { s->engine151_capture_cancels++; }
             s->engine151_capture_pending = false; s->engine151_average_valid = false;
         }
@@ -12224,6 +12275,9 @@ static bool engine151_write(NikonZ9State *s, hwaddr addr, uint64_t value,
         }
         if (s->engine151_capture_pixels_model && i == 0 &&
             s->engine151_capture_pending && (value & 2)) {
+            if (!nb_ack(&s->output_owner,0,s->engine151_capture_jobs)) {
+                goto invalid;
+            }
             s->engine151_capture_pending = false; s->engine151_capture_acks++;
         }
         if (i == 1 && s->raw_pipeline_1514_completion_model &&
@@ -14883,51 +14937,87 @@ static bool engine1540_frame_write(NikonZ9State *s, hwaddr addr, uint64_t value,
     if (address_space_read(&address_space_memory, source, MEMTXATTRS_UNSPECIFIED, buffer, bytes) != MEMTX_OK) {
         g_free(buffer); unknown_access(s, addr, value, size, true); return true;
     }
-    uint64_t hash = UINT64_C(14695981039346656037);
-    for (uint64_t i = 0; i < bytes; i++) { hash = (hash ^ buffer[i]) * UINT64_C(1099511628211); }
     NJOutput journal_source = producer_journal_output(NJ_RAW151, NJ_PACKED14,
         source, bytes, w, h, pitch, s->engine151_raw_output_frame,
         s->engine151_raw_output_jobs, s->sensor_tag_model);
     NJParent journal_parent = producer_journal_parent(s, &journal_source, buffer, bytes);
-    NJOutput journal_output = producer_journal_output(NJ_RAW1540, NJ_PACKED14,
-        target, bytes, w, h, pitch, s->engine151_raw_output_frame,
+    uint64_t output_bytes=bytes;
+    if (s->engine1540_lossless14_model) {
+        /* Explicit F0/four2048 profile, not firmware microcode execution.
+         * The original validated full RAW reservation remains capacity. */
+        const uint16_t seeds[4]={2048,2048,2048,2048};
+        uint8_t *encoded=g_try_malloc(bytes);size_t written=0;
+        if (!encoded || !nikon_z8_lossless14_encode(buffer,bytes,w,h,pitch,
+                seeds,encoded,bytes,&written)) {
+            g_free(encoded);g_free(buffer);
+            unknown_access(s,addr,value,size,true);return true;
+        }
+        g_free(buffer);buffer=encoded;output_bytes=written;
+    }
+    NBSpan owned_span = {target,output_bytes};
+    if (!nb_reserve(&s->output_owner,1,s->engine1540_frame_jobs+1,
+                    s->engine151_raw_output_frame,&owned_span,1)) {
+        g_free(buffer); unknown_access(s,addr,value,size,true); return true;
+    }
+    uint64_t hash = UINT64_C(14695981039346656037);
+    for (uint64_t i = 0; i < output_bytes; i++) { hash = (hash ^ buffer[i]) * UINT64_C(1099511628211); }
+    NJOutput journal_output = producer_journal_output(NJ_RAW1540,
+        s->engine1540_lossless14_model ? NJ_F0_LOSSLESS14 : NJ_PACKED14,
+        target, output_bytes, w, h, pitch, s->engine151_raw_output_frame,
         s->engine1540_frame_jobs + 1, s->sensor_tag_model);
     NJToken journal_token;
     nj_begin(&s->producer_journal, &journal_token, &journal_output, 1,
              journal_parent, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
-    if (address_space_write(&address_space_memory, target, MEMTXATTRS_UNSPECIFIED, buffer, bytes) != MEMTX_OK ||
-        address_space_read(&address_space_memory, target, MEMTXATTRS_UNSPECIFIED, buffer, bytes) != MEMTX_OK) {
+    if (address_space_write(&address_space_memory, target, MEMTXATTRS_UNSPECIFIED, buffer, output_bytes) != MEMTX_OK ||
+        address_space_read(&address_space_memory, target, MEMTXATTRS_UNSPECIFIED, buffer, output_bytes) != MEMTX_OK) {
         producer_journal_finish(s, &journal_token, false);
+        nb_cancel(&s->output_owner,1);
         g_free(buffer); unknown_access(s, addr, value, size, true); return true;
     }
     uint64_t readback = UINT64_C(14695981039346656037);
-    for (uint64_t i = 0; i < bytes; i++) { readback = (readback ^ buffer[i]) * UINT64_C(1099511628211); }
+    for (uint64_t i = 0; i < output_bytes; i++) { readback = (readback ^ buffer[i]) * UINT64_C(1099511628211); }
     g_free(buffer);
     if (hash != readback) {
         producer_journal_finish(s, &journal_token, false);
+        nb_cancel(&s->output_owner,1);
         unknown_access(s, addr, value, size, true); return true;
     }
     producer_journal_finish(s, &journal_token, true);
-    s->engine1540_frame_jobs++; s->engine1540_frame_bytes += bytes;
+    s->engine1540_frame_jobs++; s->engine1540_frame_bytes += output_bytes;
     s->engine1540_frame_frame = s->engine151_raw_output_frame;
     s->engine1540_frame_source = source; s->engine1540_frame_target = target;
     s->engine1540_frame_hash = hash; s->engine1540_frame_readback = readback;
     /* Publish only the last successfully completed output, never a configured
      * capacity, cumulative total, guessed compression ratio or host file. */
-    s->engine1540_frame_result_bytes = bytes;
+    s->engine1540_frame_result_bytes = output_bytes;
     /* Actual registered callback40cb6a40/handler40cb74dc treats bit0 as
      * error; bit8 wakes the normal wait. Data and readback precede IRQ. */
     s->engine1540_frame_pending = 0x100;
+    if (!nb_complete(&s->output_owner,1,s->engine1540_frame_jobs)) {
+        unknown_access(s,addr,value,size,true); return true;
+    }
     engine1540_frame_update_irq(s);
     fprintf(stderr, "Z9_1540_FRAME_PASS source=%" PRIx64 " target=%" PRIx64
         " bytes=%" PRIu64 " frame=%" PRIu64 " fnv64=%" PRIx64
-        "; neutral packed14 RAM transport, bit8 completion, LUT/codec unverified\n",
-        source, target, bytes, s->engine1540_frame_frame, hash);
+        "; %s, bit8 completion, physical codec unverified\n",
+        source, target, output_bytes, s->engine1540_frame_frame, hash,
+        s->engine1540_lossless14_model ? "functional F0 lossless14" : "neutral packed14 RAM transport");
     return true;
 }
 
 static bool get_engine1540_frame_pass_model(Object *obj, Error **errp)
 { return NIKON_Z9_LAB(obj)->engine1540_frame_pass_model; }
+
+static bool get_engine1540_lossless14(Object *obj, Error **errp)
+{ return NIKON_Z9_LAB(obj)->engine1540_lossless14_model; }
+static void set_engine1540_lossless14(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s=NIKON_Z9_LAB(obj);
+    if (s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp,"F0 lossless14 immutable after realization");return;
+    }
+    s->engine1540_lossless14_model=value;
+}
 
 static void set_engine1540_frame_pass_model(Object *obj, bool value, Error **errp)
 {
@@ -14946,12 +15036,15 @@ static char *get_engine1540_frame_pass_state(Object *obj, Error **errp)
         ",\"fnv64\":%" PRIu64 ",\"readback_fnv64\":%" PRIu64 ",\"acks\":%" PRIu64
         ",\"pending\":%u,\"irq_intid\":305,\"completion_events\":%" PRIu64
         ",\"results\":[0,%u,0],\"last_result_bytes\":%u,\"physical_algorithm_verified\":false,\"native_nef_saved\":false,"
-        "\"scope\":\"neutral actual151 packed14 RAM transport and completed-output length; no LUT/entropy/codec proof\"}",
+        "\"lossless14_enabled\":%s,\"encoding\":\"%s\","
+        "\"scope\":\"actual151 RAW output length; optional attributed F0 encoder; no physical codec/HE/HE* proof\"}",
         s->engine1540_frame_pass_model ? "true" : "false", s->engine1540_frame_jobs, s->engine1540_frame_bytes,
         s->engine1540_frame_source, s->engine1540_frame_target, s->engine1540_frame_frame,
         s->engine1540_frame_hash, s->engine1540_frame_readback, s->engine1540_frame_acks,
         s->engine1540_frame_pending, s->engine1540_frame_jobs,
-        s->engine1540_frame_result_bytes, s->engine1540_frame_result_bytes);
+        s->engine1540_frame_result_bytes, s->engine1540_frame_result_bytes,
+        s->engine1540_lossless14_model ? "true" : "false",
+        s->engine1540_lossless14_model ? "nikon-f0-lossless14" : "packed14-transport");
 }
 
 static bool engine1540_control_address(NikonZ9State *s, hwaddr addr, unsigned *off)
@@ -14983,6 +15076,9 @@ static bool engine1540_control_write(NikonZ9State *s, hwaddr addr, uint64_t valu
     else if (off == 0x20) { s->engine1540_subscription = value; }
     else {
         uint32_t cleared = s->engine1540_frame_pending & value;
+        if (cleared && !nb_ack(&s->output_owner,1,s->engine1540_frame_jobs)) {
+            unknown_access(s,addr,value,size,true); return true;
+        }
         s->engine1540_frame_pending &= ~value;
         if (cleared) { s->engine1540_frame_acks++; }
         else { s->engine1540_empty_w1cs++; }
@@ -17431,6 +17527,10 @@ static void nikon_z9_init(MachineState *machine)
     if (s->engine1540_frame_pass_model && (!s->engine1540_control_model || !s->engine151_raw_output_model)) {
         error_report("engine1540-frame-pass-model requires original control and actual151 RAW output"); exit(1);
     }
+    if (s->engine1540_lossless14_model &&
+        (!s->engine1540_frame_pass_model || !s->output_owner.enabled)) {
+        error_report("F0 lossless14 requires actual RAW output and output-buffer-ownership-model=on");exit(1);
+    }
     if (s->engine1540_control_model && (!s->bootstrap_fixtures || !s->engine1540_parameters_model)) {
         error_report("engine1540-control-model requires bootstrap-fixtures and main parameter model"); exit(1);
     }
@@ -17489,9 +17589,7 @@ static void nikon_z9_init(MachineState *machine)
         error_report("zr-primary-bank1-model requires engine150c-stop-model=on");
         exit(1);
     }
-    if (!s->orientation_input_set) {
-        s->orientation_regs[5] = 0x40; /* raw Z=1024, left-justified */
-    }
+    s->orientation_regs[5] = 0x40; /* raw Z=1024, left-justified in 16 bits */
     if (s->pcie_link_diagnostic_mask && !s->pcie_empty_fixture) {
         error_report("pcie-link-diagnostic-mask requires the explicit PCIe status fixture");
         exit(1);
@@ -18037,57 +18135,16 @@ static void set_orientation_fixture(Object *obj, bool value, Error **errp)
     NIKON_Z9_LAB(obj)->orientation_fixture = value;
 }
 
-static char *get_orientation_input(Object *obj, Error **errp)
-{
-    const uint8_t *v = &NIKON_Z9_LAB(obj)->orientation_regs[1];
-    return g_strdup_printf("%02x%02x%02x%02x%02x%02x",
-                           v[0], v[1], v[2], v[3], v[4], v[5]);
-}
-
-static void set_orientation_input(Object *obj, const char *value, Error **errp)
-{
-    NikonZ9State *s = NIKON_Z9_LAB(obj);
-    uint8_t sample[6];
-
-    if (!s->orientation_fixture || !s->i2c_fixture) {
-        error_setg(errp, "orientation-input requires orientation and I2C fixtures");
-        return;
-    }
-    if (strlen(value) != 12) {
-        error_setg(errp, "orientation-input requires six hex bytes (BE12 XYZ, left-justified)");
-        return;
-    }
-    for (unsigned i = 0; i < sizeof(sample); i++) {
-        int hi = g_ascii_xdigit_value(value[i * 2]);
-        int lo = g_ascii_xdigit_value(value[i * 2 + 1]);
-        if (hi < 0 || lo < 0 || ((i & 1) && lo != 0)) {
-            error_setg(errp, "orientation-input requires six hex bytes (BE12 XYZ, left-justified)");
-            return;
-        }
-        sample[i] = (hi << 4) | lo;
-    }
-    /* Existing RX FIFO is a completed transaction snapshot. Changing the
-     * sensor source must not tear a sample already queued for the guest. */
-    memcpy(&s->orientation_regs[1], sample, sizeof(sample));
-    s->orientation_input_set = true;
-    s->orientation_input_updates++;
-}
-
 static char *get_orientation_state(Object *obj, Error **errp)
 {
     NikonZ9State *s = NIKON_Z9_LAB(obj);
     return g_strdup_printf("{\"fixture\":%s,\"monitors\":%u,\"writes\":%u,"
                            "\"reads\":%u,\"pointer\":%u,\"control_2a\":%u,"
-                           "\"sample_hex\":\"%02x%02x%02x%02x%02x%02x\","
-                           "\"input_updates\":%" PRIu64 "}",
+                           "\"sample_hex\":\"000000004000\"}",
                            s->orientation_fixture ? "true" : "false",
                            s->orientation_monitors, s->orientation_writes,
                            s->orientation_reads, s->orientation_pointer,
-                           s->orientation_regs[0x2a],
-                           s->orientation_regs[1], s->orientation_regs[2],
-                           s->orientation_regs[3], s->orientation_regs[4],
-                           s->orientation_regs[5], s->orientation_regs[6],
-                           s->orientation_input_updates);
+                           s->orientation_regs[0x2a]);
 }
 
 static bool get_zr_secondary_resample_model(Object *obj, Error **errp)
@@ -18402,7 +18459,6 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_bool(oc, "i2c-fixture", get_i2c_fixture, set_i2c_fixture);
     object_class_property_add_bool(oc, "orientation-fixture", get_orientation_fixture, set_orientation_fixture);
     object_class_property_add_str(oc, "orientation-state", get_orientation_state, NULL);
-    object_class_property_add_str(oc, "orientation-input", get_orientation_input, set_orientation_input);
     object_class_property_add_bool(oc, "zr-orientation-fixture", get_zr_orientation_fixture, set_zr_orientation_fixture);
     object_class_property_add_str(oc, "zr-orientation-state", get_zr_orientation_state, NULL);
     object_class_property_add_str(oc, "zr-orientation-input", get_zr_orientation_input, set_zr_orientation_input);
@@ -18531,6 +18587,9 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_bool(oc, "engine1540-control-model", get_engine1540_control_model, set_engine1540_control_model);
     object_class_property_add_str(oc, "engine1540-control-state", get_engine1540_control_state, NULL);
     object_class_property_add_bool(oc, "engine1540-frame-pass-model", get_engine1540_frame_pass_model, set_engine1540_frame_pass_model);
+    object_class_property_add_bool(oc,"engine1540-lossless14-model",get_engine1540_lossless14,set_engine1540_lossless14);
+    object_class_property_add_bool(oc,"output-buffer-ownership-model",get_output_ownership_model,set_output_ownership_model);
+    object_class_property_add_str(oc,"output-buffer-ownership-state",get_output_ownership_state,NULL);
     object_class_property_add_str(oc, "engine1540-frame-pass-state", get_engine1540_frame_pass_state, NULL);
     object_class_property_add_bool(oc, "engine153-config-model", get_engine153_config_model, set_engine153_config_model);
     object_class_property_add_str(oc, "engine153-config-state", get_engine153_config_state, NULL);
