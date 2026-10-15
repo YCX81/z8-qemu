@@ -4,6 +4,11 @@
  * No guest-memory, camera-specific register, interrupt or display access. */
 #include <math.h>
 
+/* Same bounded storage limits as WonderLantern/zr-qemu f9cc5d1.
+ * Z8 recording submits 8280x4688 RAW before its final 4K downsample. */
+#define NIKON_RAW_MAX_DIMENSION 16384U
+#define NIKON_RAW_MAX_SAMPLES (UINT64_C(64) * MiB)
+
 typedef struct NikonRawPixels {
     unsigned width, height, white;
     uint16_t *samples;
@@ -13,8 +18,8 @@ typedef struct NikonRawPixels {
 static NikonRawPixels *nikon_raw_pixels_new(const uint8_t *samples,
     unsigned width, unsigned height, unsigned black, unsigned white)
 {
-    if (!width || !height || ((width | height) & 1) || width > 8192 ||
-        height > 8192 || (uint64_t)width * height > 16 * MiB || black >= white || white > 65535) {
+    if (!width || !height || ((width | height) & 1) || width > NIKON_RAW_MAX_DIMENSION ||
+        height > NIKON_RAW_MAX_DIMENSION || (uint64_t)width * height > NIKON_RAW_MAX_SAMPLES || black >= white || white > 65535) {
         return NULL;
     }
     NikonRawPixels *p = g_new0(NikonRawPixels, 1);

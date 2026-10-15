@@ -60,6 +60,50 @@ FILES.update({'docs/z8-c32.md', 'tools/z8_slots_acceptance.py',
               'tests/test_z8_slots_core.py', 'tests/test_z8_slots_gui.py',
               'tests/test_z8_slots_image.py', 'tests/test_z8_slots_layout.py',
               'tests/test_z8_slots_main_menu.py', 'tests/test_z8_slots_media.py'})
+FILES.update({'docs/z8-orientation.md', 'tools/z8_orientation.py',
+              'tools/z8_orientation_acceptance.py', 'tests/test_z8_orientation.py',
+              'tests/test_z8_orientation_device.py', 'tests/test_z8_orientation_graphics.py',
+              'tests/test_z8_orientation_policy.py', 'tests/test_z8_orientation_resample.py',
+              'tests/test_z8_orientation_resources.py'})
+FILES.update({'tools/z8_orientation_unlock.py', 'tools/z8_orientation_unlock_run.py',
+              'tools/z8_orientation_unlock_acceptance.py', 'tests/test_z8_orientation_unlock.py'})
+FILES.update({'tools/z8_orientation_video_acceptance.py', 'tests/test_z8_orientation_menu_layout.py'})
+FILES.add('tests/test_z8_menu_scanout.py')
+FILES.update({'docs/z8-video-orientation.md','tools/z8_video.py',
+              'tests/test_z8_video.py','tests/test_z8_orientation_video_layout.py',
+              'tests/test_z8_video_serial.py','tests/test_z8_video_pipeline_config.py',
+              'tests/test_z8_video_152c.py'})
+FILES.update({'tools/z8_video_layout.py','tools/z8_video_resources.py',
+              'tests/test_z8_video_portrait.py','tests/test_z8_video_resources.py',
+              'tests/test_z8_video_1530.py','tests/test_z8_video_1543.py',
+              'tests/test_z8_video_1564.py'})
+FILES.update({'tools/video_track_orientation.py','tests/test_video_track_orientation.py',
+              'tests/test_z8_video_mux.py','docs/z8-video-file-orientation.md'})
+FILES.add('tests/test_z8_video_scanout.py')
+FILES.add('tests/test_z8_video_audio.py')
+FILES.update({'tools/z8_video_file_rotation.py','tests/test_z8_video_file_rotation.py'})
+FILES.update({'qemu/nikon-z8-video-ring.h','tests/test_z8_video_ring_stop.py'})
+FILES.add('tests/test_z8_video_source_completion.py')
+FILES.update({'qemu/nikon-z8-input-pair.h','tests/test_z8_video_input_pair.py'})
+FILES.add('docs/z8-zr-reference.md')
+FILES.update({'qemu/nikon-z8-video-data.h','tests/test_z8_video_data.py','tests/test_z8_video_stream.py'})
+FILES.update({'tools/z8_rtc.py','tests/test_z8_rtc.py'})
+FILES.add('tests/test_z8_video_full_raw.py')
+FILES.update({'qemu/nikon-z8-video-processing.h','tests/test_z8_video_processing.py'})
+FILES.update({'qemu/nikon-z8-wave5.h','qemu/nikon-z9-wave5.h','qemu/nikon-wave5-codec.h','tests/test_z8_video_codec.py'})
+FILES.update({'qemu/nikon-z8-yuv.h','tests/test_z8_video_1566.py'})
+FILES.add('tests/test_z8_yuv_stream.py')
+FILES.add('qemu/nikon-z8-yuv-wave5.h')
+FILES.add('docs/z8-video-data.md')
+FILES.add('tests/test_z8_video_protocol.py')
+FILES.add('qemu/nikon-z8-yuv-dma.h')
+FILES.update({'qemu/nikon-z8-yuv-single.h','tests/test_z8_yuv_single.py','tests/test_z8_video_fourth_safety.py'})
+FILES.add('tests/test_z8_video_source_boundary.py')
+FILES.add('docs/z8-video-pipeline.md')
+FILES.update({'qemu/nikon-z9-pcie.h','qemu/nikon-z8-pcie-config.h',
+              'qemu/designware-dma.patch','qemu/nvme-completion-trace.patch','qemu/nvme-audit-state.patch',
+              'tools/virtual_recording_card.py','tests/test_z8_nvme_trace.py'})
+FILES.update({'docs/publication-checkpoint-20261015.md'})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),
@@ -67,8 +111,10 @@ SECRET_PATTERNS = [
 ]
 
 def validate(path, data):
+    # Hash canonical Git text without rewriting CRLF source working copies.
+    data = data.replace(b'\r\n', b'\n')
     if path not in FILES | {MANIFEST}: raise ValueError('Unreviewed public path: '+path)
-    if len(data)>(640*1024 if path == 'qemu/nikon-z9-lab.c' else 512*1024) or b'\0' in data: raise ValueError('Unexpected binary/large content: '+path)
+    if len(data)>(896*1024 if path == 'qemu/nikon-z9-lab.c' else 512*1024) or b'\0' in data: raise ValueError('Unexpected binary/large content: '+path)
     text = data.decode('utf-8')
     if any(pattern.search(text) for pattern in SECRET_PATTERNS): raise ValueError('Credential pattern in '+path)
     if re.search(r"['\"][0-9a-fA-F]{512,}['\"]",text): raise ValueError('Large embedded hex data needs review: '+path)
@@ -87,6 +133,7 @@ def main():
     for directory,dirs,files in os.walk(ROOT):
         dirs[:] = [name for name in dirs if name not in IGNORED]
         for name in files:
+            if name == '.git': continue  # Git worktree administrative pointer, never public content.
             path = Path(directory)/name
             if path.is_symlink(): raise ValueError('Symlink in public tree: '+str(path))
             discovered.add(path.relative_to(ROOT).as_posix())
@@ -100,8 +147,8 @@ def main():
     validate(MANIFEST,(ROOT/MANIFEST).read_bytes())
     commits = 0; blobs = set()
     if (ROOT/'.git').exists():
-        # Inspect all refs, rather than only the currently visible checkout.
-        refs = git('rev-list','--all').decode().splitlines()
+        # Inspect this publication and its ancestors; audit divergent branches separately.
+        refs = git('rev-list','HEAD').decode().splitlines()
         commits = len(refs)
         for ref in refs:
             tree = git('ls-tree','-rz','--full-tree',ref).split(b'\0')
@@ -122,7 +169,7 @@ def main():
             if stage != '0' or mode not in ('100644','100755'):
                 raise ValueError('Unexpected index entry: '+name)
             staged_hash = validate(name,git('cat-file','blob',oid))
-            if staged_hash != hashlib.sha256((ROOT/name).read_bytes()).hexdigest():
+            if staged_hash != validate(name,(ROOT/name).read_bytes()):
                 raise ValueError('Staged content differs from reviewed worktree: '+name)
             tracked.add(name)
         if tracked != FILES | {MANIFEST}: raise ValueError('Git index differs from reviewed inventory')

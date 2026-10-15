@@ -122,6 +122,7 @@ def boot(g, progress=print):
     body = bytearray(112)
     body[0] = 3
     deliver(g, frames(body, family=4)[0], prefix='z8-battery-', bindings=bindings)
+    g.data['z8_boot']['battery_status_input_body_hex'] = bytes(body).hex()
     # This is the original lens service send-callback return reached after
     # the synthetic battery frame. It does not establish battery health.
     at(g, points['lens_request_callback_return'])

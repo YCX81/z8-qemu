@@ -16,6 +16,8 @@
 #include "hw/arm/boot.h"
 #include "hw/arm/machines-qom.h"
 #include "hw/boards.h"
+#include "hw/pci/pci_host.h"
+#include "hw/pci-host/designware.h"
 #include "hw/core/cpu.h"
 #include "hw/loader.h"
 #include "hw/irq.h"
@@ -169,6 +171,7 @@ typedef struct Z9Engine1518 {
     qemu_irq irq;
     bool irq_level;
     uint64_t drains, drain_acks;
+    uint64_t stream_frames, stream_acks, stream_cancelled;
 } Z9Engine1518;
 
 struct NikonZ9State {
@@ -276,7 +279,46 @@ struct NikonZ9State {
     uint32_t adc_threshold[2];
     uint64_t adc_conversions;
     qemu_irq adc_irq;
-    uint32_t serial5_config[5][4];
+    uint32_t serial5_config[5][7];
+    bool z8_video_interface_model;
+    bool z8_video_unit1_reset;
+    uint64_t z8_video_reset_asserts, z8_video_reset_releases;
+    uint32_t z8_video152c_config[0x554 / 4];
+    bool z8_video_data_model;
+    struct Z8VideoData *z8_video_data;
+    struct WlWave5State *wave5;
+    bool wave5_model, wave5_busy, wave5_lossless_requested, wave5_realized, wave5_host_codec_diagnostic;
+    uint32_t wave5_irq_number;
+    bool video_processing_config_model, video_initial_reset_model, video_nr_reset_model;
+    uint32_t video_processing_global[4], video_processing_ports[2][192];
+    uint64_t video_processing_valid[2][3], video_processing_reads, video_processing_writes, video_processing_status_acks;
+    bool video_reset15_released;
+    uint64_t video_reset15_asserts, video_reset15_releases;
+    uint64_t video_nr_initial_releases[2], video_nr_reset_asserts[2], video_nr_reset_releases[2];
+    uint32_t z8_video_primary_pending;
+    uint64_t z8_video_primary_acks, z8_video_primary_cancels;
+    uint32_t z8_video15ac_config[0xb8 / 4];
+    bool z8_video_unit21_reset;
+    bool z8_video_unit39_released;
+    uint64_t z8_video21_reset_asserts, z8_video21_reset_releases;
+    uint32_t z8_video1530_config[0x55c / 4];
+    uint32_t z8_video15b0_config[0xb0 / 4];
+    uint32_t z8_video1564_config[0x2000 / 4];
+    uint32_t z8_video1566_config[0x2000 / 4];
+    bool z8_yuv_data_model;
+    bool z8_yuv_dma_model;
+    bool z8_video_ring_repeat_model;
+    bool z8_video_source_end_model;
+    struct Z8YuvData *z8_yuv_data;
+    uint64_t z8_video1564_addresses[4][8];
+    uint64_t z8_video_shared_reset_requests;
+    uint32_t z8_video_clock_config, z8_video_clock_latched;
+    uint64_t z8_video_clock_commits;
+    bool z8_video_task_pulse_high[3];
+    uint64_t z8_video_task_pulses[3];
+    uint64_t z8_video_table_writes;
+    uint32_t z8_video_serial_input[4];
+    bool z8_video_serial_input_valid;
     qemu_irq clock_irq;
     uint32_t engine_config[3];
     uint32_t engine_hold[2], engine_bank[2];
@@ -317,6 +359,8 @@ struct NikonZ9State {
     uint64_t engine1548_scanout_color, engine1548_scanout_alpha;
     uint64_t engine1548_video_frames, engine1548_video_y, engine1548_video_uv;
     bool engine1548_last_frame_has_video;
+    uint32_t engine1548_last_background_format;
+    uint64_t engine1548_menu_cache_frames;
     uint32_t engine1548_scanout_width, engine1548_scanout_height;
     uint32_t engine152_config[0x200 / 4];
     uint32_t engine152_pending;
@@ -341,6 +385,9 @@ struct NikonZ9State {
     uint32_t engine1542_pending[40];
     uint64_t engine1542_acks[40];
     bool raw_pipeline_model;
+    bool raw_pipeline_151c_completion_model;
+    bool raw_pipeline_1514_completion_model;
+    uint64_t raw_pipeline_1514_completions, raw_pipeline_1514_acks;
     NikonRawPixels *raw_pixels;
     QEMUTimer *raw_pipeline_timer;
     qemu_irq engine1542_irq;
@@ -355,6 +402,8 @@ struct NikonZ9State {
     unsigned raw_pipeline_width[3], raw_pipeline_height[3], raw_pipeline_stride[3];
     bool raw_pipeline_uv_half[3];
     bool engine1543_control_model;
+    bool z8_video_ring_stop_model, z8_video_ring_stop_owned[2];
+    uint64_t z8_video_ring_stops[2], z8_video_ring_stop_acks[2];
     uint32_t engine1543_valid[3];
     uint64_t engine1543_buffer_valid[3];
     uint32_t engine1543_latched[3][0x1000 / 4];
@@ -396,6 +445,8 @@ struct NikonZ9State {
     uint32_t engine150d52_config[0xa4 / 4], engine150d52_config_latched[0xa4 / 4];
     uint32_t engine150d6_config[0x1604 / 4], engine150d6_config_latched[0x1604 / 4];
     uint32_t engine150d8_config[0x1504 / 4], engine150d8_config_latched[0x1504 / 4];
+    uint32_t z8_video_geometry_config[2][0x160 / 4];
+    uint32_t z8_video_geometry_latched[2][0x160 / 4];
     bool engine150c_control_model;
     uint32_t engine150c_configured, engine150c_latched, engine150c_active;
     uint32_t engine150c_upper_latched[9], engine150c_e_latched[0x58 / 4];
@@ -468,6 +519,12 @@ struct NikonZ9State {
     uint16_t statistics_means[12][30];
     uint32_t statistics_pending;
     uint32_t raw_primary_pending;
+    bool raw_pipeline_input_pair_model;
+    uint64_t raw_pipeline_input_pair_completions, raw_pipeline_input_pair_acks;
+    uint64_t raw_pipeline_input_pair_cancelled;
+    bool raw_source_boundary_model;
+    uint32_t raw_source_pending;
+    uint64_t raw_source_boundaries, raw_source_notifications, raw_source_acks, raw_source_cancelled;
     uint64_t raw_primary_events, raw_primary_acks;
     uint64_t statistics_source_samples, statistics_frames, statistics_bytes;
     uint64_t statistics_events, statistics_acks, statistics_rejects;
@@ -574,6 +631,23 @@ struct NikonZ9State {
     uint64_t zr_orientation_monitors, zr_orientation_writes, zr_orientation_reads;
     uint64_t zr_orientation_samples;
     bool pcie_empty_fixture;
+    uint8_t pcie_link_diagnostic_mask;
+    bool pcie_dbi_model;
+    bool pcie_ram_dma_input, pcie_image_ram_dma_input;
+    MemoryRegion pcie_image_ram_dma[ARRAY_SIZE(image_bank_ranges)];
+    bool pcie_intx_model;
+    qemu_irq pcie_legacy_irq;
+    uint32_t pcie_intx_levels, pcie_intx_pending;
+    uint64_t pcie_intx_assertions, pcie_intx_acks;
+    MemoryRegion pcie_ram_dma;
+    DeviceState *pcie_dbi_host;
+    MemoryRegion pcie_dbi, pcie_atu, pcie_cpu_window;
+    uint32_t pcie_dbi_ro_enable;
+    uint64_t pcie_dbi_reads, pcie_dbi_writes, pcie_atu_writes, pcie_cpu_reads, pcie_cpu_writes, pcie_link_status_reads;
+    uint32_t pcie_qos_config[4];
+    uint32_t pcie_port_selection;
+    uint32_t pcie_syscon[2][3];
+    uint32_t pcie_wrapper[2][5];
     uint32_t ipu_config[0xa0 / 4];
     uint32_t dsp_init[3][0x44 / 4];
     uint32_t core1b_config[0x44 / 4];
@@ -584,6 +658,8 @@ struct NikonZ9State {
     uint8_t i2c_rx[4][16];
     unsigned i2c_rx_count[4], i2c_rx_head[4];
     uint8_t orientation_regs[0x32], orientation_pointer;
+    bool orientation_input_set;
+    uint64_t orientation_input_updates;
     uint64_t orientation_written;
     unsigned orientation_reads, orientation_writes, orientation_monitors;
     bool i2c_monitor[4];
@@ -998,6 +1074,8 @@ static bool syscon_retention(NikonZ9State *s, hwaddr addr)
     return addr >= 0x0d151000 && addr <= 0x0d151460 && (addr & 255) <= 0x60;
 }
 
+#include "nikon-z8-pcie-config.h"
+
 static bool bus_retention(hwaddr addr, unsigned size)
 {
     return size == 8 && addr >= 0x14000000 && addr < 0x14200000 &&
@@ -1359,6 +1437,7 @@ static bool graphics_table_range(uint32_t address, unsigned count,
 }
 
 static bool dma_ram_range(NikonZ9State *s, uint64_t addr, uint64_t bytes);
+static void z8_video_source_retire(NikonZ9State *s,uint32_t pending,uint32_t mask,bool reset);
 static bool graphics_dma_address(NikonZ9State *s, uint32_t local,
                                  uint64_t bytes, uint64_t *physical);
 
@@ -1890,10 +1969,12 @@ static bool graphics_render_image(NikonZ9State *s)
     g->image_target = dst;
     fprintf(stderr, "Z9_GRAPHICS_IMAGE job=%" PRIu64 " source=%" PRIx64
             " target=%" PRIx64 " size=%ux%u pixels=%" PRIu64
-            " blend=%s color=%x source_format=%s mode=%s target_format=%s filter=%u; functional affine image model, no measured timing\n",
+            " blend=%s color=%x source_format=%s mode=%s target_format=%s filter=%u"
+            " matrix=%g,%g,%g,%g,%g,%g clip=%u,%u,%u,%u source_stride=%u; functional affine image model, no measured timing\n",
             g->image_jobs, src, dst, width, height, pixels, over ? "SRC_OVER" : "SRC",
             g->config48[0x200], a8 ? "A8" : "RGBA8888", stencil ? "STENCIL" : "NORMAL",
-            planar ? "Y+UV" : yuva ? "YYUV+A" : "RGBA8888", input.filter);
+            planar ? "Y+UV" : yuva ? "YYUV+A" : "RGBA8888", input.filter,
+            m[0], m[1], m[2], m[3], m[4], m[5], x0, y0, x1, y1, src_stride);
     return true;
 }
 
@@ -3098,7 +3179,10 @@ static bool graphics_commit(NikonZ9State *s)
             g->pending |= 0x01000000;
         } else if (graphics_init48(reg, g->payload[0]) ||
                    (s->graphics_image_model &&
-                    object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-zr-lab")) &&
+                    /* Z8 portrait setup emits the same bounded state sequence as ZR.
+                     * These writes only stage state; draw validation remains strict. */
+                    (object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-zr-lab")) ||
+                     object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-z8-bringup"))) &&
                     (((reg == 0x351 || reg == 0x7f0 || reg == 0x790 || reg == 0x4c2) &&
                       g->payload[0] == 0) || (reg == 0x710 && g->payload[0] == 0x40000201) ||
                      (reg == 0x71a && g->payload[0] == 1))) ||
@@ -3229,6 +3313,7 @@ static bool graphics_fifo_write(NikonZ9State *s, uint32_t value)
  * branches, not silicon scaler/filter timing. The 11-word command supplies
  * output/source extents and signed coordinate increments. Pixel work reuses
  * the shared RAM aperture, color LUTs and packed YYUV + alpha helpers.
+ * Z8 portrait captures also exercise the same command and Y/UV output.
  * Output origins must be zero; source crops use the original 4c3/4c4 bounds.
  * Only orthogonal transforms are supported; all spans/geometry
  * are checked before any target byte changes. No built-in picture or glyphs.
@@ -3236,9 +3321,14 @@ static bool graphics_fifo_write(NikonZ9State *s, uint32_t value)
 static bool zr_secondary_resample(NikonZ9State *s)
 {
     Z9Graphics *g = &s->graphics;
+    static const uint32_t src_coeff[8] = {0, 0x10000, 0, 0x10000, 0, 0x10000, 0, 0};
+    static const uint32_t over_coeff[8] = {0, 0x81100, 0, 0x81100, 0, 0x81100, 1, 0x80100};
+    bool over = !memcmp(&g->config48[0x780], over_coeff, sizeof(over_coeff));
     uint32_t *v = g->geometry2;
     unsigned width = (v[1] & 0xffff) + 1, height = (v[1] >> 16) + 1;
     unsigned sw = (v[3] & 0xffff) + 1, sh = (v[3] >> 16) + 1;
+    bool planar = (g->config48[0x21] & 0xffff) == 0x71;
+    unsigned color_bpp = planar ? 1 : 2;
     unsigned pitch = g->config48[0x21] >> 16;
     unsigned sp = g->config48[0x4b3] & 0xffff;
     unsigned rows = g->config48[0x4b3] >> 16;
@@ -3248,18 +3338,26 @@ static bool zr_secondary_resample(NikonZ9State *s)
     int32_t oy = v[7], d = v[8], c = v[9];
     uint64_t src, color, alpha;
     uint64_t sb = (uint64_t)(cy + sh - 1) * sp * 4 + (cx + sw) * 4;
-    uint64_t cb = (uint64_t)(height - 1) * pitch * 2 + width * 2;
+    uint64_t cb = ((uint64_t)(height - 1) * pitch + width) * color_bpp;
     uint64_t ab = (uint64_t)(height - 1) * pitch + width;
     if (!s->zr_secondary_resample_model || !s->graphics_image_model ||
-        !object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-zr-lab")) ||
+        !(object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-zr-lab")) ||
+          object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-z8-bringup"))) ||
         g->geometry2_received != 10 || v[0] || v[2] ||
         !width || width > 8192 || !height || height > 8192 ||
         !sw || sw > 8192 || !sh || sh > 8192 || (width & 1) || (pitch & 1) ||
         cx + sw > sp || cy + sh > rows || pitch < width ||
         g->regs2[4] != v[1] || g->config48[0x4b4] != 3 ||
         g->config48[0x4c4] != ((cx + sw - 1) << 16 | (cy + sh - 1)) ||
-        (g->config48[0x21] & 0xffff) != 0x72 ||
-        g->config48[0x2a] != g->config48[0x2b] ||
+        (!planar && (g->config48[0x21] & 0xffff) != 0x72) ||
+        (g->config48[0x2a] != g->config48[0x2b] &&
+         g->config48[0x2b] != UINT32_MAX) ||
+        (!over && memcmp(&g->config48[0x780], src_coeff, sizeof(src_coeff))) ||
+        (over && (!g->yuv_inverse_valid ||
+         g->config48[0x2a] != g->config48[0x2b] ||
+         g->config48[0x912] || g->config48[0x919] ||
+         g->config48[0x911] != g->config48[0x914] ||
+         g->config48[0x911] != g->config48[0x917])) ||
         !g->yuv_forward_valid || g->config48[0x900] != 0x4e4e0002 ||
         !graphics_color_ready(g) || g->image_pending || g->path_pending ||
         g->clear_phase || g->header || g->fault || g->ring_pending || g->ring_fault ||
@@ -3305,16 +3403,40 @@ static bool zr_secondary_resample(NikonZ9State *s)
     }
     for (unsigned y = 0; y < height; y++) {
         for (unsigned x = 0; x < width; x += 2) {
-            uint8_t rgba[2][4];
+            uint8_t rgba[2][4] = {{0}}, packed[4];
+            uint64_t off = (uint64_t)y * pitch + x;
+            if (over) {
+                if (planar) {
+                    uint8_t yyuv[4] = {output[off], output[off + 1],
+                                      coverage[off], coverage[off + 1]};
+                    const uint8_t opaque[2] = {255, 255};
+                    graphics_yuv_decode(g, yyuv, opaque, rgba);
+                } else {
+                    graphics_yuv_decode(g, output + off * 2, coverage + off, rgba);
+                }
+            }
             for (unsigned p = 0; p < 2; p++) {
+                uint8_t sample[4];
                 double sx = (ox + (int64_t)(x + p) * a + (int64_t)y * b) / 2048.0;
                 double sy = (oy + (int64_t)(x + p) * c + (int64_t)y * d) / 2048.0;
                 sx = CLAMP(sx, 0, sw - 0.000001);
                 sy = CLAMP(sy, 0, sh - 0.000001);
-                graphics_image_sample(g, &in, sx, sy, rgba[p]);
-                coverage[(uint64_t)y * pitch + x + p] = rgba[p][3];
+                graphics_image_sample(g, &in, sx, sy, sample);
+                graphics_image_blend(sample, rgba[p], over);
+                if (!planar) {
+                    coverage[(uint64_t)y * pitch + x + p] = rgba[p][3];
+                }
             }
-            graphics_yuv_encode(g, rgba, output + (uint64_t)y * pitch * 2 + x * 2);
+            graphics_yuv_encode(g, rgba, packed);
+            if (planar) {
+                /* Format71 is Y plus full-height interleaved UV (no alpha).
+                 * Z8 portrait return uses disabled readback plane2b=ffffffff;
+                 * this source-only operation writes only plane20 and plane2a. */
+                memcpy(output + off, packed, 2);
+                memcpy(coverage + off, packed + 2, 2);
+            } else {
+                memcpy(output + off * 2, packed, 4);
+            }
         }
     }
     cpu_physical_memory_write(color, output, cb);
@@ -3327,8 +3449,8 @@ static bool zr_secondary_resample(NikonZ9State *s)
     g->zr_secondary_width = width;
     g->zr_secondary_height = height;
     fprintf(stderr, "ZR_SECONDARY_RESAMPLE source=%" PRIx64 " color=%" PRIx64
-            " alpha=%" PRIx64 " width=%u height=%u; actual RAM pixels committed\n",
-            src, color, alpha, width, height);
+            " alpha=%" PRIx64 " width=%u height=%u blend=%s; actual RAM pixels committed\n",
+            src, color, alpha, width, height, over ? "SRC_OVER" : "SRC");
     return true;
 }
 
@@ -4348,30 +4470,38 @@ static bool engine1548_scanout_fetch(NikonZ9State *s)
 {
     uint32_t *l = s->engine1548_layer_fields[1][0];
     unsigned width = l[0] & 0x7fff, height = (l[0] >> 16) & 0x7fff;
-    uint64_t color = s->engine1548_addresses[1][2][0] |
-                     (uint64_t)s->engine1548_addresses[1][2][1] << 32;
-    uint64_t alpha = l[0x100 / 4] | (uint64_t)l[0x104 / 4] << 32;
+    bool overlay = l[0x240 / 4] == 1;
+    uint64_t color = 0, alpha = 0;
     uint64_t count = (uint64_t)width * height;
     if (!s->engine1548_console || !width || !height || (width & 1) ||
         width > 8192 || height > 8192 || count * 3 > 16 * MiB ||
-        l[0x240 / 4] != 1 || l[0x200 / 4] ||
-        l[0x180 / 4] != width * 2 || l[0x1c0 / 4] != width ||
-        color >> 34 != 3 || alpha >> 34 != 3) {
+        l[0x240 / 4] > 1 || (!overlay && !s->z8_video_interface_model)) {
         return false;
     }
-    color -= UINT64_C(0x400000000);
-    alpha -= UINT64_C(0x400000000);
-    if (color < UINT64_C(0xa00000000) || color + count * 2 > alpha ||
-        alpha < UINT64_C(0xa00000000) || alpha + count > UINT64_C(0xa00000000) + MACHINE(s)->ram_size) {
-        return false;
-    }
-    g_autofree uint8_t *yyuv = g_malloc(count * 2);
-    g_autofree uint8_t *aa = g_malloc(count);
-    if (address_space_read(&address_space_memory, color, MEMTXATTRS_UNSPECIFIED,
-                           yyuv, count * 2) != MEMTX_OK ||
-        address_space_read(&address_space_memory, alpha, MEMTXATTRS_UNSPECIFIED,
-                           aa, count) != MEMTX_OK) {
-        return false;
+    g_autofree uint8_t *yyuv = NULL;
+    g_autofree uint8_t *aa = NULL;
+    if (overlay) {
+        color = s->engine1548_addresses[1][2][0] |
+                (uint64_t)s->engine1548_addresses[1][2][1] << 32;
+        alpha = l[0x100 / 4] | (uint64_t)l[0x104 / 4] << 32;
+        if (l[0x200 / 4] || l[0x180 / 4] != width * 2 || l[0x1c0 / 4] != width ||
+            color >> 34 != 3 || alpha >> 34 != 3) {
+            return false;
+        }
+        color -= UINT64_C(0x400000000);
+        alpha -= UINT64_C(0x400000000);
+        if (!dma_ram_range(s, color, count * 2) || !dma_ram_range(s, alpha, count) ||
+            graphics_spans_overlap(color, count * 2, alpha, count)) {
+            return false;
+        }
+        yyuv = g_malloc(count * 2);
+        aa = g_malloc(count);
+        if (address_space_read(&address_space_memory, color, MEMTXATTRS_UNSPECIFIED,
+                               yyuv, count * 2) != MEMTX_OK ||
+            address_space_read(&address_space_memory, alpha, MEMTXATTRS_UNSPECIFIED,
+                               aa, count) != MEMTX_OK) {
+            return false;
+        }
     }
     /* Native244: direct format4, two1024-byte strides,1024x682 source,
      * E-addresses matching the RAW model's IMPRSZ B1 ring. Direct input
@@ -4381,30 +4511,50 @@ static bool engine1548_scanout_fetch(NikonZ9State *s)
     uint64_t video_y = 0, video_uv = 0;
     uint32_t *direct = s->engine1548_direct_fields[1];
     unsigned video_stride = direct[3];
+    unsigned video_width = direct[2] & 0xffff, video_height = direct[2] >> 16;
+    unsigned video_x = s->z8_video_interface_model ? direct[5] & 0xffff : 0;
+    unsigned video_y_offset = s->z8_video_interface_model ? direct[5] >> 16 : 0;
+    /* Z8 MENU's observed direct word 0x200 consumes the GPU's format71
+     * Y + full-height interleaved UV cache. Transparent incremental OSD
+     * pixels reveal this retained image. Treating it as absent (or NV12)
+     * loses unchanged rows. Source reads do not depend on the RAW producer. */
+    bool menu_cache = direct[0] == 0x200;
+    bool nv12 = (direct[0] & 31) == 4;
     /* Native402aa528 independently selects direct input (bit0), layer0
      * (bit1) and layer1 (bit2). MENU transitions stop an optional layer
      * without stopping direct input. A layer's state is not a prerequisite
      * for reading the separately enabled NV12 source. */
-    if (s->raw_pipeline_model && (s->engine1548_direct_control[1] & 3) == 3 &&
-        (direct[0] & 31) == 4 && (direct[2] & 0xffff) == width &&
-        (direct[2] >> 16) == height && !(height & 1) &&
-        video_stride >= width && video_stride <= 8192 && direct[4] == video_stride) {
+    if ((s->engine1548_direct_control[1] & 3) == 3 &&
+        (nv12 || menu_cache) && video_width && video_height && !(video_width & 1) &&
+        !(video_x & 1) && video_x + video_width <= width && video_y_offset + video_height <= height &&
+        (s->z8_video_interface_model || (video_width == width && video_height == height)) &&
+        (menu_cache || !(video_height & 1)) &&
+        video_stride >= video_width && video_stride <= 8192 && direct[4] == video_stride) {
         video_y = s->engine1548_addresses[1][0][0] |
                   (uint64_t)s->engine1548_addresses[1][0][1] << 32;
         video_uv = s->engine1548_addresses[1][1][0] |
                    (uint64_t)s->engine1548_addresses[1][1][1] << 32;
-        size_t n = (size_t)video_stride * height;
+        size_t n = (size_t)video_stride * video_height;
+        size_t uv_bytes = menu_cache ? n : n / 2;
         if (video_y >> 34 == 3 && video_uv >> 34 == 3 && n <= 16 * MiB) {
             video_y -= UINT64_C(0x400000000);
             video_uv -= UINT64_C(0x400000000);
-            if (dma_ram_range(s, video_y, n) && dma_ram_range(s, video_uv, n / 2)) {
-                video = g_malloc(n + n / 2);
+            if (dma_ram_range(s, video_y, n) && dma_ram_range(s, video_uv, uv_bytes) &&
+                !graphics_spans_overlap(video_y, n, video_uv, uv_bytes)) {
+                video = g_malloc(n + uv_bytes);
                 if (address_space_read(&address_space_memory, video_y, MEMTXATTRS_UNSPECIFIED, video, n) != MEMTX_OK ||
-                    address_space_read(&address_space_memory, video_uv, MEMTXATTRS_UNSPECIFIED, video + n, n / 2) != MEMTX_OK) {
+                    address_space_read(&address_space_memory, video_uv, MEMTXATTRS_UNSPECIFIED, video + n, uv_bytes) != MEMTX_OK) {
                     g_clear_pointer(&video, g_free);
                 }
             }
         }
+    }
+    /* Z8 transitions temporarily disable OSD and use a1024x576 direct
+     * source at(0,54) within1024x682. Requiring OSD/full-size input stalls
+     * real bounded reads and therefore the native frame-end handshake.
+     * No scaling is assumed. Without either valid source, emit no frame. */
+    if (!overlay && !video) {
+        return false;
     }
     int matrix[9];
     for (unsigned row = 0; row < 3; row++) {
@@ -4420,13 +4570,21 @@ static bool engine1548_scanout_fetch(NikonZ9State *s)
     for (unsigned y = 0; y < height; y++) {
         uint32_t *out = (uint32_t *)(surface_data(surface) + y * surface_stride(surface));
         for (unsigned x = 0; x < width; x++) {
-            const uint8_t *pair = yyuv + ((uint64_t)y * width + (x & ~1U)) * 2;
-            int input[3] = { pair[x & 1], pair[2] - 128, pair[3] - 128 };
+            int input[3] = {0};
+            if (overlay) {
+                const uint8_t *pair = yyuv + ((uint64_t)y * width + (x & ~1U)) * 2;
+                input[0] = pair[x & 1];
+                input[1] = pair[2] - 128;
+                input[2] = pair[3] - 128;
+            }
             uint32_t pixel = 0xff000000;
             int background[3] = {0};
-            if (video) {
-                size_t at = (size_t)video_stride * height + (y / 2) * video_stride + (x & ~1U);
-                int vy = video[(size_t)y * video_stride + x];
+            if (video && x >= video_x && x < video_x + video_width &&
+                y >= video_y_offset && y < video_y_offset + video_height) {
+                unsigned sx = x - video_x, sy = y - video_y_offset;
+                size_t at = (size_t)video_stride * video_height +
+                            (menu_cache ? sy : sy / 2) * video_stride + (sx & ~1U);
+                int vy = video[(size_t)sy * video_stride + sx];
                 int vu = video[at] - 128, vv = video[at + 1] - 128;
                 background[0] = CLAMP(vy + ((359 * vv + 128) >> 8), 0, 255);
                 background[1] = CLAMP(vy - ((88 * vu + 183 * vv + 128) >> 8), 0, 255);
@@ -4437,7 +4595,7 @@ static bool engine1548_scanout_fetch(NikonZ9State *s)
                           matrix[row * 3 + 1] * input[1] +
                           matrix[row * 3 + 2] * input[2];
                 int value = CLAMP((sum + 32) >> 6, 0, 255);
-                unsigned a = aa[(uint64_t)y * width + x];
+                unsigned a = overlay ? aa[(uint64_t)y * width + x] : 0;
                 value = (value * a + background[row] * (255 - a) + 127) / 255;
                 pixel |= value << (16 - row * 8);
             }
@@ -4449,11 +4607,15 @@ static bool engine1548_scanout_fetch(NikonZ9State *s)
     s->engine1548_scanout_width = width;
     s->engine1548_scanout_height = height;
     s->engine1548_scanout_frames++;
-    s->engine1548_last_frame_has_video = video != NULL;
-    if (video) {
+    s->engine1548_last_background_format = video ? (menu_cache ? 0 : 4) : UINT32_MAX;
+    s->engine1548_last_frame_has_video = video && nv12;
+    if (video && nv12) {
         s->engine1548_video_frames++;
         s->engine1548_video_y = video_y;
         s->engine1548_video_uv = video_uv;
+    }
+    if (video && menu_cache) {
+        s->engine1548_menu_cache_frames++;
     }
     s->engine1548_layer_request[1][0] = 0;
     dpy_gfx_update(s->engine1548_console, 0, 0, width, height);
@@ -4493,7 +4655,8 @@ static char *get_engine1548_scanout_state(Object *obj, Error **errp)
         ",\"acks\":%" PRIu64 ",\"width\":%u,\"height\":%u,\"color\":%" PRIu64
         ",\"alpha\":%" PRIu64 ",\"pending\":%u,\"mask\":%u,\"unit\":1,\"layer\":0,"
         "\"last_frame_has_video\":%s,"
-        "\"video_frames\":%" PRIu64 ",\"video_y\":%" PRIu64 ",\"video_uv\":%" PRIu64 "}",
+        "\"video_frames\":%" PRIu64 ",\"video_y\":%" PRIu64 ",\"video_uv\":%" PRIu64
+        ",\"background_format\":\"%s\",\"menu_cache_frames\":%" PRIu64 "}",
         s->engine1548_scanout_model ? "true" : "false",
         engine1548_scanout_active(s) ? "true" : "false",
         s->engine1548_scanout_ticks, s->engine1548_scanout_frames, s->engine1548_scanout_acks,
@@ -4501,7 +4664,11 @@ static char *get_engine1548_scanout_state(Object *obj, Error **errp)
         s->engine1548_scanout_color, s->engine1548_scanout_alpha,
         s->engine1548_pending[1][0], s->engine1548_fields[1][0x210 / 4],
         s->engine1548_last_frame_has_video ? "true" : "false",
-        s->engine1548_video_frames, s->engine1548_video_y, s->engine1548_video_uv);
+        s->engine1548_video_frames, s->engine1548_video_y, s->engine1548_video_uv,
+        !s->engine1548_scanout_frames ? "none" :
+        s->engine1548_last_background_format == 0 ? "NV16" :
+        s->engine1548_last_background_format == 4 ? "NV12" : "none",
+        s->engine1548_menu_cache_frames);
 }
 
 static bool engine1548_control_write(NikonZ9State *s, hwaddr addr,
@@ -5091,8 +5258,9 @@ static char *get_zr_lcd_control_state(Object *obj, Error **errp)
 /* Diagnostic peer inferred from the original 40c8b278/40c8c98c consumers:
  * ch3/address 1d, status bit3 and six big-endian left-justified 12-bit samples.
  * It is NOT an identified or cycle-accurate sensor. Configuration bytes retain
- * only the ranges written by this firmware path. One stationary raw vector
- * (0,0,1024) is supplied; no sample clock, data-ready GPIO or self-test modeled.
+ * only the ranges written by this firmware path. Defaults to raw (0,0,1024).
+ * orientation-input supplies bounded synthetic XYZ samples; no sample clock,
+ * data-ready GPIO, physical axis calibration or self-test is modeled.
  */
 static bool orientation_config_byte(unsigned reg)
 {
@@ -6172,6 +6340,9 @@ static void event_timing_update(NikonZ9State *s)
     }
 }
 
+static void raw_source_boundary_tick(NikonZ9State *s);
+static void z8_video_data_receive(NikonZ9State *s);
+
 static void event_timing_expire(void *opaque)
 {
     NikonZ9State *s = opaque;
@@ -6179,6 +6350,8 @@ static void event_timing_expire(void *opaque)
         return;
     }
     s->event_timing_ticks++;
+    raw_source_boundary_tick(s);
+    z8_video_data_receive(s);
     /* Explicit counterfactual: one primary bit2 input at this lab clock
      * boundary. The real callback maps it to 041d0001; neither physical
      * sensor timing nor a pixel transfer is claimed by this input. */
@@ -6459,14 +6632,19 @@ static char *get_event1508_front_state(Object *obj, Error **errp)
 static uint32_t *serial5_config(NikonZ9State *s, hwaddr addr, unsigned size)
 {
     /* Original 40c17510/5bc: mode +8/+c/+18 and divider +14.
+     * Z8 video transition also executes 40c178bc: retained +10/+40/+44
+     * configuration. These words configure the interface, not a transfer.
      * FIFO, transfer control and completion are deliberately not covered.
      */
-    static const unsigned offsets[] = {8, 0xc, 0x14, 0x18};
+    static const unsigned offsets[] = {8, 0xc, 0x14, 0x18, 0x10, 0x40, 0x44};
     if (!s->bootstrap_fixtures || size != 4 || addr < 0x0e200100 || addr >= 0x0e200600) {
         return NULL;
     }
     for (unsigned i = 0; i < ARRAY_SIZE(offsets); i++) {
         if ((addr & 255) == offsets[i]) {
+            if (i >= 4 && !s->z8_video_interface_model) {
+                return NULL;
+            }
             return &s->serial5_config[(addr - 0x0e200100) / 0x100][i];
         }
     }
@@ -7426,7 +7604,7 @@ static uint32_t engine150c_stop_causes(uint32_t engines)
            ((engines & 1) ? 0xc00 : 0) | ((engines & 0x40) << 13) |
            ((engines & 0x1000) ? 0x600000 : 0) |
            ((engines & 0x2000) ? 0x1800000 : 0) |
-           ((engines & 0x40000) ? 0x60000 : 0);
+           ((engines & 0x40000) ? 0x60000 : 0) | ((engines & 0xc000) << 11);
 }
 
 static uint32_t engine150c_stop_command(uint32_t engines)
@@ -7435,7 +7613,7 @@ static uint32_t engine150c_stop_command(uint32_t engines)
            ((engines & 1) ? 0x18 : 0) | ((engines & 0x40) >> 1) |
            ((engines & 0x1000) ? 0x1800 : 0) |
            ((engines & 0x2000) ? 0x6000 : 0) |
-           ((engines & 0x40000) ? 0x300 : 0);
+           ((engines & 0x40000) ? 0x300 : 0) | ((engines & 0xc000) << 1);
 }
 
 static void statistics_update(NikonZ9State *s);
@@ -7451,9 +7629,9 @@ static void engine150c_stop_irq_update(NikonZ9State *s)
      * functional assumptions; no pixel or frame completion is synthesized. */
     qemu_set_irq(s->engine150c_irq,
                  !!((s->engine150c_stop_pending & s->engine_150c_init[0x218 / 4]) |
-                    ((s->statistics_pending | s->raw_primary_pending | s->engine150c_direct_stop_pending1) & s->engine_150c_init[0x20c / 4]) |
+                    ((s->statistics_pending | s->raw_primary_pending | s->raw_source_pending | s->engine150c_direct_stop_pending1) & s->engine_150c_init[0x20c / 4]) |
                     ((s->engine150c_direct_stop_pending | s->primary_empty_end_pending | s->engine150c_bit2_pending |
-                      s->engine150c_bit6_pending) &
+                      s->engine150c_bit6_pending | s->z8_video_primary_pending) &
                      s->engine_150c_init[0x200 / 4])));
     statistics_update(s);
     primary_empty_end_update(s);
@@ -8160,15 +8338,15 @@ static bool engine150c_stop_read(NikonZ9State *s, hwaddr addr,
         return true;
     case 0x150c0204:
         *value = (s->engine150c_direct_stop_pending | s->primary_empty_end_pending | s->engine150c_bit2_pending |
-                  s->engine150c_bit6_pending) &
+                  s->engine150c_bit6_pending | s->z8_video_primary_pending) &
                  s->engine_150c_init[0x200 / 4];
         return true;
     case 0x150c0208:
         *value = s->engine150c_direct_stop_pending | s->primary_empty_end_pending | s->engine150c_bit2_pending |
-                 s->engine150c_bit6_pending;
+                 s->engine150c_bit6_pending | s->z8_video_primary_pending;
         return true;
     case 0x150c0210: case 0x150c0214:
-        *value = s->statistics_pending | s->raw_primary_pending | s->engine150c_direct_stop_pending1;
+        *value = s->statistics_pending | s->raw_primary_pending | s->raw_source_pending | s->engine150c_direct_stop_pending1;
         if (addr == 0x150c0210) {
             *value &= s->engine_150c_init[0x20c / 4];
         }
@@ -8857,7 +9035,13 @@ static bool primary_bounded_reset_write(NikonZ9State *s, hwaddr addr,
         s->primary_empty_end_pending = s->engine150c_bit2_pending = s->engine150c_bit6_pending = 0;
         s->statistics_cancelled += !!s->statistics_pending;
         s->statistics_pending = 0;
+        s->raw_pipeline_input_pair_cancelled +=
+            s->raw_pipeline_input_pair_model && (s->raw_primary_pending & 0x80000000);
         s->raw_primary_pending = 0;
+        s->z8_video_primary_cancels += !!s->z8_video_primary_pending;
+        s->z8_video_primary_pending = 0;
+        s->raw_source_cancelled += !!s->raw_source_pending;
+        s->raw_source_pending = 0;
         s->primary_reset_stage = 2;
         engine150c_stop_irq_update(s);
     } else if (s->primary_reset_stage == 2 && addr == 0x150c0004) {
@@ -8909,6 +9093,12 @@ static bool engine150c_stop_write(NikonZ9State *s, hwaddr addr,
         return true;
     }
     uint32_t allowed_engines = s->engine150d_control_model ? 14 : 6;
+    if (s->z8_video_interface_model) {
+        /* Native40c1fc78 maps video4000/8000 to kick8000/10000;
+         * ISR40c1f8b8 maps causes02000000/04000000 back. These
+         * geometry banks have no in-flight pixel producer to drain. */
+        allowed_engines |= 0xc000;
+    }
     if (s->raw_pipeline_model && s->primary_parameter_control_model) {
         /* Native265 MENU teardown selects43041 after C0 stops. The
          * additional parameter units already have real config/start models. */
@@ -8970,7 +9160,7 @@ static bool engine150c_stop_write(NikonZ9State *s, hwaddr addr,
                            ((value & 0x18) ? 1 : 0) | ((value & 0x20) << 1) |
                            ((value & 0x1800) ? 0x1000 : 0) |
                            ((value & 0x6000) ? 0x2000 : 0) |
-                           ((value & 0x300) ? 0x40000 : 0);
+                           ((value & 0x300) ? 0x40000 : 0) | ((value & 0x18000) >> 1);
         if (size != 4 || !value || (engines & ~allowed_engines) ||
             value != engine150c_stop_command(engines) ||
             (engines & ~s->engine150c_stop_requested) ||
@@ -8987,9 +9177,11 @@ static bool engine150c_stop_write(NikonZ9State *s, hwaddr addr,
         uint32_t allowed = addr == 0x150c021c ? engine150c_stop_causes(allowed_engines) :
                            addr == 0x150c0204 ? (primary_direct_map(direct_engines, 0, false) | (s->primary_empty_end_model ? 0x108000 : 0) |
                                                 (s->engine150c_bit2_model ? 4 : 0) |
-                                                (s->engine150c_bit6_model ? 0x40 : 0)) :
+                                                (s->engine150c_bit6_model ? 0x40 : 0) |
+                                                (s->z8_video_data_model ? 0x18 : 0)) :
                            (primary_direct_map(direct_engines, 1, false) | (s->statistics_model ? 0x20 : 0) |
-                            (s->raw_pipeline_model ? 0x60000000 : 0));
+                            (s->raw_pipeline_model ? 0x60000000 : 0) |
+                            (s->raw_pipeline_input_pair_model ? 0x80000000 : 0));
         if (size != 4 || (value & ~allowed)) {
             goto invalid;
         }
@@ -9000,8 +9192,12 @@ static bool engine150c_stop_write(NikonZ9State *s, hwaddr addr,
             s->engine150c_direct_stop_done &= ~engines;
             s->engine150c_latched &= ~engines;
             s->engine150c_direct_stop_acks += !!cleared;
+            s->raw_pipeline_input_pair_acks += s->raw_pipeline_input_pair_model &&
+                (s->raw_primary_pending & value & 0x80000000);
             s->raw_primary_acks += !!(s->raw_primary_pending & value);
             s->raw_primary_pending &= ~value;
+            s->raw_source_acks += !!(s->raw_source_pending & value);
+            s->raw_source_pending &= ~value;
             s->statistics_acks += !!(s->statistics_pending & value);
             s->statistics_pending &= ~value;
             engine150c_stop_irq_update(s);
@@ -9009,6 +9205,8 @@ static bool engine150c_stop_write(NikonZ9State *s, hwaddr addr,
             s->engine150c_stop_pending &= ~value;
             engine150c_stop_irq_update(s);
         } else if (addr == 0x150c0204) {
+            s->z8_video_primary_acks += !!(s->z8_video_primary_pending & value);
+            s->z8_video_primary_pending &= ~value;
             uint32_t ended = s->primary_empty_end_pending & value;
             uint32_t engines_ended = ((ended & 0x8000) >> 14) | ((ended & 0x100000) >> 18);
             s->primary_empty_end_pending &= ~value;
@@ -9155,6 +9353,9 @@ static bool engine150c_control_write(NikonZ9State *s, hwaddr addr,
         return true;
     }
     uint32_t allowed = s->engine150d_control_model ? 0x33f0e : 0x33f06;
+    if (s->z8_video_interface_model) {
+        allowed |= 0xc000;
+    }
     if (s->primary_parameter_control_model) {
         allowed |= 0x40071;
     }
@@ -9316,6 +9517,12 @@ static bool engine150c_control_write(NikonZ9State *s, hwaddr addr,
             s->primary_parameter_commits++;
         }
         s->engine150c_latched |= value;
+        for (unsigned bank = 0; bank < 2; bank++) {
+            if (value & (0x4000u << bank)) {
+                memcpy(s->z8_video_geometry_latched[bank], s->z8_video_geometry_config[bank],
+                       sizeof(s->z8_video_geometry_latched[bank]));
+            }
+        }
         s->engine150c_commits++;
     } else {
         if (value & ~s->engine150c_latched) {
@@ -9733,6 +9940,122 @@ static uint32_t *engine_150c_upper_word(NikonZ9State *s, hwaddr addr, unsigned s
     if (!s->bootstrap_fixtures || size != 4 || (addr & 3)) {
         return NULL;
     }
+    if (s->z8_video_interface_model && addr >= 0x15648000 && addr < 0x1564a000) {
+        /* Native object1f2 configuration, 40c71848/40c74590/40c76c68.
+         * Four distinct parameter banks. Readiness, buffer positions and
+         * transfer/completion status are not configuration and stay strict. */
+        unsigned off = addr - 0x15640000;
+        switch (off) {
+        case 0x8000: *mask = 1; break;
+        case 0x9000: case 0x9400: case 0x9004: case 0x9404:
+        case 0x900c: case 0x940c: *mask = 3; break;
+        case 0x9008: case 0x9408: *mask = 0x7fff; break;
+        default: {
+            unsigned bank = off & 0xff00;
+            bool half = bank >= 0x9600;
+            *mask = 0;
+            if (bank != 0x9200 && bank != 0x9300 && bank != 0x9600 && bank != 0x9700) {
+                break;
+            }
+            switch (off & 0xff) {
+            case 0: *mask = 0x700f; break;
+            case 0x40: *mask = 0xf; break; /* input and output selections, 40c75558 */
+            case 0x18: case 0x28: *mask = half ? 0x1fffffff : 0x3fffffff; break;
+            case 0x1c: case 0x2c: *mask = 0xffff; break;
+            case 0x20: case 0x30: *mask = 0xffffff; break;
+            case 0x44: case 0x4c: *mask = half ? 0x1fff7fff : 0x3fff7fff; break;
+            case 0x48: *mask = half ? 0x1ff07ff : 0x3ff07ff; break;
+            case 0x64: *mask = half ? 0x1f0003 : 0x3f0003; break;
+            case 0x68: *mask = 0xfff; break;
+            case 0x7c: *mask = 0x3ff; break;
+            }
+        }
+        }
+        return *mask ? &s->z8_video1564_config[(off - 0x8000) / 4] : NULL;
+    }
+    if (s->z8_video_interface_model && addr >= 0x15300000 && addr < 0x1530055c) {
+        /* Separate native object1fa, constructed at40c30bf8. Its field
+         * contract differs from152c; processed-buffer/status words are
+         * deliberately excluded. No data producer or completion exists. */
+        unsigned off = addr - 0x15300000;
+        switch (off) {
+        case 0: case 4: case 8: case 0xc: case 0x14: case 0x104:
+        case 0x108: case 0x404: *mask = 1; break;
+        case 0x18: *mask = 0x7ff; break;
+        case 0x100: case 0x10c: case 0x110: case 0x114: case 0x118: *mask = 0xff; break;
+        case 0x500: case 0x508: case 0x50c: case 0x514: case 0x51c:
+        case 0x520: case 0x534: *mask = UINT32_MAX; break;
+        case 0x504: case 0x518: *mask = 0xfff; break;
+        case 0x510: case 0x524: *mask = 3; break;
+        case 0x528: *mask = 7; break;
+        case 0x52c: case 0x530: *mask = 0x7f; break;
+        case 0x544: case 0x550: *mask = 0xffff; break;
+        case 0x548: case 0x54c: *mask = 0x3fff; break;
+        case 0x554: *mask = 0xf; break;
+        case 0x558: *mask = 0x7ff; break;
+        default:
+            *mask = ((off >= 0x120 && off < 0x160) ||
+                     (off >= 0x220 && off < 0x260) ||
+                     (off >= 0x320 && off < 0x360)) ?
+                    (off & 4 ? 0xf : UINT32_MAX) : 0;
+        }
+        return *mask ? &s->z8_video1530_config[off / 4] : NULL;
+    }
+    if (s->z8_video_interface_model && addr >= 0x15b00000 && addr < 0x15b000b0) {
+        /* Native40c30ed0/40c31168 side configuration, not encoded output. */
+        unsigned off = addr - 0x15b00000;
+        switch (off) {
+        case 0x2c: *mask = 0xff; break;
+        case 0x38: case 0x4c: *mask = 1; break;
+        case 0x3c: *mask = 0xffff; break;
+        case 0x84: *mask = UINT32_MAX; break;
+        case 0xa0: *mask = 0x7fff; break;
+        case 0xa4: case 0xa8: case 0xac: *mask = 0xffff; break;
+        default: *mask = 0;
+        }
+        return *mask ? &s->z8_video15b0_config[off / 4] : NULL;
+    }
+    if (s->z8_video_interface_model && addr >= 0x15ac0000 && addr < 0x15ac00b8) {
+        unsigned off = addr - 0x15ac0000;
+        switch (off) {
+        case 0x14: case 0x1c: case 0x3c: case 0xb4: *mask = 0xffff; break;
+        case 0x2c: *mask = 0xff; break;
+        case 0x38: case 0x4c: *mask = 1; break;
+        case 0x44: *mask = UINT32_MAX; break;
+        case 0x48: *mask = 0x1f; break;
+        case 0xa0: *mask = 0x7fff; break;
+        case 0xa4: case 0xa8: case 0xac: case 0xb0: *mask = 0x1ffff; break;
+        default: *mask = 0;
+        }
+        return *mask ? &s->z8_video15ac_config[off / 4] : NULL;
+    }
+    if (s->z8_video_interface_model && addr >= 0x152c0000 && addr < 0x152c0554) {
+        /* Z8 40c315d0..40c31984, observed interface at152c0000.
+         * Request/configuration retention only. Pending+10 has no producer;
+         * +160 and following processed-buffer status stay unsupported. */
+        unsigned off = addr - 0x152c0000;
+        switch (off) {
+        case 0: case 4: case 8: case 0xc: case 0x14: case 0x104:
+        case 0x108: case 0x404: *mask = 1; break;
+        case 0x18: *mask = 0x7ff; break;
+        case 0x100: case 0x10c: case 0x110: case 0x114: case 0x118: *mask = 0xff; break;
+        case 0x184: *mask = 0xf; break;
+        case 0x500: case 0x508: case 0x50c: case 0x514: case 0x51c:
+        case 0x520: case 0x550: *mask = UINT32_MAX; break;
+        case 0x504: case 0x518: *mask = 0xfff; break;
+        case 0x510: case 0x524: case 0x52c: case 0x534: *mask = 3; break;
+        case 0x528: *mask = 0x1ff; break;
+        case 0x530: case 0x540: *mask = 7; break;
+        case 0x538: case 0x53c: case 0x548: case 0x54c: *mask = 0x3fff; break;
+        case 0x544: *mask = 0xffff; break;
+        default:
+            *mask = ((off >= 0x120 && off < 0x160) ||
+                     (off >= 0x220 && off < 0x260) ||
+                     (off >= 0x320 && off < 0x360)) ?
+                    (off & 4 ? 0xf : UINT32_MAX) : 0;
+        }
+        return *mask ? &s->z8_video152c_config[off / 4] : NULL;
+    }
     bool second = addr >= 0x150cb000 && addr < 0x150cd600;
     if (second) {
         addr -= 0x3000;
@@ -9909,6 +10232,31 @@ static uint32_t *engine_150c_upper_word(NikonZ9State *s, hwaddr addr, unsigned s
             return &s->engine150d8_config[off / 4];
         }
     }
+    if (s->z8_video_interface_model && addr >= 0x150d9800 && addr < 0x150d9b60) {
+        /* Z8 object19f at 150d9800 (40c2073c..40c208dc), object19e at
+         * 150d9a00 (40c204dc..40c206a8), observed during video entry.
+         * Distinct configuration/buffer banks only. Status and pixel
+         * processing remain unsupported; submit bits are 4000/8000. */
+        unsigned bank = (addr - 0x150d9800) / 0x200;
+        unsigned off = (addr - 0x150d9800) % 0x200;
+        switch (off) {
+        case 0: case 0x114: case 0x118: case 0x11c: *mask = 3; break;
+        case 4: *mask = 0x3fff3fff; break;
+        case 8: *mask = bank ? 0x3fff : 0x3fff3fff; break;
+        case 0xc: *mask = bank ? 0x3fffffff : 0; break;
+        case 0x10: *mask = bank ? 0x3fff3fff : 0x7f; break;
+        case 0x14: *mask = bank ? 0x1ff : 0; break;
+        case 0x100: *mask = 0xffff; break;
+        case 0x104: case 0x110: *mask = 0xff; break;
+        case 0x108: case 0x10c: *mask = 1; break;
+        default:
+            *mask = off >= 0x120 && off < 0x160 ?
+                    (off & 4 ? 0xf : UINT32_MAX) : 0;
+        }
+        if (*mask) {
+            return &s->z8_video_geometry_config[bank][off / 4];
+        }
+    }
     if (addr == 0x150cea00 || addr == 0x150cea04) {
         /* 40c1d198 stores a byte, 40c1d1a8 stores input word&1;
          * checkpoint126/trial004 has object base150ce800. */
@@ -10055,15 +10403,26 @@ static bool engine1518_write(NikonZ9State *s, hwaddr addr, uint64_t value,
     }
     if (off == 0xc) {
         /* Original ISR 40c0a978 reads +10 then echoes it to +c. */
+        if (i==0) { z8_video_source_retire(s,e->pending,value,false); }
         if (e->pending & value & (1u << 22)) {
             e->drain_acks++;
         }
+        uint32_t completed = e->pending & 0x08100000;
         e->pending &= ~value;
+        if (((s->raw_pipeline_151c_completion_model && i == 2) || (s->z8_video_data_model && i == 0)) && completed &&
+            !(e->pending & 0x08100000)) {
+            e->stream_acks++;
+        }
         engine1518_update_irq(e);
         return true;
     }
     if (off == 0x14 && value <= 1) {
         if (value) {
+            if (i==0) { z8_video_source_retire(s,e->pending,UINT32_MAX,true); }
+            if (s->raw_pipeline_151c_completion_model && i == 2 &&
+                (e->pending & 0x08100000)) {
+                e->stream_cancelled++;
+            }
             e->pending = 0;
             e->config[0x30 / 4] = 0;
             engine1518_update_irq(e);
@@ -10125,38 +10484,6 @@ invalid:
     return true;
 }
 
-static char *get_engine1518_state(Object *obj, Error **errp)
-{
-    NikonZ9State *s = NIKON_Z9_LAB(obj);
-    GString *out = g_string_new("{\"processed_jobs\":0,\"completion_events\":0,\"instances\":[");
-    for (unsigned i = 0; i < ARRAY_SIZE(s->engine1518); i++) {
-        Z9Engine1518 *e = &s->engine1518[i];
-        g_string_append_printf(out, "%s{\"drains\":%" PRIu64
-            ",\"drain_acks\":%" PRIu64 ",\"irq\":%s,",
-            i ? "," : "", e->drains, e->drain_acks,
-            e->irq_level ? "true" : "false");
-        g_string_append_printf(out, "\"pending\":%u,\"reset_pulses\":%" PRIu64
-            ",\"lut_bank\":%u,\"lut_cursor\":%u,\"lut_selected\":%s,"
-            "\"lut_low_pending\":%s,\"lut_low\":%u,\"lut_entries\":%" PRIu64 ",\"config\":[",
-            e->pending, e->reset_pulses, e->lut_bank, e->lut_cursor,
-            e->lut_selected ? "true" : "false", e->lut_low_pending ? "true" : "false",
-            e->lut_low, e->lut_entries);
-        for (unsigned j = 0; j < ARRAY_SIZE(e->config); j++) {
-            g_string_append_printf(out, "%s%u", j ? "," : "", e->config[j]);
-        }
-        g_string_append(out, "],\"luts\":[");
-        for (unsigned bank = 0; bank < 8; bank++) {
-            g_string_append_printf(out, "%s[", bank ? "," : "");
-            for (unsigned j = 0; j < 128; j++) {
-                g_string_append_printf(out, "%s%" PRIu64, j ? "," : "", e->lut[bank][j]);
-            }
-            g_string_append_c(out, ']');
-        }
-        g_string_append(out, "]}");
-    }
-    g_string_append(out, "]}");
-    return g_string_free(out, false);
-}
 
 /* 40c787c4 constructs the object (ID1fc,base15200000,callback0).
  * Original setters 40c78b4c..40c790bc establish these sparse parameters.
@@ -10514,33 +10841,6 @@ static bool engine151_control_ready(NikonZ9State *s, unsigned i)
     return true;
 }
 
-static char *get_engine151_control_state(Object *obj, Error **errp)
-{
-    NikonZ9State *s = NIKON_Z9_LAB(obj);
-    GString *out = g_string_new(NULL);
-    g_string_append_printf(out, "{\"enabled\":%s,\"pixel_bytes\":0,\"completion_events\":0,\"instances\":[",
-                           s->engine151_control_model ? "true" : "false");
-    for (unsigned i = 0; i < 2; i++) {
-        bool comma = false;
-        g_string_append_printf(out, "%s{\"base\":%u,\"ready\":%s,\"active\":%s,"
-            "\"starts\":%" PRIu64 ",\"stops\":%" PRIu64 ",\"parameter_valid\":%" PRIu64 ",\"latched\":{",
-            i ? "," : "", 0x15100000 + i * 0x40000,
-            engine151_control_ready(s, i) ? "true" : "false",
-            s->engine151_active[i] ? "true" : "false",
-            s->engine151_starts[i], s->engine151_stops[i], s->engine151_parameter_valid[i]);
-        for (unsigned j = 0; j < ARRAY_SIZE(s->engine151_latched[i]); j++) {
-            if (s->engine151_latched[i][j]) {
-                g_string_append_printf(out, "%s\"0x%x\":%u", comma ? "," : "", j * 4,
-                                       s->engine151_latched[i][j]);
-                comma = true;
-            }
-        }
-        g_string_append(out, "}}");
-    }
-    g_string_append(out, "],\"scope\":\"functional start/stop and request snapshot; no parameter DMA, pixel processing, completion IRQ or physical timing proof\"}");
-    return g_string_free(out, false);
-}
-
 static void engine151_update_irq(NikonZ9State *s, unsigned i)
 {
     qemu_set_irq(s->engine151_irq[i],
@@ -10653,6 +10953,10 @@ static bool engine151_write(NikonZ9State *s, hwaddr addr, uint64_t value,
     if (off == 0x44) {
         if (s->engine151_pending[i] & value & 0x200) {
             s->engine151_drain_acks[i]++;
+        }
+        if (i == 1 && s->raw_pipeline_1514_completion_model &&
+            (s->engine151_pending[i] & value & 8)) {
+            s->raw_pipeline_1514_acks++;
         }
         s->engine151_pending[i] &= ~value;
         engine151_update_irq(s, i);
@@ -10889,17 +11193,34 @@ static bool engine1543_ready(NikonZ9State *s, unsigned j)
     /* Observed bank0: four configuration words and four rows of eight
      * paired 36-bit addresses, including explicit zero high words.
      * This admission rule is a functional assumption, not a chip spec. */
+    uint64_t required = UINT64_MAX;
+    if (s->z8_video_interface_model && j == 1) {
+        /* Original Z8 video40cb8e20 starts15432000 after40c26890
+         * supplies two36-bit addresses per row, not bank0's eight.
+         * Native traces explicitly include both high words. This only
+         * admits the configuration transaction; no pixel/event follows. */
+        required = UINT64_C(0x000f000f000f000f);
+    }
     return s->engine1543_valid[j] == 15 &&
-           s->engine1543_buffer_valid[j] == UINT64_MAX;
+           (s->engine1543_buffer_valid[j] & required) == required;
 }
+
+static void raw_pipeline_irq_update(NikonZ9State *s);
 
 static bool engine1543_control_write(NikonZ9State *s, unsigned i,
                                     hwaddr addr, uint64_t value)
 {
     unsigned j = i - 10, mode = value & 3;
+    bool stopped = s->z8_video_ring_stop_model && j < 2 && mode == 0 &&
+                   s->engine1543_active[j];
     if (value & ~0x103u ||
         (mode == 1 && (!engine1543_ready(s, j) || s->engine1543_active[j])) ||
-        (mode == 3 && s->engine1543_active[j])) {
+        (mode == 3 && s->engine1543_active[j]) ||
+        (s->z8_video_ring_stop_model && j < 2 && mode == 1 && s->z8_video_ring_stop_owned[j]) ||
+        (stopped && (value != 0x100 || s->engine1542_config[i][1] != 0x101 ||
+         s->engine1543_latched[j][1] != 0x101 || s->engine1543_latched[j][4] != 0x29 ||
+         !engine1543_ready(s, j) || s->engine1543_held[j] || s->z8_video_ring_stop_owned[j] ||
+         (s->engine1542_pending[i] & 0x20)))) {
         unknown_access(s, addr, value, 4, true);
         return true;
     }
@@ -10922,12 +11243,24 @@ static bool engine1543_control_write(NikonZ9State *s, unsigned i,
             s->engine1543_stops[j]++;
         }
         s->engine1543_active[j] = s->engine1543_held[j] = false;
+        if (stopped) {
+            /* Native40cb8ecc ->40c26820 stops C0 or C1, then waits for
+             * flag4 through status20/IRQ6a/41070030/40cb7200. Synchronous
+             * writers are now quiescent. This is not a frame completion. */
+            s->z8_video_ring_stop_owned[j] = true;
+            s->z8_video_ring_stops[j]++;
+            s->engine1542_pending[i] |= 0x20;
+            raw_pipeline_irq_update(s);
+            fprintf(stderr, "Z8_VIDEO_RING_STOP channel=%u generation=%" PRIu64
+                " pending=%x mask=%x; no pixels\n", j, s->z8_video_ring_stops[j],
+                s->engine1542_pending[i], s->engine1542_config[i][4]);
+        }
     } else if (mode == 2 && s->engine1543_active[j]) {
         s->engine1543_held[j] = true;
         s->engine1543_holds[j]++;
     }
-    /* Immediate functional control only: no resize, DMA, result/status
-     * producer, callback or IRQ completion is synthesized here. */
+    /* No resize, DMA or image completion. The separately gated stop above
+     * only acknowledges the original control request after quiescence. */
     {
         fprintf(stderr, "Z9_ENGINE1543_CONTROL cpu=%d pc=0x%" PRIx64 " base=0x%x value=0x%" PRIx64 " active=%d held=%d\n",
                  current_cpu ? current_cpu->cpu_index : -1,
@@ -10964,7 +11297,12 @@ static char *get_engine1543_control_state(Object *obj, Error **errp)
     return g_string_free(out, false);
 }
 
+#include "nikon-z8-yuv.h"
+#include "nikon-z8-yuv-single.h"
 #include "nikon-z9-pixels.h"
+#include "nikon-z8-video-processing.h"
+#include "nikon-z8-wave5.h"
+#include "nikon-z8-video-ring.h"
 
 static bool engine1542_write(NikonZ9State *s, hwaddr addr, uint64_t value,
                              unsigned size)
@@ -10975,6 +11313,11 @@ static bool engine1542_write(NikonZ9State *s, hwaddr addr, uint64_t value,
         return false;
     }
     if (off == engine1542_status(i)) {
+        if (s->z8_video_ring_stop_model && i >= 10 && i < 12 &&
+            s->z8_video_ring_stop_owned[i - 10] && (value & 0x20)) {
+            s->z8_video_ring_stop_owned[i - 10] = false;
+            s->z8_video_ring_stop_acks[i - 10]++;
+        }
         s->engine1542_pending[i] &= ~value;
         s->engine1542_acks[i]++;
         raw_pipeline_irq_update(s);
@@ -10987,6 +11330,7 @@ static bool engine1542_write(NikonZ9State *s, hwaddr addr, uint64_t value,
     if (!mask) {
         return false;
     }
+    if ((i==1 || i==2) && off==4 && (value&3)==1 && z8_yuv_single_start(s,i,value)) { return true; }
     /* 40c2719c programs lowbits2; 40c2673c programs lowbits3.
      * Neither is evidence for executing a transfer. Lowbits1 stays strict. */
     if ((value & ~mask) || (i < 13 && off == 4 && (value & 3) == 1) ||
@@ -10996,6 +11340,11 @@ static bool engine1542_write(NikonZ9State *s, hwaddr addr, uint64_t value,
         return true;
     }
     s->engine1542_config[i][off / 4] = value;
+    if (i==10) { z8_yuv_descriptor_write(s,off); }
+    if (s->z8_video_data && i==11 && off>=0x200 && off<0x600 && (off&0x7f)<16) {
+        unsigned bank=(off-0x200)/0x200,bit=((off&0x1ff)/0x80)*4+(off&0x7f)/4;
+        if (!s->z8_video_data->ring_ready || bank!=s->z8_video_data->input_bank) { s->z8_video_data->input_written[bank]|=1u<<bit; }
+    }
     if (s->raw_pipeline_model && i == 10 && off >= 0x200 && off < 0x600 &&
         (off & 0x7f) < 0x40) {
         unsigned bank = (off - 0x200) / 0x200;
@@ -11222,9 +11571,54 @@ static char *get_adc_state(Object *obj, Error **errp)
                            s->adc_samples[2], s->adc_samples[3]);
 }
 
+static uint64_t *z8_video1564_address(NikonZ9State *s, hwaddr addr, unsigned size)
+{
+    if (!s->bootstrap_fixtures || !s->z8_video_interface_model || size != 8 || (addr & 7)) {
+        return NULL;
+    }
+    for (unsigned bank = 0; bank < 4; bank++) {
+        hwaddr base = 0x15649280 + (bank & 1) * 0x400 + (bank >> 1) * 0x100;
+        if (addr >= base && addr < base + 64) {
+            return &s->z8_video1564_addresses[bank][(addr - base) / 8];
+        }
+    }
+    return NULL;
+}
+
 static uint64_t unknown_read(void *opaque, hwaddr addr, unsigned size)
 {
     NikonZ9State *s = opaque;
+    uint64_t video_value=0;
+    if (z8_video_data_access(s,addr,&video_value,size,false)) { return video_value; }
+    if (video_processing_config_access(s,addr,&video_value,size,false)) { return video_value; }
+    if (wave5_access(s,addr,&video_value,size,false)) { return video_value; }
+    if (z8_yuv_access(s,addr,&video_value,size,false)) { return video_value; }
+    uint64_t *video_address = z8_video1564_address(s, addr, size);
+    if (video_address) {
+        return *video_address;
+    }
+    if (s->bootstrap_fixtures && s->z8_video_interface_model && size == 4 &&
+        (addr == 0x0d154150 || addr == 0x0d154030)) {
+        /* Configuration commits are synchronous in this functional model;
+         * this is clock-control readiness, never a video DMA completion. */
+        return addr == 0x0d154150 ? s->z8_video_clock_config : 0;
+    }
+    if (s->bootstrap_fixtures && s->z8_video_interface_model &&
+        s->z8_video_serial_input_valid && size == 4 && !(addr & 3) &&
+        addr >= 0x0e200154 && addr <= 0x0e200160) {
+        return s->z8_video_serial_input[(addr - 0x0e200154) / 4];
+    }
+    if (s->bootstrap_fixtures && s->z8_video_interface_model && size == 4 &&
+        addr >= 0x0e200100 && addr < 0x0e200600 && (addr & 0xff) == 0x1c) {
+        /* 40c18050 drains before stopping serial5. No FIFO/DMA producer
+         * is modeled here, so no outstanding transfer can exist. This is
+         * not sample readiness, a successful transfer or an audio event. */
+        return 0;
+    }
+    if (s->bootstrap_fixtures && s->z8_video_interface_model && size == 4 &&
+        (addr == 0x152c0010 || addr == 0x15300010)) {
+        return 0; /* no modeled producer can raise a pending event */
+    }
     unsigned task_ch;
     if (s->bootstrap_fixtures && s->service_controller_model &&
         s->service_controller_status_valid && addr == 0x0d150800c) {
@@ -11709,7 +12103,7 @@ static uint64_t unknown_read(void *opaque, hwaddr addr, unsigned size)
      * Link training, config accesses, BARs, DMA and all writes stay unknown. */
     if (s->pcie_empty_fixture && size == 4 &&
         addr >= 0x17a00034 && addr <= 0x17a0004c && (addr & 7) == 4) {
-        return 0;
+        return (s->pcie_link_diagnostic_mask & (1u << ((addr - 0x17a00034) / 8))) ? 2 : 0;
     }
     if (s->bootstrap_fixtures && addr == 0x0d15000c && size == 4) {
         fprintf(stderr, "Z9_FIXTURE unmeasured secondary SoC identification=0\n");
@@ -11721,6 +12115,8 @@ static uint64_t unknown_read(void *opaque, hwaddr addr, unsigned size)
         fprintf(stderr, "Z9_FIXTURE unmeasured system probe d153000=0\n");
         return 0;
     }
+    uint64_t pcie_value;
+    if (video_pcie_read(s, addr, size, &pcie_value)) { return pcie_value; }
     if (s->bootstrap_fixtures && bus_retention(addr, size)) {
         return s->bus_config[((addr - 0x14000000) >> 14) * 2 + ((addr & 8) >> 3)];
     }
@@ -11765,6 +12161,52 @@ static void unknown_write(void *opaque, hwaddr addr, uint64_t value,
                           unsigned size)
 {
     NikonZ9State *s = opaque;
+    if (z8_video_data_access(s,addr,&value,size,true)) { return; }
+    if (video_reset15_access(s,addr,value,size) || video_nr_reset_access(s,addr,value,size)) { return; }
+    if (video_processing_config_access(s,addr,&value,size,true)) { return; }
+    if (wave5_access(s,addr,&value,size,true)) { return; }
+    if (z8_yuv_access(s,addr,&value,size,true)) { return; }
+    if (s->bootstrap_fixtures && s->z8_video_interface_model && size == 4 &&
+        addr >= 0x15002100 && addr <= 0x15002108 && !(addr & 3)) {
+        /* Native40c24404/18/2c emit1 then0, without polling an ACK.
+         * Retain the observed control edges only. No reset side effects,
+         * frames, pending flags or completion IRQs are inferred. */
+        unsigned i = (addr - 0x15002100) / 4;
+        if (value > 1 || !!value == s->z8_video_task_pulse_high[i]) {
+            unknown_access(s, addr, value, size, true);
+        } else {
+            s->z8_video_task_pulse_high[i] = value;
+            if (!value) {
+                s->z8_video_task_pulses[i]++;
+            }
+        }
+        return;
+    }
+    uint64_t *video_address = z8_video1564_address(s, addr, size);
+    if (video_address) {
+        /* 40c7494c..40c74a88 stores 36-bit addresses, not transfer data. */
+        if (value >> 36) {
+            unknown_access(s, addr, value, size, true);
+        } else {
+            *video_address = value;
+        }
+        return;
+    }
+    if (s->bootstrap_fixtures && s->z8_video_interface_model && size == 4 &&
+        (addr == 0x0d154150 || addr == 0x0d154030)) {
+        /* Native40cbe568 changes7 -> commit -> starts object1fa ->
+         * waits40 timer units -> changes3 -> commit. Functional clock
+         * latch only; no frequency/timing/data-production claim. */
+        if (addr == 0x0d154150 && (value == 3 || value == 7)) {
+            s->z8_video_clock_config = value;
+        } else if (addr == 0x0d154030 && value == 1 && s->z8_video_clock_config) {
+            s->z8_video_clock_latched = s->z8_video_clock_config;
+            s->z8_video_clock_commits++;
+        } else {
+            unknown_access(s, addr, value, size, true);
+        }
+        return;
+    }
     if (s->bootstrap_fixtures && s->engine1524_mvd_model &&
         addr == 0x1524002c) {
         if (size != 4 || (value & ~0x7fffULL) ||
@@ -12069,6 +12511,32 @@ static void unknown_write(void *opaque, hwaddr addr, uint64_t value,
     }
     /* Native190's complete40cb1e1c reaches actual1a0's original40c20018
      * with request40. Snapshot only; this does not admit latch/start bit6. */
+    if (s->bootstrap_fixtures && s->z8_video_interface_model && size == 4 && value == 1 &&
+        (addr == 0x15648010 || addr == 0x15660010)) {
+        /* 40c76c9c resets both domains for object1f2. The second domain
+         * has no retained fields yet. Neither has an active producer. */
+        if (addr == 0x15648010) {
+            z8_yuv_cancel(s);
+            memset(s->z8_video1564_config, 0, sizeof(s->z8_video1564_config));
+            memset(s->z8_video1564_addresses, 0, sizeof(s->z8_video1564_addresses));
+        }
+        s->z8_video_shared_reset_requests++;
+        return;
+    }
+    if (s->bootstrap_fixtures && s->z8_video_interface_model && size == 4 &&
+        (addr == 0x152c001c || addr == 0x1530001c) && !(value & ~0x7ffu)) {
+        return; /* acknowledge empty pending set; no producer or IRQ */
+    }
+    if (s->bootstrap_fixtures && s->z8_video_interface_model && size == 4 &&
+        addr == 0x15ac0050) {
+        /* 40c319ec..40c31a00 sends a bounded table from native RAM.
+         * Only observe this write-only input port; no table interpretation,
+         * image processing or completion is modeled. */
+        s->z8_video_table_writes++;
+        fprintf(stderr, "Z8_VIDEO_TABLE word=%x index=%" PRIu64 "; input only\n",
+                (uint32_t)value, s->z8_video_table_writes);
+        return;
+    }
     if (s->bootstrap_fixtures && s->primary194_submit_model && addr == 0x150c0060 && value == 0x40) {
         uint32_t mask;
         if (size != 4 || !s->primary194_config_model || !s->engine150c_control_model) {
@@ -12139,7 +12607,15 @@ static void unknown_write(void *opaque, hwaddr addr, uint64_t value,
                    off <= 0x14 ? 0x17ff7f :
                    (off == 0x20 || off == 0x24) ? 7 :
                    off == 0x28 ? 0xff : off == 0x2c ? 1 :
-                   off == 0x30 ? 0x3f7 : off == 0x60 ? (s->config150d_model ? 0x33f0e : 0x33f06) : off == 0x13c ? 1 : UINT32_MAX;
+                   off == 0x30 ? 0x3f7 : off == 0x60 ?
+                   ((s->config150d_model ? 0x33f0e : 0x33f06) |
+                    (s->z8_video_interface_model ? 0xc000 : 0)) : off == 0x13c ? 1 : UINT32_MAX;
+            if ((off == 0x10 || off == 0x14) && s->z8_video_interface_model) {
+                /* 40c1fbac /40c30cbc select the independent video engine.
+                 * 40c1fbd8 from410b4f64 acknowledges the same control.
+                 * Retain these commands only, without data or IRQ. */
+                mask |= 0x200000;
+            }
             /* 40cad41c/610 -> 40c20018 writes request 2 or 10000;
              * 40cac4dc uses 4 or 20000 for the 150ce configuration.
              * after configuration; retain the request only. Its optional
@@ -12147,7 +12623,8 @@ static void unknown_write(void *opaque, hwaddr addr, uint64_t value,
             if (off == 0x60 && value != 2 && value != 0x10000 &&
                 value != 4 && value != 0x20000 && value != 0x100 && value != 0x200 &&
                 value != 0x400 && value != 0x800 && value != 0x1000 && value != 0x2000 &&
-                !(s->config150d_model && value == 8)) {
+                !(s->config150d_model && value == 8) &&
+                !(s->z8_video_interface_model && (value == 0x4000 || value == 0x8000))) {
                 unknown_access(s, addr, value, size, true);
                 return;
             }
@@ -12479,7 +12956,10 @@ static void unknown_write(void *opaque, hwaddr addr, uint64_t value,
         return; /* original 40c5ed68 sequential reset release; no ready bit */
     }
     uint32_t *serial_config = serial5_config(s, addr, size);
-    if (serial_config && !((addr & 255) == 8 && (value & 0x3000))) {
+    if (serial_config && (s->z8_video_interface_model ||
+                         !((addr & 255) == 8 && (value & 0x3000)))) {
+        /* Explicit Z8 interface request latches (40c1772c/79c and stop
+         * counterparts). No FIFO data, DMA completion or IRQ is produced. */
         *serial_config = value;
         return;
     }
@@ -12571,6 +13051,66 @@ static void unknown_write(void *opaque, hwaddr addr, uint64_t value,
     if (s->bootstrap_fixtures && size == 4 &&
         (addr == 0x15083408 || addr == 0x15083418) && !(value & ~UINT32_C(0x7fff))) {
         s->event_group_1508[addr == 0x15083418] = value;
+        return;
+    }
+    if (s->bootstrap_fixtures && s->z8_video_interface_model && size == 4 && value == 0x4000 &&
+        (addr == 0x0d154244 || addr == 0x0d154344)) {
+        /* Native40cc4920 releases shared interface reset ID27, whose
+         * table4164c494 entry is {4,14};40cc4a44 asserts it on teardown.
+         * This domain has no in-flight data producer. Reset only its
+         * retained configuration and addresses, without data or IRQ. */
+        bool releasing = addr == 0x0d154244;
+        if (releasing == s->z8_video_unit39_released) {
+            unknown_access(s, addr, value, size, true);
+            return;
+        }
+        s->z8_video_unit39_released = releasing;
+        if (!releasing) {
+            memset(s->z8_video1564_config, 0, sizeof(s->z8_video1564_config));
+            memset(s->z8_video1564_addresses, 0, sizeof(s->z8_video1564_addresses));
+        }
+        return;
+    }
+    if (s->bootstrap_fixtures && s->z8_video_interface_model && size == 4 && value == 2 &&
+        (addr == 0x0d154340 || addr == 0x0d154240)) {
+        /* Z8 40c314ec asserts/releases reset ID1 before enabling video
+         * block100000. The table4164c494 maps ID1 to bank0 bit1. This
+         * peripheral has no modeled data producer or active transaction. */
+        bool asserting = addr == 0x0d154340;
+        if (asserting == s->z8_video_unit1_reset) {
+            unknown_access(s, addr, value, size, true);
+            return;
+        }
+        s->z8_video_unit1_reset = asserting;
+        if (asserting) {
+            s->z8_video_reset_asserts++;
+            z8_video_front_reset(s,0);
+            memset(s->z8_video152c_config, 0, sizeof(s->z8_video152c_config));
+            memset(s->z8_video15ac_config, 0, sizeof(s->z8_video15ac_config));
+            s->z8_video_table_writes = 0;
+        } else {
+            s->z8_video_reset_releases++;
+        }
+        return;
+    }
+    if (s->bootstrap_fixtures && s->z8_video_interface_model && size == 4 && value == 0x200000 &&
+        (addr == 0x0d154340 || addr == 0x0d154240)) {
+        /* 40c20338/40c30cd4 select reset ID15(hex). Native table4164c494
+         * entry15 is {0,21}: bank0 bit21. Reset only object1fa's state. */
+        bool asserting = addr == 0x0d154340;
+        if (asserting == s->z8_video_unit21_reset) {
+            unknown_access(s, addr, value, size, true);
+            return;
+        }
+        s->z8_video_unit21_reset = asserting;
+        if (asserting) {
+            s->z8_video21_reset_asserts++;
+            z8_video_front_reset(s,1);
+            memset(s->z8_video1530_config, 0, sizeof(s->z8_video1530_config));
+            memset(s->z8_video15b0_config, 0, sizeof(s->z8_video15b0_config));
+        } else {
+            s->z8_video21_reset_releases++;
+        }
         return;
     }
     if (s->bootstrap_fixtures && size == 4 && value == 1 &&
@@ -12858,6 +13398,7 @@ static void unknown_write(void *opaque, hwaddr addr, uint64_t value,
         *window = value;
         return;
     }
+    if (video_pcie_write(s, addr, value, size)) { return; }
     if (s->bootstrap_fixtures && bus_retention(addr, size)) {
         s->bus_config[((addr - 0x14000000) >> 14) * 2 + ((addr & 8) >> 3)] = value;
         return;
@@ -13007,6 +13548,8 @@ static void dma_irq_update(NikonZ9State *s, unsigned ch)
     qemu_set_irq(s->dma_irq[ch], (s->dma[ch][1] & s->dma[ch][2]) != 0);
 }
 
+#include "nikon-z8-yuv-dma.h"
+
 static void dma_write(void *opaque, hwaddr addr, uint64_t value, unsigned size)
 {
     NikonZ9State *s = opaque;
@@ -13034,6 +13577,7 @@ static void dma_write(void *opaque, hwaddr addr, uint64_t value, unsigned size)
         r[0x10 / 4] = 2; /* synchronous model is idle; native stop waits bit1 */
         return;
     }
+    if (z8_yuv_dma(s,ch,value,physical_reg)) { return; }
     uint64_t src = r[0x30/4] | ((uint64_t)(r[0x34/4] & 15) << 32);
     uint64_t dst = r[0x38/4] | ((uint64_t)(r[0x3c/4] & 15) << 32);
     uint64_t rows = r[0x28/4] ? r[0x28/4] : 4096;
@@ -13092,6 +13636,8 @@ static const MemoryRegionOps dma_ops = {
     .impl = { .min_access_size = 4, .max_access_size = 4 },
 };
 
+#include "nikon-z9-pcie.h"
+
 static void nikon_z9_init(MachineState *machine)
 {
     NikonZ9State *s = NIKON_Z9_LAB(machine);
@@ -13111,8 +13657,31 @@ static void nikon_z9_init(MachineState *machine)
         error_report("task1500-control-model requires bootstrap-fixtures=on");
         exit(1);
     }
+    if (s->pcie_image_ram_dma_input && (!s->pcie_ram_dma_input || !s->image_bank_model)) {
+        error_report("pcie-image-ram-dma-input requires work RAM aperture and allocated image banks"); exit(1);
+    }
+    if (s->pcie_intx_model && !s->pcie_dbi_model) {
+        error_report("pcie-intx-model requires pcie-dbi-model");
+        exit(1);
+    }
+
+    if (s->pcie_ram_dma_input && !s->pcie_dbi_model) {
+        error_report("pcie-ram-dma-input requires pcie-dbi-model");
+        exit(1);
+    }
+
+    if (s->pcie_dbi_model && (!s->bootstrap_fixtures || s->pcie_link_diagnostic_mask != 4)) {
+        error_report("pcie-dbi-model requires bootstrap and explicit diagnostic port2 mask4");
+        exit(1);
+    }
+
     if (s->engine1543_control_model && !s->bootstrap_fixtures) {
         error_report("engine1543-control-model requires bootstrap-fixtures=on");
+        exit(1);
+    }
+    if (s->z8_video_ring_stop_model && (!s->bootstrap_fixtures ||
+        !s->engine1543_control_model || !s->z8_video_interface_model)) {
+        error_report("z8-video-ring-stop-model requires bootstrap,1543 control and video interface models");
         exit(1);
     }
     if (s->engine151_control_model && !s->bootstrap_fixtures) {
@@ -13122,6 +13691,31 @@ static void nikon_z9_init(MachineState *machine)
     if (s->raw_pipeline_model && (!s->statistics_model || !s->engine1543_control_model ||
         !s->engine151_control_model || !s->image_bank_model || !s->bootstrap_fixtures)) {
         error_report("raw-pipeline-model requires statistics RAW, image banks and151/1543 control models");
+        exit(1);
+    }
+    if (s->video_nr_reset_model && (!s->bootstrap_fixtures || !s->video_processing_config_model || !s->video_initial_reset_model)) {
+        error_report("video-nr-reset-model requires bootstrap, processing configuration and initial reset models");exit(1);
+    }
+    if (s->z8_video_data_model && (!s->bootstrap_fixtures || !s->z8_video_interface_model ||
+        !s->raw_pipeline_model || !s->event1508_timing_model)) {
+        error_report("z8-video-data-model requires bootstrap, video interface, RAW pipeline and source timing");
+        exit(1);
+    }
+    if (s->raw_pipeline_input_pair_model && !s->raw_pipeline_model) {
+        error_report("raw-pipeline-input-pair-model requires raw-pipeline-model");
+        exit(1);
+    }
+    if (s->raw_pipeline_151c_completion_model && !s->raw_pipeline_model) {
+        error_report("raw-pipeline-151c-completion-model requires raw-pipeline-model");
+        exit(1);
+    }
+    if (s->raw_pipeline_1514_completion_model && !s->raw_pipeline_model) {
+        error_report("raw-pipeline-1514-completion-model requires raw-pipeline-model");
+        exit(1);
+    }
+    if (s->raw_source_boundary_model && (!s->raw_pipeline_model ||
+        !s->engine150c_stop_model || !s->event1508_timing_model)) {
+        error_report("raw-source-boundary-model requires RAW pipeline, primary stop and source timing");
         exit(1);
     }
     if ((s->engine152_control_model || s->primary19bc_zero_results_input || s->pipeline_aux_zero_input) && !s->bootstrap_fixtures) {
@@ -13386,7 +13980,12 @@ static void nikon_z9_init(MachineState *machine)
         error_report("zr-primary-bank1-model requires engine150c-stop-model=on");
         exit(1);
     }
-    s->orientation_regs[5] = 0x40; /* raw Z=1024, left-justified in 16 bits */
+    if (!s->orientation_input_set) {
+        s->orientation_regs[5] = 0x40; /* raw Z=1024, left-justified */
+    }
+    if (s->pcie_link_diagnostic_mask && !s->pcie_empty_fixture) {
+        error_report("pcie-link-diagnostic-mask requires explicit PCIe status fixture"); exit(1);
+    }
     if (s->pcie_empty_fixture && !s->bootstrap_fixtures) {
         error_report("pcie-empty-fixture requires bootstrap-fixtures=on");
         exit(1);
@@ -13505,7 +14104,13 @@ static void nikon_z9_init(MachineState *machine)
         c->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, multi_counter_expire, c);
     }
     /* 40c1f644 registers 106 through the same original OS path as ADC. */
+    z9_pcie_init(s, mem, gic);
     s->engine150c_irq = qdev_get_gpio_in(gic, 0x106 - 32);
+    z8_wave5_realize(s,gic);
+    if (s->z8_video_data_model) {
+        s->z8_video_data->irq[0]=qdev_get_gpio_in(gic,0x10b-32);
+        s->z8_video_data->irq[1]=qdev_get_gpio_in(gic,0x10c-32);
+    }
     /* Original40c1345c registers INTID 0x134 for the IMPMVD ISR. */
     if (s->engine1524_mvd_model) {
         s->engine1524_irq = qdev_get_gpio_in(gic, ENGINE1524_INTID - 32);
@@ -13808,16 +14413,84 @@ static void set_orientation_fixture(Object *obj, bool value, Error **errp)
     NIKON_Z9_LAB(obj)->orientation_fixture = value;
 }
 
+static char *get_orientation_input(Object *obj, Error **errp)
+{
+    const uint8_t *v = &NIKON_Z9_LAB(obj)->orientation_regs[1];
+    return g_strdup_printf("%02x%02x%02x%02x%02x%02x",
+                           v[0], v[1], v[2], v[3], v[4], v[5]);
+}
+
+static void set_orientation_input(Object *obj, const char *value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    uint8_t sample[6];
+
+    if (!s->orientation_fixture || !s->i2c_fixture) {
+        error_setg(errp, "orientation-input requires orientation and I2C fixtures");
+        return;
+    }
+    if (strlen(value) != 12) {
+        error_setg(errp, "orientation-input requires six hex bytes (BE12 XYZ, left-justified)");
+        return;
+    }
+    for (unsigned i = 0; i < sizeof(sample); i++) {
+        int hi = g_ascii_xdigit_value(value[i * 2]);
+        int lo = g_ascii_xdigit_value(value[i * 2 + 1]);
+        if (hi < 0 || lo < 0 || ((i & 1) && lo != 0)) {
+            error_setg(errp, "orientation-input requires six hex bytes (BE12 XYZ, left-justified)");
+            return;
+        }
+        sample[i] = (hi << 4) | lo;
+    }
+    /* Existing RX FIFO is a completed transaction snapshot. Changing the
+     * sensor source must not tear a sample already queued for the guest. */
+    memcpy(&s->orientation_regs[1], sample, sizeof(sample));
+    s->orientation_input_set = true;
+    s->orientation_input_updates++;
+}
+
 static char *get_orientation_state(Object *obj, Error **errp)
 {
     NikonZ9State *s = NIKON_Z9_LAB(obj);
     return g_strdup_printf("{\"fixture\":%s,\"monitors\":%u,\"writes\":%u,"
                            "\"reads\":%u,\"pointer\":%u,\"control_2a\":%u,"
-                           "\"sample_hex\":\"000000004000\"}",
+                           "\"sample_hex\":\"%02x%02x%02x%02x%02x%02x\","
+                           "\"input_updates\":%" PRIu64 "}",
                            s->orientation_fixture ? "true" : "false",
                            s->orientation_monitors, s->orientation_writes,
                            s->orientation_reads, s->orientation_pointer,
-                           s->orientation_regs[0x2a]);
+                           s->orientation_regs[0x2a],
+                           s->orientation_regs[1], s->orientation_regs[2],
+                           s->orientation_regs[3], s->orientation_regs[4],
+                           s->orientation_regs[5], s->orientation_regs[6],
+                           s->orientation_input_updates);
+}
+
+static bool get_z8_video_interface_model(Object *obj, Error **errp)
+{
+    return NIKON_Z9_LAB(obj)->z8_video_interface_model;
+}
+
+static void set_z8_video_serial_input(Object *obj, const char *value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    uint32_t words[4];
+    g_auto(GStrv) parts = value ? g_strsplit(value, ":", -1) : NULL;
+    if (!s->z8_video_interface_model || !parts || g_strv_length(parts) != 4) {
+        error_setg(errp, "z8-video-serial-input requires the video interface model and four decimal words");
+        return;
+    }
+    for (unsigned i = 0; i < 4; i++) {
+        uint64_t word;
+        if (!*parts[i] || strspn(parts[i], "0123456789") != strlen(parts[i]) ||
+            qemu_strtou64(parts[i], NULL, 10, &word) || word > UINT32_MAX) {
+            error_setg(errp, "invalid video serial input word %u", i);
+            return;
+        }
+        words[i] = word;
+    }
+    memcpy(s->z8_video_serial_input, words, sizeof(words));
+    s->z8_video_serial_input_valid = true;
 }
 
 static bool get_zr_secondary_resample_model(Object *obj, Error **errp)
@@ -13831,6 +14504,18 @@ static void set_zr_secondary_resample_model(Object *obj, bool value, Error **err
     if (!object_dynamic_cast(obj, MACHINE_TYPE_NAME("nikon-zr-lab")) ||
         s->image_ram.ram || s->image_ram.rom_device) {
         error_setg(errp, "zr-secondary-resample-model requires ZR at machine creation");
+        return;
+    }
+    s->zr_secondary_resample_model = value;
+}
+
+/* Same bounded Q11 RAM-pixel operation, explicitly enabled for Z8. */
+static void set_z8_secondary_resample_model(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (!object_dynamic_cast(obj, MACHINE_TYPE_NAME("nikon-z8-bringup")) ||
+        s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp, "z8-secondary-resample-model requires Z8 at machine creation");
         return;
     }
     s->zr_secondary_resample_model = value;
@@ -14097,10 +14782,33 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_bool(oc, "i2c-fixture", get_i2c_fixture, set_i2c_fixture);
     object_class_property_add_bool(oc, "orientation-fixture", get_orientation_fixture, set_orientation_fixture);
     object_class_property_add_str(oc, "orientation-state", get_orientation_state, NULL);
+    object_class_property_add_str(oc, "orientation-input", get_orientation_input, set_orientation_input);
     object_class_property_add_bool(oc, "zr-orientation-fixture", get_zr_orientation_fixture, set_zr_orientation_fixture);
     object_class_property_add_str(oc, "zr-orientation-state", get_zr_orientation_state, NULL);
     object_class_property_add_bool(oc, "zr-secondary-resample-model", get_zr_secondary_resample_model, set_zr_secondary_resample_model);
     object_class_property_add_str(oc, "zr-secondary-state", get_zr_secondary_state, NULL);
+    object_class_property_add_bool(oc, "z8-secondary-resample-model", get_zr_secondary_resample_model, set_z8_secondary_resample_model);
+    object_class_property_add_bool(oc, "z8-video-interface-model", get_z8_video_interface_model, set_z8_video_interface_model);
+    object_class_property_add_bool(oc, "z8-video-ring-stop-model", get_z8_video_ring_stop_model, set_z8_video_ring_stop_model);
+    object_class_property_add_str(oc, "z8-video-ring-stop-state", get_z8_video_ring_stop_state, NULL);
+    object_class_property_add_str(oc, "z8-video-interface-state", get_z8_video_interface_state, NULL);
+    object_class_property_add_bool(oc,"z8-video-data-model",get_z8_video_data_model,set_z8_video_data_model);
+    object_class_property_add_str(oc,"z8-video-data-state",get_z8_video_data_state,NULL);
+    z8_wave5_properties(oc);
+    object_class_property_add_bool(oc,"video-processing-config-model",get_video_processing_config_model,set_video_processing_config_model);
+    object_class_property_add_str(oc,"video-processing-config-state",get_video_processing_config_state,NULL);
+    object_class_property_add_bool(oc,"video-initial-reset-model",get_video_initial_reset_model,set_video_initial_reset_model);
+    object_class_property_add_str(oc,"video-initial-reset-state",get_video_initial_reset_state,NULL);
+    object_class_property_add_bool(oc,"video-nr-reset-model",get_video_nr_reset_model,set_video_nr_reset_model);
+    object_class_property_add_str(oc,"video-nr-reset-state",get_video_nr_reset_state,NULL);
+    object_class_property_add_str(oc, "z8-video-serial-input", NULL, set_z8_video_serial_input);
+    object_class_property_add_str(oc, "z8-secondary-state", get_zr_secondary_state, NULL);
+    object_class_property_add_str(oc, "pcie-link-diagnostic-mask", get_pcie_link_diagnostic_mask, set_pcie_link_diagnostic_mask);
+    object_class_property_add_bool(oc, "pcie-dbi-model", get_pcie_dbi_model, set_pcie_dbi_model);
+    object_class_property_add_str(oc, "pcie-dbi-state", get_pcie_dbi_state, NULL);
+    object_class_property_add_bool(oc, "pcie-ram-dma-input", get_pcie_ram_dma_input, set_pcie_ram_dma_input);
+    object_class_property_add_bool(oc, "pcie-image-ram-dma-input", get_pcie_image_ram_dma_input, set_pcie_image_ram_dma_input);
+    object_class_property_add_bool(oc, "pcie-intx-model", get_pcie_intx_model, set_pcie_intx_model);
     object_class_property_add_bool(oc, "pcie-empty-fixture", get_pcie_empty_fixture, set_pcie_empty_fixture);
     object_class_property_add_bool(oc, "graphics-image-model", get_graphics_image_model, set_graphics_image_model);
     object_class_property_add_bool(oc, "graphics-path-model", get_graphics_path_model, set_graphics_path_model);
@@ -14198,6 +14906,14 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_str(oc, "engine151-control-state", get_engine151_control_state, NULL);
     object_class_property_add_str(oc, "engine1542-state", get_engine1542_state, NULL);
     object_class_property_add_bool(oc, "raw-pipeline-model", get_raw_pipeline_model, set_raw_pipeline_model);
+    object_class_property_add_bool(oc, "raw-pipeline-input-pair-model", get_raw_pipeline_input_pair_model, set_raw_pipeline_input_pair_model);
+    object_class_property_add_str(oc, "raw-pipeline-input-pair-state", get_raw_pipeline_input_pair_state, NULL);
+    object_class_property_add_bool(oc, "raw-source-boundary-model", get_raw_source_boundary_model, set_raw_source_boundary_model);
+    object_class_property_add_str(oc, "raw-source-boundary-state", get_raw_source_boundary_state, NULL);
+    object_class_property_add_bool(oc, "raw-pipeline-151c-completion-model", get_raw_pipeline_151c_completion_model, set_raw_pipeline_151c_completion_model);
+    object_class_property_add_bool(oc, "raw-pipeline-1514-completion-model", get_raw_pipeline_1514_completion_model, set_raw_pipeline_1514_completion_model);
+    object_class_property_add_str(oc, "raw-pipeline-1514-completion-state", get_raw_pipeline_1514_completion_state, NULL);
+    object_class_property_add_str(oc, "raw-pipeline-151c-completion-state", get_raw_pipeline_151c_completion_state, NULL);
     object_class_property_add_str(oc, "raw-pipeline-state", get_raw_pipeline_state, NULL);
     object_class_property_add_bool(oc, "engine1543-control-model", get_engine1543_control_model, set_engine1543_control_model);
     object_class_property_add_str(oc, "engine1543-control-state", get_engine1543_control_state, NULL);
