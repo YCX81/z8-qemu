@@ -121,6 +121,12 @@ FILES.update({
     'tests/test_z8_still_hevc_virtual.py',
     'tests/test_z8_still_hevc_virtual_realize.py',
 })
+FILES.update({
+    'docs/publication-checkpoint-20261015-round2.md',
+    'p17-final.md',
+    'p19-final.md',
+    'p20-final.md',
+})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),
