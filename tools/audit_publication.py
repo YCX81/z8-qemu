@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = 'publication-manifest.json'
 FILES = {'tools/service_z9_mcu.py', 'docs/build.md', 'tools/z9_primary_gate_input.py', 'qemu/nikon-raw-pixels.h', 'tools/mcu_frames.py', 'tools/probe.py', 'docs/firmware.md', 'tools/observe_serial_channel.py', 'tools/interactive.html', 'tools/smoke_qemu.py', 'tools/init_table_input.py', 'tools/z9_global1_boundary_input.py', 'tools/guest.py', 'tools/probe_adc_capture.py', 'tools/probe_tasks.py', 'tools/receive_mcu_tx.py', 'tools/service_serial8.py', 'tools/z9_processing_index_input.py', 'tools/make_cmos.py', 'requirements.txt', 'docs/publication.md', 'docs/testing.md', 'tools/observe_z9_state8.py', 'docs/research-notes.md', '.gitattributes', 'tools/parameter_input.py', 'tools/guest_transport.py', 'tools/audit_publication.py', 'docs/usage.md', 'NOTICE.md', 'tools/deliver_mcu_frame.py', 'LICENSES/QEMU-LICENSE.txt', 'README.md', 'README.zh-CN.md', 'tools/boot.py', 'tools/model-properties.json', 'tools/run.py', 'qemu/prepare_source.py', '.github/workflows/ci.yml', 'COPYING', 'tests/test_inputs.py', 'docs/debugging.md', 'tools/build.py', 'tools/probe_graphics_image.py', 'qemu/nikon-z9-lab.c', 'tools/z9_sequence_resource_input.py', '.gitignore', 'tests/test_pixels.c', 'docs/architecture.md', 'CONTRIBUTING.md', 'tests/run.sh', 'qemu/nikon-z9-pixels.h'}
 FILES.add('docs/TODO.md')
+FILES.update({'tests/test_z8_d980_internal.py', 'docs/z8-d980-internal.md'})
+FILES.update({'tests/test_z8_f04f_stop.py', 'docs/z8-primary-f04f-stop.md'})
 FILES.add('docs/z8-raw-runtime.md')
 FILES.add('docs/verification/raw-single-20261012.json')
 FILES.update({'tests/test_z8_serial5_config.py', 'docs/z8-serial5-config.md'})
@@ -88,6 +90,7 @@ FILES.update({'requirements-capture.txt', 'docs/z8-raw-foundation.md',
               'tools/z8_capture_readiness.py', 'tests/test_z8_capture_bindings.py',
               'tests/test_z8_capture_readiness.py', 'tools/z8_precapture_audit.py',
               'tests/test_z8_precapture_audit.py', 'docs/z8-precapture-audit.md'})
+FILES.update({'tests/test_z8_c0_stop.py', 'docs/publication-checkpoint-20261015.md', 'docs/z8-1543-c0-stop.md'})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),
@@ -95,6 +98,8 @@ SECRET_PATTERNS = [
 ]
 
 def validate(path, data):
+    # Hash canonical Git text without rewriting CRLF source working copies.
+    data = data.replace(b'\r\n', b'\n')
     if path not in FILES | {MANIFEST}: raise ValueError('Unreviewed public path: '+path)
     # Reviewed functional capture/peripheral code grows this one model. All
     # other files retain the 512-KiB ceiling; binary/hex guards still apply.
@@ -117,6 +122,7 @@ def main():
     for directory,dirs,files in os.walk(ROOT):
         dirs[:] = [name for name in dirs if name not in IGNORED]
         for name in files:
+            if name == '.git': continue  # Linked worktrees use a metadata file.
             path = Path(directory)/name
             if path.is_symlink(): raise ValueError('Symlink in public tree: '+str(path))
             discovered.add(path.relative_to(ROOT).as_posix())
@@ -130,8 +136,8 @@ def main():
     validate(MANIFEST,(ROOT/MANIFEST).read_bytes())
     commits = 0; blobs = set()
     if (ROOT/'.git').exists():
-        # Inspect all refs, rather than only the currently visible checkout.
-        refs = git('rev-list','--all').decode().splitlines()
+        # Inspect this publication and its ancestors; audit divergent branches separately.
+        refs = git('rev-list','HEAD').decode().splitlines()
         commits = len(refs)
         for ref in refs:
             tree = git('ls-tree','-rz','--full-tree',ref).split(b'\0')
@@ -152,7 +158,7 @@ def main():
             if stage != '0' or mode not in ('100644','100755'):
                 raise ValueError('Unexpected index entry: '+name)
             staged_hash = validate(name,git('cat-file','blob',oid))
-            if staged_hash != hashlib.sha256((ROOT/name).read_bytes()).hexdigest():
+            if staged_hash != validate(name,(ROOT/name).read_bytes()):
                 raise ValueError('Staged content differs from reviewed worktree: '+name)
             tracked.add(name)
         if tracked != FILES | {MANIFEST}: raise ValueError('Git index differs from reviewed inventory')

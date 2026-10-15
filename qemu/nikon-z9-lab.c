@@ -404,6 +404,8 @@ struct NikonZ9State {
     bool raw_pipeline_uv_half[3];
     bool engine1543_capture_control_model;
     bool engine1543_control_model;
+    bool z8_c0_stop_model, z8_c0_stop_owned;
+    uint64_t z8_c0_stops, z8_c0_stop_acks;
     uint32_t engine1543_valid[3];
     uint64_t engine1543_buffer_valid[3];
     uint32_t engine1543_latched[3][0x1000 / 4];
@@ -538,6 +540,13 @@ struct NikonZ9State {
     bool primary_d980_channel_boundary_model;
     uint64_t primary_d980_channel_boundaries, primary_d980_channel_coalesced;
     bool primary_d980_stream_model;
+    bool z8_d980_internal_model, z8_d980_internal_waiting;
+    uint64_t z8_d980_internal_starts, z8_d980_internal_cancels;
+    uint64_t z8_d980_internal_blocked_inputs;
+    bool z8_primary_f04f_stop_model;
+    uint32_t z8_primary_f04f_owned;
+    uint64_t z8_primary_f04f_requests, z8_primary_f04f_kicks;
+    uint64_t z8_primary_f04f_acks, z8_primary_f04f_reset_cancels;
     bool sensor_tag_model;
     char *sensor_tag_sha256;
     int64_t sensor_tag_virtual_ns;
@@ -8035,7 +8044,8 @@ static uint32_t engine150c_stop_causes(uint32_t engines)
            ((engines & 1) ? 0xc00 : 0) | ((engines & 0x40) << 13) |
            ((engines & 0x1000) ? 0x600000 : 0) |
            ((engines & 0x2000) ? 0x1800000 : 0) |
-           ((engines & 0x40000) ? 0x60000 : 0);
+           ((engines & 0x40000) ? 0x60000 : 0) |
+           ((engines & 0xc000) << 11);
 }
 
 static uint32_t engine150c_stop_command(uint32_t engines)
@@ -8044,7 +8054,8 @@ static uint32_t engine150c_stop_command(uint32_t engines)
            ((engines & 1) ? 0x18 : 0) | ((engines & 0x40) >> 1) |
            ((engines & 0x1000) ? 0x1800 : 0) |
            ((engines & 0x2000) ? 0x6000 : 0) |
-           ((engines & 0x40000) ? 0x300 : 0);
+           ((engines & 0x40000) ? 0x300 : 0) |
+           ((engines & 0xc000) << 1);
 }
 
 static void statistics_update(NikonZ9State *s);
@@ -8080,7 +8091,8 @@ static void primary_empty_end_update(NikonZ9State *s)
     if (!s->primary_empty_end_timer) {
         return;
     }
-    if (!((s->engine150c_active | s->engine150c_idle_stop_requested) & s->engine150c_stop_requested & 6) ||
+    if (!((s->engine150c_active | s->engine150c_idle_stop_requested) & s->engine150c_stop_requested &
+          ~s->z8_primary_f04f_owned & 6) ||
         s->primary_empty_end_pending) {
         timer_del(s->primary_empty_end_timer);
     } else if (!timer_pending(s->primary_empty_end_timer)) {
@@ -8092,7 +8104,8 @@ static void primary_empty_end_update(NikonZ9State *s)
 static void primary_empty_end_tick(void *opaque)
 {
     NikonZ9State *s = opaque;
-    uint32_t engines = (s->engine150c_active | s->engine150c_idle_stop_requested) & s->engine150c_stop_requested & 6;
+    uint32_t engines = (s->engine150c_active | s->engine150c_idle_stop_requested) &
+        s->engine150c_stop_requested & ~s->z8_primary_f04f_owned & 6;
     if (!engines || s->primary_empty_end_pending) {
         return;
     }
@@ -9447,6 +9460,60 @@ static bool get_primary_d980_stream_model(Object *obj, Error **errp)
     return NIKON_Z9_LAB(obj)->primary_d980_stream_model;
 }
 
+static bool get_z8_d980_internal_model(Object *obj, Error **errp)
+{
+    return NIKON_Z9_LAB(obj)->z8_d980_internal_model;
+}
+
+static void set_z8_d980_internal_model(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (!object_dynamic_cast(obj, MACHINE_TYPE_NAME("nikon-z8-bringup")) ||
+        s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp, "z8-d980-internal-start-model requires Z8 at machine creation");
+        return;
+    }
+    s->z8_d980_internal_model = value;
+}
+
+static char *get_z8_d980_internal_state(Object *obj, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    return g_strdup_printf("{\"enabled\":%s,\"waiting\":%s,\"starts\":%" PRIu64
+        ",\"control_cancels\":%" PRIu64 ",\"blocked_inputs\":%" PRIu64
+        ",\"supplier_implemented\":false,\"scope\":\"exact internal FIFO start only; no DMA, frame, tag or frame-completion/source/channel notification; existing stop/reset protocol unchanged\"}",
+        s->z8_d980_internal_model ? "true" : "false",
+        s->z8_d980_internal_waiting ? "true" : "false", s->z8_d980_internal_starts,
+        s->z8_d980_internal_cancels, s->z8_d980_internal_blocked_inputs);
+}
+
+static bool get_z8_primary_f04f_stop_model(Object *obj, Error **errp)
+{
+    return NIKON_Z9_LAB(obj)->z8_primary_f04f_stop_model;
+}
+
+static void set_z8_primary_f04f_stop_model(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (!object_dynamic_cast(obj, MACHINE_TYPE_NAME("nikon-z8-bringup")) ||
+        s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp, "z8-primary-f04f-stop-model requires Z8 at machine creation");
+        return;
+    }
+    s->z8_primary_f04f_stop_model = value;
+}
+
+static char *get_z8_primary_f04f_stop_state(Object *obj, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    return g_strdup_printf("{\"enabled\":%s,\"owned_mask\":%u,\"requests\":%" PRIu64
+        ",\"kicks\":%" PRIu64 ",\"acks\":%" PRIu64 ",\"reset_cancels\":%" PRIu64
+        ",\"scope\":\"exact F04F request-hold-kick-group2-reset transaction; control cancellation only, no frame completion\"}",
+        s->z8_primary_f04f_stop_model ? "true" : "false", s->z8_primary_f04f_owned,
+        s->z8_primary_f04f_requests, s->z8_primary_f04f_kicks,
+        s->z8_primary_f04f_acks, s->z8_primary_f04f_reset_cancels);
+}
+
 static bool get_sensor_tag_model(Object *obj, Error **errp)
 {
     return NIKON_Z9_LAB(obj)->sensor_tag_model;
@@ -9854,6 +9921,8 @@ static bool primary_bounded_reset_write(NikonZ9State *s, hwaddr addr,
             (s->engine150c_configured & 6) : 0;
         if (s->primary_reset_parameter_retained) { s->primary_reset_parameter_retention_events++; }
         s->engine150c_active = s->engine150c_latched = 0;
+        s->z8_primary_f04f_reset_cancels += !!s->z8_primary_f04f_owned;
+        s->z8_primary_f04f_owned = 0;
         s->engine150c_configured = s->primary_reset_parameter_retained;
         s->engine150c_stop_requested = s->engine150c_stop_done = s->engine150c_stop_pending = 0;
         s->engine150c_stop_reset_asserted = s->engine150c_stop_reset_released = 0;
@@ -9931,6 +10000,9 @@ static bool engine150c_stop_write(NikonZ9State *s, hwaddr addr,
          * additional parameter units already have real config/start models. */
         allowed_engines |= 0x43041;
     }
+    /* Only an admitted exact transaction owns the newly observed group2
+     * reset routes. Default-off and ordinary direct stops stay unchanged. */
+    allowed_engines |= s->z8_primary_f04f_owned & 0xc000;
     uint32_t direct_engines = 0x30000 |
         ((s->raw_pipeline_model && s->primary_parameter_control_model) ? 0xf30 : 0) |
         (s->primary_d980_stream_model ? 0x4000 : 0) |
@@ -9951,7 +10023,18 @@ static bool engine150c_stop_write(NikonZ9State *s, hwaddr addr,
         }
         s->engine_150c_init[(addr & 0xffff) / 4] = value;
     } else if (addr == 0x150c000c) {
-        if (value & direct_engines) {
+        bool f04f = s->z8_primary_f04f_stop_model && value == 0xf04f;
+        if ((value & s->z8_primary_f04f_owned) ||
+            (f04f && (size != 4 || !s->z8_d980_internal_waiting ||
+                s->primary_reset_stage || (value & ~s->engine150c_active) ||
+                (value & ~s->engine150c_latched) ||
+                (value & (s->engine150c_stop_requested | s->engine150c_stop_done |
+                          s->engine150c_direct_stop_done)) ||
+                s->primary_d980_frames || s->primary_d980_pending))) {
+            goto invalid;
+        }
+        if (f04f) { allowed_engines |= 0xc000; }
+        if ((value & direct_engines) && !f04f) {
             /* 40caf748 calls 40c1fb6c directly. Unlike 40c1fb78 this
              * path has no +34 kick/hold/reset. Original 40caf270 enables
              * group0 causes 20000/400000 for logical 10000/20000;
@@ -10029,6 +10112,13 @@ static bool engine150c_stop_write(NikonZ9State *s, hwaddr addr,
             s->primary_reset_idle_stop_requests++;
         }
         s->engine150c_stop_requested |= value;
+        if (f04f) {
+            /* Original40c1fc78 issues request, hold, then kick without a
+             * data wait. Own the WHOLE mask: C000 is group2 held/reset,
+             * not group1 direct completion. Stop10 remains independent. */
+            s->z8_primary_f04f_owned = value;
+            s->z8_primary_f04f_requests++;
+        }
         s->engine150c_stop_requests++;
         primary_empty_end_update(s);
     } else if (addr == 0x150c0034) {
@@ -10036,11 +10126,14 @@ static bool engine150c_stop_write(NikonZ9State *s, hwaddr addr,
                            ((value & 0x18) ? 1 : 0) | ((value & 0x20) << 1) |
                            ((value & 0x1800) ? 0x1000 : 0) |
                            ((value & 0x6000) ? 0x2000 : 0) |
-                           ((value & 0x300) ? 0x40000 : 0);
+                           ((value & 0x300) ? 0x40000 : 0) |
+                           ((value & 0x18000) >> 1);
         if (size != 4 || !value || (engines & ~allowed_engines) ||
             value != engine150c_stop_command(engines) ||
             (engines & ~s->engine150c_stop_requested) ||
-            (engines & ~s->engine_150c_init[0x18 / 4])) {
+            (engines & ~s->engine_150c_init[0x18 / 4]) ||
+            ((engines & s->z8_primary_f04f_owned) &&
+                (engines != 0xf04f || value != 0x1f87d))) {
             goto invalid;
         }
         s->engine150c_stop_requested &= ~engines;
@@ -10048,6 +10141,10 @@ static bool engine150c_stop_write(NikonZ9State *s, hwaddr addr,
         s->engine150c_active &= ~engines;
         s->engine150c_stop_done |= engines;
         s->engine150c_stop_pending |= engine150c_stop_causes(engines);
+        if (engines & s->z8_primary_f04f_owned) {
+            primary_d980_single_cancel(s);
+            s->z8_primary_f04f_kicks++;
+        }
         s->engine150c_stop_events++;
         engine150c_stop_irq_update(s);
     } else if (addr == 0x150c0204 || addr == 0x150c0210 || addr == 0x150c021c) {
@@ -10132,6 +10229,8 @@ static bool engine150c_stop_write(NikonZ9State *s, hwaddr addr,
                 goto invalid;
             }
             s->engine150c_stop_done &= ~value;
+            s->z8_primary_f04f_acks += !!(value & s->z8_primary_f04f_owned);
+            s->z8_primary_f04f_owned &= ~value;
             s->engine150c_stop_reset_asserted &= ~value;
             s->engine150c_stop_reset_released &= ~value;
             s->engine150c_latched &= ~value;
@@ -10209,6 +10308,7 @@ static char *get_primary_parameter_control_state(Object *obj, Error **errp)
 }
 
 static bool primary_d980_ready(NikonZ9State *s);
+static bool z8_d980_internal_profile(NikonZ9State *s, const uint32_t *c);
 
 static bool engine150c_control_write(NikonZ9State *s, hwaddr addr,
                                      uint64_t value, unsigned size)
@@ -10252,6 +10352,17 @@ static bool engine150c_control_write(NikonZ9State *s, hwaddr addr,
         return true;
     }
     if (addr == 0x150c0064) {
+        /* Do not let an active RAM/internal profile change its supplier by
+         * relatching. Identical internal configuration is harmless; a real
+         * stop/reset must precede a different profile. Check before ANY latch. */
+        if ((value & 0x4000) && (s->engine150c_active & 0x4000) &&
+            (s->z8_d980_internal_waiting ||
+             z8_d980_internal_profile(s, s->primary_d980_submitted)) &&
+            (!s->z8_d980_internal_waiting ||
+             !z8_d980_internal_profile(s, s->primary_d980_submitted))) {
+            unknown_access(s, addr, value, size, true);
+            return true;
+        }
         /* Native 40c1fb60 also submits shadow
          * tables while the engine is active. Functional immediate latch;
          * no extra start, input, frame boundary or completion inferred. */
@@ -10414,14 +10525,26 @@ static bool engine150c_control_write(NikonZ9State *s, hwaddr addr,
         s->engine150c_latched |= value;
         s->engine150c_commits++;
     } else {
+        bool internal = (value & 0x4000) &&
+            z8_d980_internal_profile(s, s->primary_d980_latched);
         if ((value & ~s->engine150c_latched) ||
-            ((value & 0x4000) && !primary_d980_ready(s))) {
+            ((value & 0x4000) && !internal && !primary_d980_ready(s)) ||
+            (internal && (value != 0xff00 || !s->primary_d980_submits ||
+                (s->primary_d980_valid & 0xfffff) != 0xfffff ||
+                s->primary_d980_frames || s->primary_d980_bytes ||
+                s->primary_d980_pending || s->primary_d980_single_armed ||
+                s->primary_d980_prepared))) {
             unknown_access(s, addr, value, size, true);
             return true;
         }
         s->primary_reset_previous_units &= ~value;
         s->engine150c_active |= value;
-        if (s->primary_d980_single_model && (value & 0x4000)) {
+        if (internal) {
+            /* Admission is not an input epoch or a single-frame preparation.
+             * No supplier exists for this port; receive stays blocked. */
+            s->z8_d980_internal_waiting = true;
+            s->z8_d980_internal_starts++;
+        } else if (s->primary_d980_single_model && (value & 0x4000)) {
             bool prepared = s->primary_d980_prepared;
             s->primary_d980_prepared = false;
             primary_d980_single_cancel(s);
@@ -12309,6 +12432,32 @@ static bool engine1543_capture_ready(NikonZ9State *s, unsigned j)
            s->engine1543_buffer_valid[j] == UINT64_C(0x000f000f000f000f);
 }
 
+static bool get_z8_c0_stop_model(Object *obj, Error **errp)
+{
+    return NIKON_Z9_LAB(obj)->z8_c0_stop_model;
+}
+
+static void set_z8_c0_stop_model(Object *obj, bool value, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    if (!object_dynamic_cast(obj, MACHINE_TYPE_NAME("nikon-z8-bringup")) ||
+        s->image_ram.ram || s->image_ram.rom_device) {
+        error_setg(errp, "z8-1543-c0-stop-model requires Z8 at machine creation");
+        return;
+    }
+    s->z8_c0_stop_model = value;
+}
+
+static char *get_z8_c0_stop_state(Object *obj, Error **errp)
+{
+    NikonZ9State *s = NIKON_Z9_LAB(obj);
+    return g_strdup_printf("{\"enabled\":%s,\"owned\":%s,\"stops\":%" PRIu64
+        ",\"acks\":%" PRIu64 ",\"pixel_bytes\":0,\"frame_events\":0,"
+        "\"scope\":\"C0 active101 to stop100 acknowledgement through status20/mask/W1C; no image/source completion\"}",
+        s->z8_c0_stop_model ? "true" : "false", s->z8_c0_stop_owned ? "true" : "false",
+        s->z8_c0_stops, s->z8_c0_stop_acks);
+}
+
 static bool engine1543_ready(NikonZ9State *s, unsigned j)
 {
     /* Observed bank0: four configuration words and four rows of eight
@@ -12323,9 +12472,16 @@ static bool engine1543_control_write(NikonZ9State *s, unsigned i,
                                     hwaddr addr, uint64_t value)
 {
     unsigned j = i - 10, mode = value & 3;
+    bool c0_stop = s->z8_c0_stop_model && j == 0 && mode == 0 &&
+                   s->engine1543_active[0];
     if (value & ~0x103u ||
         (mode == 1 && (!engine1543_ready(s, j) || s->engine1543_active[j])) ||
-        (mode == 3 && s->engine1543_active[j])) {
+        (mode == 3 && s->engine1543_active[j]) ||
+        (s->z8_c0_stop_model && j == 0 && mode == 1 && s->z8_c0_stop_owned) ||
+        (c0_stop && (value != 0x100 || s->engine1542_config[10][1] != 0x101 ||
+         s->engine1543_latched[0][1] != 0x101 || s->engine1543_latched[0][4] != 0x29 ||
+         !engine1543_ready(s, 0) || s->engine1543_held[0] || s->z8_c0_stop_owned ||
+         (s->engine1542_pending[10] & 0x20)))) {
         unknown_access(s, addr, value, 4, true);
         return true;
     }
@@ -12351,6 +12507,20 @@ static bool engine1543_control_write(NikonZ9State *s, unsigned i,
             s->engine1543_stops[j]++;
         }
         s->engine1543_active[j] = s->engine1543_held[j] = false;
+        if (c0_stop) {
+            /* Z8 C3.11: original40c26820 clears low2, then the ring worker
+             * awaits C0 status bit5 through IRQ6a/W1C. Modeled RAM writes
+             * are synchronous; active=false now prevents future callbacks.
+             * Retain prior frame/refill causes. C1's pixel bit5 is separate. */
+            s->z8_c0_stop_owned = true;
+            s->z8_c0_stops++;
+            s->engine1542_pending[10] |= 0x20;
+            raw_pipeline_irq_update(s);
+            fprintf(stderr, "Z8_C0_STOP t_ns=%" PRId64 " generation=%" PRIu64
+                " pending=%x mask=%x; control acknowledgement, no pixels\n",
+                qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL), s->z8_c0_stops,
+                s->engine1542_pending[10], s->engine1542_config[10][4]);
+        }
     } else if (mode == 2 && s->engine1543_active[j]) {
         s->engine1543_held[j] = true;
         s->engine1543_holds[j]++;
@@ -12502,6 +12672,11 @@ static bool engine1542_write(NikonZ9State *s, hwaddr addr, uint64_t value,
         return false;
     }
     if (off == engine1542_status(i)) {
+        if (i == 10 && s->z8_c0_stop_model && s->z8_c0_stop_owned &&
+            (value & s->engine1542_pending[i] & 0x20)) {
+            s->z8_c0_stop_owned = false;
+            s->z8_c0_stop_acks++;
+        }
         s->engine1542_pending[i] &= ~value;
         s->engine1542_acks[i]++;
         raw_pipeline_irq_update(s);
@@ -17450,6 +17625,20 @@ static void nikon_z9_init(MachineState *machine)
         error_report("primary-d980-stream-model requires D980 config, RAW, primary stop and source timing/aux/channel models");
         exit(1);
     }
+    if (s->z8_d980_internal_model && !s->primary_d980_stream_model) {
+        error_report("z8-d980-internal-start-model requires the existing D980 stream prerequisites");
+        exit(1);
+    }
+    if (s->z8_primary_f04f_stop_model &&
+        (!s->z8_d980_internal_model || !s->primary_parameter_control_model || !s->config150d_model)) {
+        error_report("z8-primary-f04f-stop-model requires internal start and primary parameter models");
+        exit(1);
+    }
+    if (s->z8_c0_stop_model && (!s->bootstrap_fixtures ||
+        !s->engine1543_control_model || !s->raw_pipeline_model)) {
+        error_report("z8-1543-c0-stop-model requires bootstrap,1543 control and raw-pipeline IRQ");
+        exit(1);
+    }
     if (s->primary20_empty_reset_model && !s->bootstrap_fixtures) {
         error_report("primary20-empty-reset-model requires explicit bootstrap fixtures"); exit(1);
     }
@@ -18203,6 +18392,10 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_bool(oc, "primary-stopped-source-reset-model", get_primary_stopped_source_reset_model, set_primary_stopped_source_reset_model);
     object_class_property_add_bool(oc, "primary-d980-config-model", get_primary_d980_model, set_primary_d980_model);
     object_class_property_add_bool(oc, "primary-d980-stream-model", get_primary_d980_stream_model, set_primary_d980_stream_model);
+    object_class_property_add_bool(oc, "z8-d980-internal-start-model", get_z8_d980_internal_model, set_z8_d980_internal_model);
+    object_class_property_add_str(oc, "z8-d980-internal-state", get_z8_d980_internal_state, NULL);
+    object_class_property_add_bool(oc, "z8-primary-f04f-stop-model", get_z8_primary_f04f_stop_model, set_z8_primary_f04f_stop_model);
+    object_class_property_add_str(oc, "z8-primary-f04f-stop-state", get_z8_primary_f04f_stop_state, NULL);
     object_class_property_add_bool(oc, "sensor-frame-tag-model", get_sensor_tag_model, set_sensor_tag_model);
     object_class_property_add_str(oc, "sensor-frame-tag-state", get_sensor_tag_state, NULL);
     object_class_property_add_bool(oc, "primary-d980-packed14-model", get_primary_d980_packed14_model, set_primary_d980_packed14_model);
@@ -18325,6 +18518,8 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_bool(oc, "raw-source-boundary-model", get_raw_source_boundary_model, set_raw_source_boundary_model);
     object_class_property_add_str(oc, "raw-source-boundary-state", get_raw_source_boundary_state, NULL);
     object_class_property_add_bool(oc, "engine1543-control-model", get_engine1543_control_model, set_engine1543_control_model);
+    object_class_property_add_bool(oc, "z8-1543-c0-stop-model", get_z8_c0_stop_model, set_z8_c0_stop_model);
+    object_class_property_add_str(oc, "z8-1543-c0-stop-state", get_z8_c0_stop_state, NULL);
     object_class_property_add_str(oc, "engine1543-control-state", get_engine1543_control_state, NULL);
     object_class_property_add_bool(oc, "engine1543-capture-control-model", get_engine1543_capture_control_model, set_engine1543_capture_control_model);
     object_class_property_add_bool(oc, "stream154c-stop-model", get_stream154c_stop_model, set_stream154c_stop_model);
