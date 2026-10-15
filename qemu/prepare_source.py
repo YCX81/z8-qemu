@@ -30,6 +30,17 @@ if subprocess.run(command + ['--forward', '--dry-run'], cwd=root,
 elif subprocess.run(command + ['--reverse', '--dry-run'], cwd=root,
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
     raise SystemExit('Unexpected DesignWare source: DMA patch cannot be verified')
+
+# Standard trace output is disabled by default. This patch observes original
+# NVMe backend/CQE completion without changing command or completion behavior.
+for name in ('nvme-completion-trace.patch', 'nvme-audit-state.patch'):
+    command = ['patch', '--batch', '--fuzz=0', '-p1', '-i', str(here / name)]
+    if subprocess.run(command + ['--forward', '--dry-run'], cwd=root,
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+        subprocess.run(command + ['--forward'], cwd=root, check=True)
+    elif subprocess.run(command + ['--reverse', '--dry-run'], cwd=root,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
+        raise SystemExit('Unexpected NVMe source: patch cannot be verified: ' + name)
 for overlay in here.glob('nikon-*'):
     if overlay.suffix in ('.c', '.h'):
         shutil.copyfile(overlay, root / 'hw/arm' / overlay.name)
