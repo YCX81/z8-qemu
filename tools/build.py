@@ -20,6 +20,13 @@ DOWNLOAD_ATTEMPTS = 3
 SOURCES = ['qemu/nikon-z9-lab.c','qemu/nikon-z9-pixels.h','qemu/nikon-raw-pixels.h','qemu/prepare_source.py']
 SOURCES.append('qemu/arm-service-events.patch')
 SOURCES.append('qemu/nikon-persistent-media.h')
+SOURCES += ['qemu/' + name for name in (
+    'nikon-z8-input-pair.h', 'nikon-z8-video-ring.h', 'nikon-z8-video-state.h',
+    'nikon-z8-pcie-config.h', 'nikon-z9-pcie.h', 'designware-dma.patch',
+    'nvme-completion-trace.patch', 'nvme-audit-state.patch')]
+SOURCES += ['qemu/' + name for name in (
+    'nikon-z8-video-c1.h', 'nikon-z8-video-c1-types.h', 'nikon-bayer-packet.h')]
+SOURCES += ['qemu/nikon-video-plane.h', 'qemu/nikon-z8-video-fourth.h']
 
 def digest(path):
     h = hashlib.sha256()

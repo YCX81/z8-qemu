@@ -272,7 +272,15 @@ class Peer:
 
     def enqueue_external(self,body,family):
         """Serialize an explicit, separately validated external input frame."""
-        if family!=2:raise ValueError('only the existing validated key input is accepted here')
+        if family==7:
+            from z8_datetime import MAIN_SHA,validate_rtc_body
+            if self.g.data.get('firmware_sha256')!=MAIN_SHA:
+                raise ValueError('RTC input requires the pinned Z8 C3.11 MAIN')
+            body=validate_rtc_body(body)
+            self.record.setdefault('external_rtc_inputs',[]).append(dict(
+                body_hex=body.hex(),synthetic=True,physical_protocol_verified=False))
+        elif family!=2:
+            raise ValueError('only validated key or explicit Z8 RTC input is accepted here')
         self.pending.append((family,bytes(body),frames(body,family=family)[0]))
         self.start_rx()
 
