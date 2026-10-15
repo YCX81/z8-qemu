@@ -1,0 +1,2 @@
+# Optional isolated AArch64 research harness; not required by the camera runner.
+unicorn==2.1.4

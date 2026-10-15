@@ -73,6 +73,7 @@ FILES.update({'requirements-capture.txt', 'docs/z8-raw-foundation.md',
               'tools/z8_capture_readiness.py', 'tests/test_z8_capture_bindings.py',
               'tests/test_z8_capture_readiness.py', 'tools/z8_precapture_audit.py',
               'tests/test_z8_precapture_audit.py', 'docs/z8-precapture-audit.md'})
+FILES.update({'tests/test_z8_af_compression_scan.py', 'tools/z8_af_compression_scan.py', 'tools/z8_af_resource_audit.py', 'docs/z8-af-lockon.md', 'docs/verification/af-lockon-20261012.json', 'docs/publication-checkpoint-20261015.md', 'requirements-af-probe.txt', 'tools/z8_af_lockon_probe.py'})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),
@@ -80,6 +81,8 @@ SECRET_PATTERNS = [
 ]
 
 def validate(path, data):
+    # Hash canonical Git text without rewriting CRLF source working copies.
+    data = data.replace(b'\r\n', b'\n')
     if path not in FILES | {MANIFEST}: raise ValueError('Unreviewed public path: '+path)
     # Reviewed functional capture/peripheral code grows this one model. All
     # other files retain the 512-KiB ceiling; binary/hex guards still apply.
@@ -102,6 +105,7 @@ def main():
     for directory,dirs,files in os.walk(ROOT):
         dirs[:] = [name for name in dirs if name not in IGNORED]
         for name in files:
+            if name == '.git': continue  # Linked worktrees use a metadata file.
             path = Path(directory)/name
             if path.is_symlink(): raise ValueError('Symlink in public tree: '+str(path))
             discovered.add(path.relative_to(ROOT).as_posix())
@@ -115,8 +119,8 @@ def main():
     validate(MANIFEST,(ROOT/MANIFEST).read_bytes())
     commits = 0; blobs = set()
     if (ROOT/'.git').exists():
-        # Inspect all refs, rather than only the currently visible checkout.
-        refs = git('rev-list','--all').decode().splitlines()
+        # Inspect this publication and its ancestors; audit divergent branches separately.
+        refs = git('rev-list','HEAD').decode().splitlines()
         commits = len(refs)
         for ref in refs:
             tree = git('ls-tree','-rz','--full-tree',ref).split(b'\0')
@@ -137,7 +141,7 @@ def main():
             if stage != '0' or mode not in ('100644','100755'):
                 raise ValueError('Unexpected index entry: '+name)
             staged_hash = validate(name,git('cat-file','blob',oid))
-            if staged_hash != hashlib.sha256((ROOT/name).read_bytes()).hexdigest():
+            if staged_hash != validate(name,(ROOT/name).read_bytes()):
                 raise ValueError('Staged content differs from reviewed worktree: '+name)
             tracked.add(name)
         if tracked != FILES | {MANIFEST}: raise ValueError('Git index differs from reviewed inventory')

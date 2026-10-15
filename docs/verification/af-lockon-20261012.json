@@ -1,0 +1,246 @@
+{
+  "schema": 1,
+  "date": "2026-10-12",
+  "base_commit": "228a34c",
+  "branch": "codex/z8-af-lockon",
+  "evidence_class": "original AArch64 slices with explicit synthetic state and calibration",
+  "completed": [
+    "resource address and original loader mapping",
+    "shared cap history producer and reset mapping",
+    "3D user-table selection isolated verification"
+  ],
+  "incomplete": [
+    "recover authentic Z8 AF item bytes",
+    "confirm named photographic meaning of every classifier and special flag",
+    "full AF loop and real mode-change reset observation",
+    "physical timing and focus performance"
+  ],
+  "source_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+  "package_sha256": "d67413c2ede6b9ce8887175f20700bd9fbad2a973a4820968c45503d15d80d96",
+  "source_unchanged": true,
+  "all_package_crcs_valid": true,
+  "candidate": {
+    "scope": "Unicorn RAM only",
+    "address": "0xa029eb4a8",
+    "original": "0x40e131fc",
+    "replacement": "0x40e132f4",
+    "register_or_return_value_hooks": false,
+    "shared_caps_preserved": true
+  },
+  "resources": {
+    "source_rom": "0x462f0800",
+    "item_length": "0x2d00",
+    "group_ram": "0xa159a38c0",
+    "af_ram": "0xa159b40c0",
+    "parameter_rom": "0x462f1404",
+    "timing_table_rom": "0x462f14d4",
+    "clamp_enable_rom": "0x462f1460",
+    "original_reader_cases": [
+      {
+        "synthetic_endm": false,
+        "reader_success": false,
+        "af_table_sample": "a5a5a5a5a5a5a5a5a5a5",
+        "parameter_pointer": "0xa159b4cc4"
+      },
+      {
+        "synthetic_endm": true,
+        "reader_success": true,
+        "af_table_sample": "ffffffffffffffffffff",
+        "parameter_pointer": "0xa159b4cc4"
+      }
+    ],
+    "factory_af_body_recovered": false,
+    "note": "ENDM proves reader framing only; even erased payload is copied when framed"
+  },
+  "test_counts": {
+    "resource": 2,
+    "history": 21,
+    "policy_comparisons": 800,
+    "movie_comparisons": 140,
+    "invalid_settings": 4,
+    "secondary_comparisons": 200,
+    "effective_settings": 100,
+    "mode_mappings": 14,
+    "timer_boundaries": 30
+  },
+  "total_cases": 1311,
+  "all_checks_passed": true,
+  "normal_optimized_equal": true,
+  "cli_guard_cases": [
+    {
+      "optimized": false,
+      "case": "existing evidence preserved before reading input",
+      "passed": true
+    },
+    {
+      "optimized": false,
+      "case": "wrong input rejected without output",
+      "passed": true
+    },
+    {
+      "optimized": true,
+      "case": "existing evidence preserved before reading input",
+      "passed": true
+    },
+    {
+      "optimized": true,
+      "case": "wrong input rejected without output",
+      "passed": true
+    }
+  ],
+  "source_files": {
+    "tools/z8_af_lockon_probe.py": "624a442351fc7535b8342eff1026c10f5a9719c81ee9e26c6fe8a27610fa562d",
+    "tools/z8_af_resource_audit.py": "ef0ca78a9f3fc3e6c10535763d99616794b111f46220eb9520eadbdd8791b58b",
+    "requirements-af-probe.txt": "efee6792cc1e4f6b3bd2f95b7bada1b0b55b090e98b1293b1ebf38282c732dd1",
+    "tools/z8_af_compression_scan.py": "e99add27b889442ef968ea49562b01c46bac7a15925c22632a8c4c88db739ce5",
+    "tests/test_z8_af_compression_scan.py": "a72873e2c7a6683360ba81fde5a17d1ced9d265b1670cb5f83db9ce998d1ee5c"
+  },
+  "private_evidence": {
+    "probe-v3.json": "cb561fa3093d13e40209ad67ad8187e0353a990692d2dabc8e4b38d44063e740",
+    "probe-v3-optimized.json": "cb561fa3093d13e40209ad67ad8187e0353a990692d2dabc8e4b38d44063e740",
+    "package-audit.json": "fc64c41b3b96723470a7ddf79628a33b69b5f0d29a39d61f139fc83f7de27f16",
+    "delivery-checks.json": "cf76d416389def0db4cb249505e378ad48ebbc9069caf9ac29655dd3c8918cf4",
+    "package-audit-expanded.json": "6d711ed11e01bacb0d175bc14a5ce9cf1beeb22f7606dca655a31e269544f95c",
+    "rejected-cpio-af-hit.json": "79945f0583a1ffaaa1ac472fac8a225754f72a7c9cb6cb89cf2ad85b96c960bc"
+  },
+  "runtime": {
+    "python": "3.13.15",
+    "unicorn": "2.1.4"
+  },
+  "derived_firmware_written": false,
+  "default_runtime_changed": false,
+  "full_af_loop_verified": false,
+  "physical_camera_verified": false,
+  "factory_af_body_recovered": false,
+  "real_parameter_validation_complete": false,
+  "extra_read_caveat": "Mode8 special override result is preserved, but the candidate additionally reads the indexed table before applying override",
+  "raw_search_limit": "Raw signatures across all five decrypted modules; encoded/compressed forms not excluded",
+  "official_package_followup": {
+    "user_available_input": "official package only",
+    "modules": [
+      {
+        "name": "ex2070_030000.bi",
+        "sha256": "8ce129fa3689d1d619f25ba1c44a3a9f1964c76fe77b95adeb4ea912463c8c63",
+        "complete_streams": 0,
+        "png_idat_crc_valid": 0,
+        "raw_scan_counts": {
+          "zlib": {
+            "preset_dictionary_header": 162,
+            "invalid_or_unsupported": 384
+          }
+        }
+      },
+      {
+        "name": "_tpj01_0210.bin",
+        "sha256": "809515c1a28b339b284c751663190135dcb6df778345f581a5f7c9c6ea8c054e",
+        "complete_streams": 0,
+        "png_idat_crc_valid": 0,
+        "raw_scan_counts": {
+          "zlib": {
+            "preset_dictionary_header": 40,
+            "invalid_or_unsupported": 39
+          }
+        }
+      },
+      {
+        "name": "eg2070_0311b0.bi",
+        "sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+        "complete_streams": 6192,
+        "png_idat_crc_valid": 6187,
+        "raw_scan_counts": {
+          "zlib": {
+            "preset_dictionary_header": 21662,
+            "invalid_or_unsupported": 18661,
+            "complete": 6192
+          },
+          "bzip2": {
+            "invalid_or_unsupported": 1
+          }
+        }
+      },
+      {
+        "name": "vr2070_010100.bi",
+        "sha256": "bbeeb4df40731d8176d664973156f7147cf27e5b5657e86ece988399546972b8",
+        "complete_streams": 0,
+        "png_idat_crc_valid": 0,
+        "raw_scan_counts": {
+          "zlib": {
+            "preset_dictionary_header": 75,
+            "invalid_or_unsupported": 55
+          }
+        }
+      },
+      {
+        "name": "li2070_0311b0.bi",
+        "sha256": "6da6352bec6b7a8686893f217c8c4bc7a3ca394ff9b781078885efa8a93b9925",
+        "complete_streams": 1,
+        "png_idat_crc_valid": 0,
+        "raw_scan_counts": {
+          "zlib": {
+            "preset_dictionary_header": 5884,
+            "invalid_or_unsupported": 5586
+          },
+          "gzip": {
+            "complete": 1,
+            "output_bound": 1,
+            "invalid_or_unsupported": 1
+          }
+        },
+        "nisi": {
+          "directory_records": 4,
+          "block_bytes": 2048,
+          "parts": [
+            {
+              "index": 0,
+              "offset": "0x800",
+              "bytes": 5963784,
+              "format": "ARM64 Linux Image header"
+            },
+            {
+              "index": 1,
+              "offset": "0x5b1000",
+              "bytes": 9846203,
+              "format": "gzip"
+            },
+            {
+              "index": 2,
+              "offset": "0xf15000",
+              "bytes": 3141,
+              "format": "Flattened Device Tree header and matching extent"
+            },
+            {
+              "index": 3,
+              "offset": "0xf16000",
+              "bytes": 3168,
+              "format": "Flattened Device Tree header and matching extent"
+            }
+          ],
+          "cpio_bytes": 23337472,
+          "cpio_sha256": "4503d2c0f8fc944b2f74598cd8e7711058840264f23e43ac7c39df7c9ab6a738",
+          "cpio_records_including_trailer": 821
+        }
+      }
+    ],
+    "search_limit": "Raw signatures, bounded standard framed streams, and declared NISI gzip/cpio parts across all five modules; raw, dictionary, other nested and proprietary encodings remain unresolved",
+    "factory_af_body_recovered": false,
+    "rejected_candidates": [
+      {
+        "module": "eg2070_0311b0.bi",
+        "compressed_offset": "0x2ef2439",
+        "decoded_offset": "0x31fb3",
+        "reason": "Inside CRC-validated PNG IDAT image data"
+      },
+      {
+        "module": "NISI gzip cpio",
+        "file": "lib/modules/4.14.224-ts-aarch64/kernel/net/wireless/cfg80211.ko",
+        "offset": "0x49cf8",
+        "section": ".symtab",
+        "reason": "Little-endian st_value 0x4641, not an AF header"
+      }
+    ],
+    "new_firmware_free_tests": 11,
+    "normal_and_optimized_tests_passed": true,
+    "af_probe_source_unchanged": true,
+    "all_package_crcs_valid": true
+  }
+}
