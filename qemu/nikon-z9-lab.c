@@ -430,6 +430,8 @@ struct NikonZ9State {
     unsigned raw_pipeline_width[3], raw_pipeline_height[3], raw_pipeline_stride[3];
     bool raw_pipeline_uv_half[3];
     bool engine1543_capture_control_model;
+    bool heif_c1_rearm_model;
+    uint64_t heif_c1_rearms;
     bool engine1543_control_model;
     bool z8_c0_stop_model, z8_c0_stop_owned;
     uint64_t z8_c0_stops, z8_c0_stop_acks;
@@ -739,6 +741,8 @@ struct NikonZ9State {
     uint64_t event_channel_inputs, event_channel_acks;
     bool event_timing_active;
     bool event1508_stop_model;
+    bool heif_secondary_stop_model, heif_secondary_stop_armed;
+    uint64_t heif_secondary_stop_notifications;
     uint64_t event_stop_notifications;
     uint32_t event_direct_1508[15];
     uint32_t event_pair_1508[15][2];
@@ -6528,6 +6532,8 @@ static void event_global1_update_irq(NikonZ9State *s)
                      (s->event_global1_pending & s->event_extended_1508[0x68 / 4]));
     }
 }
+
+#include "nikon-z8-secondary-stop.h"
 
 static bool get_event1508_global1_model(Object *obj, Error **errp)
 {
@@ -12643,15 +12649,18 @@ static bool engine1543_ready(NikonZ9State *s, unsigned j)
            engine1543_capture_ready(s, j);
 }
 
+#include "nikon-z8-hlg-c1-rearm.h"
+
 static bool engine1543_control_write(NikonZ9State *s, unsigned i,
                                     hwaddr addr, uint64_t value)
 {
     unsigned j = i - 10, mode = value & 3;
+    bool photo_rearm = z8_hlg_c1_can_rearm(s,j,value);
     bool c0_stop = s->z8_c0_stop_model && j == 0 && mode == 0 &&
                    s->engine1543_active[0];
     if (value & ~0x103u ||
         (mode == 1 && (!engine1543_ready(s, j) || s->engine1543_active[j])) ||
-        (mode == 3 && s->engine1543_active[j]) ||
+        (mode == 3 && s->engine1543_active[j] && !photo_rearm) ||
         (s->z8_c0_stop_model && j == 0 && mode == 1 && s->z8_c0_stop_owned) ||
         (c0_stop && (value != 0x100 || s->engine1542_config[10][1] != 0x101 ||
          s->engine1543_latched[0][1] != 0x101 || s->engine1543_latched[0][4] != 0x29 ||
@@ -12662,6 +12671,12 @@ static bool engine1543_control_write(NikonZ9State *s, unsigned i,
     }
     if (s->capture_nv16_model && j == 1 && mode == 1 && !capture_nv16_prepare(s)) {
         unknown_access(s, addr, value, 4, true); return true;
+    }
+    if (photo_rearm) {
+        s->engine1543_active[1]=s->engine1543_held[1]=false;
+        s->heif_c1_rearms++;
+        fprintf(stderr,"Z8_HLG_C1_REARM frame=%" PRIu64 " retired_job=%" PRIu64 "; no pending/IRQ changes\n",
+            s->primary_d980_frames,s->hlg_pipeline.jobs);
     }
     s->engine1542_config[i][1] = value;
     s->engine1543_valid[j] |= 1;
@@ -16548,7 +16563,8 @@ static void unknown_write(void *opaque, hwaddr addr, uint64_t value,
     }
     if (s->bootstrap_fixtures && s->event1508_global1_model &&
         addr == 0x1508006c && size == 4 &&
-        !(value & ~(s->raw_pipeline_model ? UINT64_C(0x90) : UINT64_C(0x80)))) {
+        !(value & ~((s->raw_pipeline_model ? UINT64_C(0x90) : UINT64_C(0x80)) |
+            (s->heif_secondary_stop_model ? UINT64_C(0x40000) : 0)))) {
         s->event_global1_pending &= ~value;
         s->event_global1_acks++;
         event_global1_update_irq(s);
@@ -16618,6 +16634,7 @@ static void unknown_write(void *opaque, hwaddr addr, uint64_t value,
         if (s->event1508_group_model) {
             s->event_group_latched[group] = s->event_group_1508[group];
             s->event_group_requests[group]++;
+            z8_secondary_stop_group(s,group);
             if (s->event_secondary_timing_model) {
                 /* Explicit opt-in command consumption: subsequent original
                  * read/OR/write requests must not replay historical lanes. */
@@ -16642,6 +16659,7 @@ static void unknown_write(void *opaque, hwaddr addr, uint64_t value,
         unsigned group = (addr - 0x15080010) / 8;
         uint32_t mask = group == 3 ? 0x7fff : 1;
         if (!(value & ~mask)) {
+            uint32_t previous=s->event_control_1508[group];
             bool stopped_source = s->event1508_stop_model && group == 0 &&
                 (addr & 4) && (value & s->event_control_1508[0] & 1) &&
                 s->event_timing_active;
@@ -16654,6 +16672,7 @@ static void unknown_write(void *opaque, hwaddr addr, uint64_t value,
                     group, s->event_control_1508[group]);
             event_timing_update(s);
             event_secondary_timing_update(s);
+            z8_secondary_stop_control(s,group,addr&4,previous,value);
             if (stopped_source) {
                 /* 41166b34 clears OS mask40, 4116e9c0 -> 40c29b88
                  * clears group0, then waits for mask40. Original
@@ -17521,6 +17540,11 @@ static void nikon_z9_init(MachineState *machine)
         error_report("raw-source-boundary-model requires RAW pipeline, primary stop and source timing");
         exit(1);
     }
+    if (s->heif_secondary_stop_model && (!s->bootstrap_fixtures ||
+        !s->event1508_global1_model || !s->event1508_group_model ||
+        !s->event_secondary_timing_model || !s->event1508_channel_model)) {
+        error_report("z8-heif-secondary-stop-model requires global1, group and secondary timing models"); exit(1);
+    }
     if (s->event1508_stop_model && (!s->event1508_global0_model || !s->event1508_timing_model)) {
         error_report("event1508-stop-model requires primary global and timing models");
         exit(1);
@@ -17551,6 +17575,12 @@ static void nikon_z9_init(MachineState *machine)
     }
     if (s->engine153_inplace_identity_model && s->engine153_frame_pass_model) {
         error_report("153 identity and speculative D8 copy are mutually exclusive"); exit(1);
+    }
+    if (s->heif_c1_rearm_model && !s->hlg_pipeline.enabled) {
+        error_report("z8-heif-c1-rearm-model requires HLG photo pipeline"); exit(1);
+    }
+    if (s->heif1534.address_model && !s->heif1534.enabled) {
+        error_report("z8-heif-1534-address-model requires z8-heif-1534-inplace-model"); exit(1);
     }
     if (s->heif1534.enabled && !s->engine153_inplace_identity_model) {
         error_report("z8-heif-1534-inplace-model requires existing bank1 inplace model"); exit(1);
@@ -18647,6 +18677,8 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_bool(oc, "event1508-timing-model", get_event1508_timing_model, set_event1508_timing_model);
     object_class_property_add_bool(oc, "event1508-secondary-timing-model", get_event_secondary_timing_model, set_event_secondary_timing_model);
     object_class_property_add_str(oc, "event1508-secondary-timing-state", get_event_secondary_timing_state, NULL);
+    object_class_property_add_bool(oc,"z8-heif-secondary-stop-model",get_z8_secondary_stop,set_z8_secondary_stop);
+    object_class_property_add_str(oc,"z8-heif-secondary-stop-state",get_z8_secondary_stop_state,NULL);
     object_class_property_add_bool(oc, "event1508-stop-model", get_event1508_stop_model, set_event1508_stop_model);
     object_class_property_add_str(oc, "event1508-timing-period-ns", NULL, set_event_timing_period);
     object_class_property_add_bool(oc, "engine150c-stop-model", get_engine150c_stop_model, set_engine150c_stop_model);
@@ -18718,6 +18750,7 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_bool(oc, "engine153-inplace-identity-model", get_engine153_inplace_identity_model, set_engine153_inplace_identity_model);
     object_class_property_add_str(oc, "engine153-inplace-identity-state", get_engine153_inplace_identity_state, NULL);
     object_class_property_add_bool(oc, "z8-heif-1534-inplace-model", get_z8_heif_1534_model, set_z8_heif_1534_model);
+    object_class_property_add_bool(oc,"z8-heif-1534-address-model",get_z8_heif_1534_addresses,set_z8_heif_1534_addresses);
     object_class_property_add_str(oc, "z8-heif-1534-state", get_z8_heif_1534_state, NULL);
     object_class_property_add_bool(oc, "primary-capture-direct-stop-model", get_primary_capture_direct_stop_model, set_primary_capture_direct_stop_model);
     object_class_property_add_str(oc, "primary-capture-direct-stop-state", get_primary_capture_direct_stop_state, NULL);
@@ -18809,6 +18842,8 @@ static void nikon_z9_class_init(ObjectClass *oc, const void *data)
     object_class_property_add_bool(oc, "z8-1543-c0-stop-model", get_z8_c0_stop_model, set_z8_c0_stop_model);
     object_class_property_add_str(oc, "z8-1543-c0-stop-state", get_z8_c0_stop_state, NULL);
     object_class_property_add_str(oc, "engine1543-control-state", get_engine1543_control_state, NULL);
+    object_class_property_add_bool(oc,"z8-heif-c1-rearm-model",get_z8_hlg_c1_rearm,set_z8_hlg_c1_rearm);
+    object_class_property_add_str(oc,"z8-heif-c1-rearm-state",get_z8_hlg_c1_rearm_state,NULL);
     object_class_property_add_bool(oc, "engine1543-capture-control-model", get_engine1543_capture_control_model, set_engine1543_capture_control_model);
     object_class_property_add_bool(oc, "stream154c-stop-model", get_stream154c_stop_model, set_stream154c_stop_model);
     object_class_property_add_str(oc, "stream154c-state", get_stream154c_state, NULL);

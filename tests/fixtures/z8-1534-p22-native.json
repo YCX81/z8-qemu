@@ -1,0 +1,12 @@
+{
+  "sha256": "b7fd8f09260caf12e2bdcd3e569a12c51b44b9e4ab6aa0359d6d57ee225cba44",
+  "layout": "84 LE32 accepted reference controls; 84 LE32 candidate controls; 1984 B accepted reference program; 1984 B candidate program",
+  "source": ".local/heif/p20/heif-hlg-20261015-20-diag-07/153-fault",
+  "source_sha256": {
+    "state.json": "5a8d25a5757909c46f5ebe7094649bdbff76553750fe489c3bc1971b8385461c",
+    "bank0-program.bin": "7530f35842be1439da1858315c0357a5caed88037d5e29e776287af28c70ffd9"
+  },
+  "firmware_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+  "native_mmio_fixture": true,
+  "firmware_executed_in_test": false
+}

@@ -127,6 +127,17 @@ FILES.update({
     'p19-final.md',
     'p20-final.md',
 })
+FILES.update({
+    'qemu/nikon-z8-1534-addresses.h',
+    'qemu/nikon-z8-hlg-c1-rearm.h',
+    'qemu/nikon-z8-secondary-stop.h',
+    'tests/fixtures/z8-1534-p22-native.json',
+    'tests/test_z8_1508_secondary_stop.py',
+    'tests/test_z8_1534_addresses.c',
+    'tests/test_z8_1534_addresses.py',
+    'tests/test_z8_1534_addresses_helpers.py',
+    'tests/test_z8_hlg_c1_rearm.py',
+})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),

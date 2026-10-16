@@ -5,7 +5,7 @@
 #include <stdint.h>
 #define Z8_153_PROGRAM_BYTES 0x7c0u
 typedef struct Z8Heif1534 {
-    bool enabled, reference_valid;
+    bool enabled, reference_valid, address_model;
     uint32_t reference_control[84], mismatch_offset;
     uint8_t reference_program[Z8_153_PROGRAM_BYTES];
     uint32_t accepted_control[84];
