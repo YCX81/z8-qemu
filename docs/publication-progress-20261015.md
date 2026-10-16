@@ -47,3 +47,21 @@ Stable second-shot recovery and a second accepted HIF remain unverified. P21's
 fixed off/on native comparison was ongoing at the source snapshot; publication
 did not rerun QEMU or alter its watched host source files. The table above
 continues to describe the earlier checkpoints and their original validation.
+
+## HEIF P21/P22 publication, 2026-10-16
+
+The HEIF branch adds three source batches: caller-bound raw stop observations,
+P22 secondary-stop/address/C1 receiver contracts, and P21/P22 stage evidence.
+The local publication regression passed 760 tests with 88 skipped and the
+existing C checks. Native fixture bytes remain private; the public helper test
+explicitly skips when they are absent, while retaining its text provenance.
+The exported public snapshot also passed the full 760-test regression with 89
+skipped; its one additional skip is the missing private native-fixture test.
+
+See the [2026-10-16 checkpoint](https://github.com/YCX81/z8-qemu/blob/codex/z8-heif-1602/docs/publication-checkpoint-20261016.md)
+and the [stage report](https://github.com/YCX81/z8-qemu/blob/codex/z8-heif-1602/docs/z8-heif-1602.md).
+Historical P22 results show a second frame in three fixed samples but no second
+HIF: the remaining strict stop is JPEG bank1. Those samples used single-source
+mask 0x40; the separately recorded first P22 run covers the dual-source stop.
+No firmware execution, device QTest or camera acceptance was rerun to publish
+these sources. Earlier index sections retain their original snapshot scope.
