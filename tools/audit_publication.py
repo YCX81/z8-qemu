@@ -138,6 +138,10 @@ FILES.update({
     'tests/test_z8_1534_addresses_helpers.py',
     'tests/test_z8_hlg_c1_rearm.py',
 })
+FILES.update({
+    'docs/publication-checkpoint-20261016.md',
+    'p21-final.md',
+})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),
