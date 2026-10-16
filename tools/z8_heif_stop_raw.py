@@ -28,7 +28,8 @@ class Observer:
    need(r['X00']==0xa0496efe0 and mask in (0x40,0x40040),'Raw stop wait object/mask')
    need(not sp&15 and 0xa00000020<=sp<0xa20000000,'Raw stop wait stack range')
    self.identity=(sp-0x20,mask)
-   self.row.update(entry_cpu=cpu,entry_sp=hex(sp),entry_t_ns=t_ns,wait_mask=hex(mask))
+   self.row.update(entry_cpu=cpu,entry_sp=hex(sp),entry_t_ns=t_ns,wait_mask=hex(mask),
+     entry_registers={k:hex(r[k]) for k in ('X00','X01','X02','X03','SP','X30') if k in r})
    return [RETURN]
   returns=[(cpu,r) for cpu,r in hits if r['PC']==RETURN]
   if returns:

@@ -24,6 +24,7 @@ import z8_nvme_evidence
 import z8_capture_resources
 import z8_still_hevc_observer
 import z8_capture_recovery
+import z8_heif_stop_raw
 import z8_153_fault
 import z8_heif_rearm
 import z8_heif_menu_boundary
@@ -259,6 +260,9 @@ def contact_sequence(args):
     menu_cycle=getattr(args,'heif_intershot_menu_cycle',False)
     menu_exit=getattr(args,'heif_menu_exit_key','half')
     native_gate=getattr(args,'heif_native_rearm_gate',False)
+    if getattr(args,'heif_stop_raw_observer',False) and (
+            not getattr(args,'heif_capture_status_observer',False) or getattr(args,'heif_stop_wait_return_only',False)):
+        raise ValueError('Raw stop observer requires full capture status observation, not return-only')
     if getattr(args,'heif_stop_wait_return_only',False) and not getattr(args,'heif_capture_status_observer',False):
         raise ValueError('Stop wait return-only observation requires capture status observer')
     if getattr(args,'heif_capture_status_observer',False) and not getattr(args,'heif_menu_at_task800',False):
@@ -584,6 +588,8 @@ class CapturePeer(Peer):
         self.trace_points = dict(POINTS)
         self.still_hevc_observer = None
         self.recovery_observer = z8_capture_recovery.Observer(guest) if getattr(guest,'_capture_recovery_observer_enabled',False) else None
+        self.stop_raw = z8_heif_stop_raw.Observer(guest,self.recovery_observer,getattr(guest,'_heif_stop_raw_observer',False))
+        if self.stop_raw.enabled:guest.data['capture_trace']['stop_wait_raw']=self.stop_raw.row
         self.menu_boundary = z8_heif_menu_boundary.MenuBoundary(guest,
             getattr(guest,'_heif_menu_at_task800',False),self.recovery_observer)
         if getattr(guest, '_still_hevc_observer_enabled', False):
@@ -733,7 +739,10 @@ class CapturePeer(Peer):
             raise
         observer=getattr(self,'still_hevc_observer',None)
         hevc_rearm=observer.transition(cpu_registers,set(self.points)) if observer is not None else []
+        raw_observer=getattr(self,'stop_raw',None)
+        raw_rearm=raw_observer.transition(cpu_registers,set(self.points),self.now()) if raw_observer is not None and raw_observer.enabled else []
         handled = super().handle()
+        for pc in raw_rearm:self.arm(pc,'capture_'+z8_heif_stop_raw.NAMES[pc])
         for pc in hevc_rearm:
             label=z8_still_hevc_observer.POINTS.get(pc,'still_hevc_rearm_'+hex(pc))
             self.arm(pc,'capture_'+label)
@@ -855,6 +864,7 @@ def run(args):
     guest._heif_menu_at_task800 = bool(getattr(args,'heif_menu_at_task800',False))
     guest._heif_capture_status_observer = bool(getattr(args,'heif_capture_status_observer',False))
     guest._heif_stop_wait_return_only = bool(getattr(args,'heif_stop_wait_return_only',False))
+    guest._heif_stop_raw_observer = bool(getattr(args,'heif_stop_raw_observer',False))
     if guest._heif_intershot_menu_cycle:
         exit_key=getattr(args,'heif_menu_exit_key','half')
         guest.data['heif_intershot_intervention']=dict(kind='one-menu-'+exit_key+'-exit-cycle',
@@ -918,6 +928,8 @@ def run(args):
     if guest._still_hevc_observer_enabled:
         source_paths.append(Path(__file__).with_name('z8_still_hevc_observer.py'))
         source_paths.append(Path(__file__).with_name('z8_heif_receipts.py'))
+    if guest._heif_stop_raw_observer:
+        source_paths.append(Path(__file__).with_name('z8_heif_stop_raw.py'))
     if guest._still_153_observer_enabled:
         source_paths.append(Path(__file__).with_name('z8_153_fault.py'))
     if guest._capture_recovery_observer_enabled:
@@ -1146,6 +1158,8 @@ def main():
                    help='Default off: bounded property2620 snapshots and first native list append after MENU; requires task800 experiment')
     p.add_argument('--heif-stop-wait-return-only',action='store_true',
                    help='Default off: observe stop wait only after return, removing pre-wait breakpoints; requires capture status observer')
+    p.add_argument('--heif-stop-raw-observer',action='store_true',
+                   help='Default off; full stop observation plus caller-bound raw OS return and global1 stop callback; requires capture status')
     p.add_argument('--still-153-observer',action='store_true',
                    help='Default off; pinned HEVC observer required; at existing153 strict fault save bounded QOM and both RAM programs')
     run(p.parse_args())

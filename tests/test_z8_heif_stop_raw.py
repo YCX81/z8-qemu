@@ -48,4 +48,37 @@ class Tests(unittest.TestCase):
      o.transition([(0,self.regs(raw.RETURN,0xa06001000))],{raw.RETURN},2)
      with self.assertRaises(ValueError):o.transition([(1,self.regs(raw.STEP,0xa06001000))],{raw.STEP},3)
     self.assertFalse((Path(d)/'stop-wait-raw.json').exists())
+ def test_option_default_dependencies_and_identical_contacts(self):
+  import z8_capture_probe as probe
+  import test_z8_capture_probe as fixtures
+  from unittest.mock import patch
+  with patch.object(sys,'argv',['probe','--firmware','m','--qemu','q','--raw','r','--output','o']),patch.object(probe,'run') as run:probe.main()
+  self.assertFalse(run.call_args.args[0].heif_stop_raw_observer)
+  a=fixtures.FirstFaultSnapshotTests().menu_cycle_args();a.heif_stop_raw_observer=True
+  with self.assertRaises(ValueError):probe.contact_sequence(a)
+  a.heif_capture_status_observer=True;a.heif_menu_at_task800=True
+  a.heif_menu_release_after_stop=True;a.heif_native_rearm_gate=True
+  baseline=probe.contact_sequence(a);a.heif_stop_wait_return_only=True
+  with self.assertRaises(ValueError):probe.contact_sequence(a)
+  a.heif_stop_wait_return_only=False;a.heif_stop_raw_observer=False
+  self.assertEqual(baseline,probe.contact_sequence(a))
+ def test_secondary_points_default_off_and_intershot_bound(self):
+  import z8_capture_recovery as recovery
+  import test_z8_capture_recovery as fixtures
+  with tempfile.TemporaryDirectory() as d:
+   g,calls,v=fixtures.RecoveryTests().flag_guest(d)
+   self.assertNotIn(0x41151ed4,recovery.Observer(g).points)
+   g._heif_capture_status_observer=True;g._heif_stop_raw_observer=True;s=recovery.Observer(g)
+   self.assertEqual(set(recovery.RAW_STOP_POINTS),{0x41151ed4,0x41151edc})
+   self.assertTrue(set(recovery.STOP_WAIT_POINTS)<=set(s.points))
+   self.assertFalse(s.can_arm(0x41151ed4));s.active=True;s.intershot_started=True
+   self.assertTrue(s.can_arm(0x41151ed4));s.rearm_seen.add(0x41151ed4)
+   self.assertFalse(s.can_arm(0x41151ed4));self.assertEqual(calls,[])
+ def test_shared_ram_budget_rejection(self):
+  with tempfile.TemporaryDirectory() as d:
+   o=self.setup_observer(d);o.transition([(0,self.regs(raw.ENTRY))],{raw.ENTRY},1)
+   def exhausted(pa,n):raise ValueError('Recovery 64 KiB RAM budget exhausted')
+   o.recovery.read=exhausted
+   with self.assertRaises(ValueError):o.transition([(0,self.regs(raw.RETURN,0xa06000000))],{raw.RETURN},2)
+   self.assertFalse(o.row['matched']);self.assertFalse((Path(d)/'stop-wait-raw.json').exists())
 if __name__=='__main__':unittest.main()

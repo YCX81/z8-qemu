@@ -62,7 +62,8 @@ STATUS_POINTS={0x40ecea00:'recovery_capture_status_append'}
 STOP_WAIT_POINTS={0x4115fb48:'stop40_before_clear',0x4115fb4c:'stop40_after_clear',
     0x4115fbbc:'stop40_before_wait',0x4115fbc0:'stop40_after_wait',
     0x41151a58:'stop40_before_set',0x41151a60:'stop40_after_set'}
-INTERSHOT_POINTS=set(REARM_POINTS)|set(STOP_POINTS)|set(HALF_POINTS)|set(STATUS_POINTS)|set(STOP_WAIT_POINTS)
+RAW_STOP_POINTS={0x41151ed4:'stop40000_before_set',0x41151edc:'stop40000_after_set'}
+INTERSHOT_POINTS=set(RAW_STOP_POINTS)|set(REARM_POINTS)|set(STOP_POINTS)|set(HALF_POINTS)|set(STATUS_POINTS)|set(STOP_WAIT_POINTS)
 FLAG_REGIONS={'cseq_context':(0xa03bba948,0x38),
               'capture_flags':(0xa03bbac60,0x70),
               'native_states':(0xa03bbb430,0x10)}
@@ -94,6 +95,9 @@ class Observer:
         if getattr(guest,'_heif_capture_status_observer',False):
             waits=({0x4115fbc0:STOP_WAIT_POINTS[0x4115fbc0]} if getattr(guest,'_heif_stop_wait_return_only',False) else STOP_WAIT_POINTS)
             self.points={**self.points,**STATUS_POINTS,**waits}
+        if getattr(guest,'_heif_stop_raw_observer',False):
+            need(getattr(guest,'_heif_capture_status_observer',False),'Raw stop observer requires capture status')
+            self.points={**self.points,**STOP_WAIT_POINTS,**RAW_STOP_POINTS}
         self.early_points={pc:name for pc,name in EARLY_POINTS.items() if pc in self.points}
     def enable_early(self):
         self.early_enabled=True
@@ -213,7 +217,7 @@ class Observer:
                     row['capture_status_append']['producer_lr']=hex(producer)
                     row['capture_status_append']['producer']=self.status_producer(sp,producer)
             if compact:row['event_flag']=self.event_flag()
-            if pc in STOP_WAIT_POINTS:
+            if pc in STOP_WAIT_POINTS or pc in RAW_STOP_POINTS:
                 row['stop_event_flag']=self.event_flag(0xa0496efe0)
                 row['stop_dual_source']=self.read(0xa0496f4e8,1)[0]
                 row['stop_device_states']={}
