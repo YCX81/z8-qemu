@@ -1,0 +1,1091 @@
+{
+  "schema": 1,
+  "status": "PASS",
+  "scope": "Bounded ARM64 hook execution with authored synthetic Exif/MPF, opaque invalid HE bytes and modeled services",
+  "provenance": {
+    "upstream_commit": "85c7538724e8b9972918aeb3726c033bd54af90c",
+    "source_hashes_verified": true,
+    "compiler": "Ubuntu clang version 18.1.3 (1ubuntu1)",
+    "compiler_flags": [
+      "--target=aarch64-none-elf",
+      "-O2",
+      "-ffreestanding",
+      "-fno-builtin",
+      "-fno-stack-protector",
+      "-fno-unwind-tables",
+      "-fno-asynchronous-unwind-tables",
+      "-mgeneral-regs-only",
+      "-mstrict-align",
+      "-Wall",
+      "-Wextra",
+      "-Werror"
+    ],
+    "defines": [],
+    "object_sha256": "751b35437638511f005a37efaed70385dac40449e608410e0f41836997482518",
+    "linked_sha256": "245d08e7d96bd843772f4f998685c3c1242865459f16b7e8226d6a1ecd9f0f8e",
+    "linked_bytes": 21597,
+    "reviewed_machine_code_match": false,
+    "reviewed_code_sha256": "0cc0416840a179a5c36fbcfdbfb451e6d8723467658d50dcbcd1645393168903",
+    "sections": [
+      {
+        "index": 4,
+        "name": ".text.entry",
+        "va": "0x40960000",
+        "bytes": 52,
+        "executable": true
+      },
+      {
+        "index": 2,
+        "name": ".text",
+        "va": "0x40960040",
+        "bytes": 20228,
+        "executable": true
+      },
+      {
+        "index": 6,
+        "name": ".rodata",
+        "va": "0x40964f50",
+        "bytes": 1239,
+        "executable": false
+      },
+      {
+        "index": 7,
+        "name": ".rodata.cst16",
+        "va": "0x40965430",
+        "bytes": 16,
+        "executable": false
+      },
+      {
+        "index": 8,
+        "name": ".rodata.str1.1",
+        "va": "0x40965440",
+        "bytes": 29,
+        "executable": false
+      }
+    ],
+    "harness_sha256": "0ff708450f24a01964e07ddb8a9f7a4d692e427795ace1d1fe524bb4c08e1699",
+    "profile_sha256": "81cd1c6803233d3288a19d9592c88b746a718eea8a28b16c2f98220a00283149",
+    "unicorn_version": "2.1.4"
+  },
+  "cases": [
+    {
+      "case": "normal_write_then_different_file_header",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 2,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": true
+        }
+      }
+    },
+    {
+      "case": "missing_config",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 0,
+      "files": {}
+    },
+    {
+      "case": "both_cards_configured",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 0,
+      "files": {}
+    },
+    {
+      "case": "bad_config_crc",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 0,
+      "files": {}
+    },
+    {
+      "case": "config_disabled",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 0,
+      "files": {}
+    },
+    {
+      "case": "C30_disabled",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 0,
+      "files": {}
+    },
+    {
+      "case": "stale_record",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 0,
+      "files": {}
+    },
+    {
+      "case": "record_crc_corrupt",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 0,
+      "files": {}
+    },
+    {
+      "case": "resource_identity_changed",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 0,
+      "files": {}
+    },
+    {
+      "case": "post_FULL_frame",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 0,
+      "files": {}
+    },
+    {
+      "case": "unsupported_C120",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 0,
+      "files": {}
+    },
+    {
+      "case": "history_above_30",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 0,
+      "files": {}
+    },
+    {
+      "case": "old_allocation_no_tail",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 0,
+      "files": {}
+    },
+    {
+      "case": "C15_history_5_reverse_completion",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 5,
+      "header_frees": 5,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0005.NEF": {
+          "bytes": 17143296,
+          "sha256": "02a89611fff808fe667e64c815efc53693aefd1be81121abe5908649909d7a05",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0004.NEF": {
+          "bytes": 17143296,
+          "sha256": "0bd10b43c1a48673c40566d9ead1dbf739323705c89329c3cc93f6edd6a06772",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0003.NEF": {
+          "bytes": 17143296,
+          "sha256": "aa362fda6e22bc2e70ef934246b8252ae44099aeb0f1c61ca20b82e55f9d05ca",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0002.NEF": {
+          "bytes": 17143296,
+          "sha256": "7e5a0808c9c25e1bcd7011f7128e1f70ef398bcb7662c9a4321ba82383902948",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": true
+        }
+      }
+    },
+    {
+      "case": "C15_history_15_reverse_completion",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 15,
+      "header_frees": 15,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0015.NEF": {
+          "bytes": 17143296,
+          "sha256": "6f18bedb26a1179a8c68ecbd8982f5df1878c1ce03a5756e3311ceee38dc7bbb",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0014.NEF": {
+          "bytes": 17143296,
+          "sha256": "7675b3900ba5297adc55b45efcc6b3c2815eb9a8de63165b51988c3bcab241eb",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0013.NEF": {
+          "bytes": 17143296,
+          "sha256": "d19769e1eaf16e9db8cb07f203e0d79b34fcaba33737b8a8134622f5b4ab3472",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0012.NEF": {
+          "bytes": 17143296,
+          "sha256": "edf868606f89c0542261895ac008ad70190557290a6b5e5aab492315ca2ece44",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0011.NEF": {
+          "bytes": 17143296,
+          "sha256": "e1af92780a4f9fa1dc6885639f622716d278b3cedc874edaff0d27bb72f0e59e",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0010.NEF": {
+          "bytes": 17143296,
+          "sha256": "019483da91daa547b25b682380042b2b846939e2fe0b39e64a97379bf4c5edb6",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0009.NEF": {
+          "bytes": 17143296,
+          "sha256": "0426e2d8f0422bf1d5f09883832d7beb826d024eb23aa1d1e231462bc0dd06eb",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0008.NEF": {
+          "bytes": 17143296,
+          "sha256": "3ca3004c41119abc0e663fc7d2d2583f31d2dcc6ef6d6d5581cf77e5cd7acb32",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0007.NEF": {
+          "bytes": 17143296,
+          "sha256": "23842bfcfced2ce8ad41d96aeefe766f6b985c1281d4b03ee1c43ec7564e0db9",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0006.NEF": {
+          "bytes": 17143296,
+          "sha256": "acef546c62fde17e1ee355e9e0f6996101edf0dcb16fc019033e67637a0ff727",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0005.NEF": {
+          "bytes": 17143296,
+          "sha256": "02a89611fff808fe667e64c815efc53693aefd1be81121abe5908649909d7a05",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0004.NEF": {
+          "bytes": 17143296,
+          "sha256": "0bd10b43c1a48673c40566d9ead1dbf739323705c89329c3cc93f6edd6a06772",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0003.NEF": {
+          "bytes": 17143296,
+          "sha256": "aa362fda6e22bc2e70ef934246b8252ae44099aeb0f1c61ca20b82e55f9d05ca",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0002.NEF": {
+          "bytes": 17143296,
+          "sha256": "7e5a0808c9c25e1bcd7011f7128e1f70ef398bcb7662c9a4321ba82383902948",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": true
+        }
+      }
+    },
+    {
+      "case": "C30_history_9_reverse_completion",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 9,
+      "header_frees": 9,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0009.NEF": {
+          "bytes": 17143296,
+          "sha256": "0426e2d8f0422bf1d5f09883832d7beb826d024eb23aa1d1e231462bc0dd06eb",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0008.NEF": {
+          "bytes": 17143296,
+          "sha256": "3ca3004c41119abc0e663fc7d2d2583f31d2dcc6ef6d6d5581cf77e5cd7acb32",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0007.NEF": {
+          "bytes": 17143296,
+          "sha256": "23842bfcfced2ce8ad41d96aeefe766f6b985c1281d4b03ee1c43ec7564e0db9",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0006.NEF": {
+          "bytes": 17143296,
+          "sha256": "acef546c62fde17e1ee355e9e0f6996101edf0dcb16fc019033e67637a0ff727",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0005.NEF": {
+          "bytes": 17143296,
+          "sha256": "02a89611fff808fe667e64c815efc53693aefd1be81121abe5908649909d7a05",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0004.NEF": {
+          "bytes": 17143296,
+          "sha256": "0bd10b43c1a48673c40566d9ead1dbf739323705c89329c3cc93f6edd6a06772",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0003.NEF": {
+          "bytes": 17143296,
+          "sha256": "aa362fda6e22bc2e70ef934246b8252ae44099aeb0f1c61ca20b82e55f9d05ca",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0002.NEF": {
+          "bytes": 17143296,
+          "sha256": "7e5a0808c9c25e1bcd7011f7128e1f70ef398bcb7662c9a4321ba82383902948",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": true
+        }
+      }
+    },
+    {
+      "case": "C30_history_30_reverse_completion",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 30,
+      "header_frees": 30,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0030.NEF": {
+          "bytes": 17143296,
+          "sha256": "237295ebc1365df9136f381f1b0149a15719a9d3530e4a743ce3fbeadd4bbd52",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0029.NEF": {
+          "bytes": 17143296,
+          "sha256": "e507be1c1818a6ddd5df6010da36f88e097fb95ca04950511cae44f2196b4aa1",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0028.NEF": {
+          "bytes": 17143296,
+          "sha256": "89f2accc3e6db6361d3f3d77c3123674e1a3a2bf6ae8f36516c5605bc4949b3c",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0027.NEF": {
+          "bytes": 17143296,
+          "sha256": "6ead419fc8c44cc06cf900b89ee4bda7e0f88a519b71c9e5930d03440be7dbfc",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0026.NEF": {
+          "bytes": 17143296,
+          "sha256": "8ee17cf58df34924cb3a9280c327dbb3562a1f595972473f9e9a1a3e42af72db",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0025.NEF": {
+          "bytes": 17143296,
+          "sha256": "f2911b5ea3db212ecbad8e1ccfdfbcf14ce37933fb88495471791e56214756d5",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0024.NEF": {
+          "bytes": 17143296,
+          "sha256": "ea33aa0c7fc2111231fc8dd3bbdd202f3956245773d0d2b81c014dc9cfd99b29",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0023.NEF": {
+          "bytes": 17143296,
+          "sha256": "aa957523e2ae92c67226e4b2275e02db65c06c3ac53809df90b01e52a21ea961",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0022.NEF": {
+          "bytes": 17143296,
+          "sha256": "f408a0b0fb096f5b56372b0117492d90a0444ea6d4bb27097a5e6768a9c8163d",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0021.NEF": {
+          "bytes": 17143296,
+          "sha256": "088630912a4a477295e61a0ed7a051a23aa0180527283fe28b7dbf813e194b63",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0020.NEF": {
+          "bytes": 17143296,
+          "sha256": "81d18e00284e0c5f588bcdc8b6e83d70f5684e54281af523d49670582ec1535c",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0019.NEF": {
+          "bytes": 17143296,
+          "sha256": "7874ab24ee93dbe6da4acbf7176dbab6bc6ad63d4915af08c88d199d13ad766b",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0018.NEF": {
+          "bytes": 17143296,
+          "sha256": "5877cc6be04ab9166a06e745ece3a37170fcded3bdb590eed17e62626bbaf480",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0017.NEF": {
+          "bytes": 17143296,
+          "sha256": "978dbd1294824da841c2070cb53ee45c094d8beb7439d8da41ca6118cdc72923",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0016.NEF": {
+          "bytes": 17143296,
+          "sha256": "47bccb19b01140b290b6ada5a9a225f8b3dce13b800e6fe3858298ceaa21f1f7",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0015.NEF": {
+          "bytes": 17143296,
+          "sha256": "6f18bedb26a1179a8c68ecbd8982f5df1878c1ce03a5756e3311ceee38dc7bbb",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0014.NEF": {
+          "bytes": 17143296,
+          "sha256": "7675b3900ba5297adc55b45efcc6b3c2815eb9a8de63165b51988c3bcab241eb",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0013.NEF": {
+          "bytes": 17143296,
+          "sha256": "d19769e1eaf16e9db8cb07f203e0d79b34fcaba33737b8a8134622f5b4ab3472",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0012.NEF": {
+          "bytes": 17143296,
+          "sha256": "edf868606f89c0542261895ac008ad70190557290a6b5e5aab492315ca2ece44",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0011.NEF": {
+          "bytes": 17143296,
+          "sha256": "e1af92780a4f9fa1dc6885639f622716d278b3cedc874edaff0d27bb72f0e59e",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0010.NEF": {
+          "bytes": 17143296,
+          "sha256": "019483da91daa547b25b682380042b2b846939e2fe0b39e64a97379bf4c5edb6",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0009.NEF": {
+          "bytes": 17143296,
+          "sha256": "0426e2d8f0422bf1d5f09883832d7beb826d024eb23aa1d1e231462bc0dd06eb",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0008.NEF": {
+          "bytes": 17143296,
+          "sha256": "3ca3004c41119abc0e663fc7d2d2583f31d2dcc6ef6d6d5581cf77e5cd7acb32",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0007.NEF": {
+          "bytes": 17143296,
+          "sha256": "23842bfcfced2ce8ad41d96aeefe766f6b985c1281d4b03ee1c43ec7564e0db9",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0006.NEF": {
+          "bytes": 17143296,
+          "sha256": "acef546c62fde17e1ee355e9e0f6996101edf0dcb16fc019033e67637a0ff727",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0005.NEF": {
+          "bytes": 17143296,
+          "sha256": "02a89611fff808fe667e64c815efc53693aefd1be81121abe5908649909d7a05",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0004.NEF": {
+          "bytes": 17143296,
+          "sha256": "0bd10b43c1a48673c40566d9ead1dbf739323705c89329c3cc93f6edd6a06772",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0003.NEF": {
+          "bytes": 17143296,
+          "sha256": "aa362fda6e22bc2e70ef934246b8252ae44099aeb0f1c61ca20b82e55f9d05ca",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0002.NEF": {
+          "bytes": 17143296,
+          "sha256": "7e5a0808c9c25e1bcd7011f7128e1f70ef398bcb7662c9a4321ba82383902948",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": true
+        }
+      }
+    },
+    {
+      "case": "mode3_recent_two_ceiling",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 5,
+      "header_frees": 2,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0004.NEF": {
+          "bytes": 17143296,
+          "sha256": "0bd10b43c1a48673c40566d9ead1dbf739323705c89329c3cc93f6edd6a06772",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0005.NEF": {
+          "bytes": 17143296,
+          "sha256": "02a89611fff808fe667e64c815efc53693aefd1be81121abe5908649909d7a05",
+          "raw_binding_verified": false
+        }
+      }
+    },
+    {
+      "case": "mode6_recent_two_ceiling",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 5,
+      "header_frees": 2,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0004.NEF": {
+          "bytes": 17143296,
+          "sha256": "0bd10b43c1a48673c40566d9ead1dbf739323705c89329c3cc93f6edd6a06772",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0005.NEF": {
+          "bytes": 17143296,
+          "sha256": "02a89611fff808fe667e64c815efc53693aefd1be81121abe5908649909d7a05",
+          "raw_binding_verified": false
+        }
+      }
+    },
+    {
+      "case": "JPEG_never_arrives_original_R_cleanup",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 0,
+      "files": {}
+    },
+    {
+      "case": "wrong_JPEG_identity_then_original_cleanup",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {}
+    },
+    {
+      "case": "alloc_failure",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {}
+    },
+    {
+      "case": "create_failure",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "b27cb45fd54e9bc8828d0ca898d7bedfe1c387473498a44905baddbb4f901f34",
+          "raw_binding_verified": false
+        }
+      }
+    },
+    {
+      "case": "close_failure",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NE_": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": false
+        },
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "d1dc62d34bf295b0ff918ba1e7d960bdcb4760326b7b82500f121202e5e8f7ff",
+          "raw_binding_verified": false
+        }
+      }
+    },
+    {
+      "case": "rename_failure",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NE_": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": false
+        },
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "c833e71409cdd5cb1bf2ac6dee60973ca246487143e19d8258f7249826d1465b",
+          "raw_binding_verified": false
+        }
+      }
+    },
+    {
+      "case": "partial_write_1",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NE_": {
+          "bytes": 1099,
+          "sha256": "345aa3a795bab54c7e8ac42f3b4d35718a399ee7dc00ee99418566898e83991c",
+          "raw_binding_verified": false
+        },
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "98be1054ccb828962e2dfd168d5b9944fb6ed2c73d257ceefb987b08748c6dea",
+          "raw_binding_verified": false
+        }
+      }
+    },
+    {
+      "case": "partial_write_2",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NE_": {
+          "bytes": 1103,
+          "sha256": "c3003d0428574eac48bb562b90b82ebcf360a8a16e984995b232286c567d8201",
+          "raw_binding_verified": false
+        },
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "98be1054ccb828962e2dfd168d5b9944fb6ed2c73d257ceefb987b08748c6dea",
+          "raw_binding_verified": false
+        }
+      }
+    },
+    {
+      "case": "partial_write_5",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NE_": {
+          "bytes": 1052671,
+          "sha256": "06f7a56b59a5e3f2022c84c783df44c3cce5bdf3130e3d6cc04d4817502be99e",
+          "raw_binding_verified": false
+        },
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "8ecdd08c23138e8ab1d4c256b0279dbe705cde33b33f7ad5ed8758d782afa3e0",
+          "raw_binding_verified": false
+        }
+      }
+    },
+    {
+      "case": "partial_write_10",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NE_": {
+          "bytes": 6295551,
+          "sha256": "d1d2a269cf8b7453553e5622d0351434bbaa14d111d61a8b0ca38b488da74dfa",
+          "raw_binding_verified": false
+        },
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "13dc97a232edf69e5e8b6d4e87b7973f4e4be57031de6cdbe635fbbc17775ee4",
+          "raw_binding_verified": false
+        }
+      }
+    },
+    {
+      "case": "partial_write_20",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NE_": {
+          "bytes": 16781311,
+          "sha256": "a04e4cb9dd38c26f5c2ffd809313bb7bc6fe2dd301b1c5b98d022a3a909f555a",
+          "raw_binding_verified": false
+        },
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "8508ad011c2cd3ade08a313afb02fed23372b686d78d47f7a7678ad41f54e397",
+          "raw_binding_verified": false
+        }
+      }
+    },
+    {
+      "case": "cooperative_budget_overrun",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NE_": {
+          "bytes": 1052672,
+          "sha256": "cc298b3d20b081f7dc1d43d565e328754be834230b4dba34f9727e1b80e037b7",
+          "raw_binding_verified": false
+        },
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "2a0b51dfb9b6a25d5407bd0ada5d246b866b31cc4822976e447b291d6899a505",
+          "raw_binding_verified": false
+        }
+      }
+    },
+    {
+      "case": "blocked_IO_does_not_unwind",
+      "result": "known_limitation_reproduced",
+      "live_e": 1,
+      "live_scratch": 1,
+      "open_files": 1,
+      "live_headers": 1,
+      "e_frees": 0,
+      "header_frees": 0,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NE_": {
+          "bytes": 4096,
+          "sha256": "d20ccc00fd82bfaccdef1ea2c39a15b904e8934143843f01ad9851cc82051ea3",
+          "raw_binding_verified": false
+        }
+      }
+    },
+    {
+      "case": "replayed_P2_frees_retained_E",
+      "result": "call_once_precondition_reproduced",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 0,
+      "files": {}
+    },
+    {
+      "case": "replayed_P3_double_header_free",
+      "result": "call_once_precondition_reproduced",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": false
+        }
+      }
+    },
+    {
+      "case": "replayed_P1_erases_retained_state",
+      "result": "call_once_precondition_reproduced",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {}
+    },
+    {
+      "case": "six_completed_bursts_same_boot",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 6,
+      "header_frees": 6,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0002.NEF": {
+          "bytes": 17143296,
+          "sha256": "7e5a0808c9c25e1bcd7011f7128e1f70ef398bcb7662c9a4321ba82383902948",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0003.NEF": {
+          "bytes": 17143296,
+          "sha256": "aa362fda6e22bc2e70ef934246b8252ae44099aeb0f1c61ca20b82e55f9d05ca",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0004.NEF": {
+          "bytes": 17143296,
+          "sha256": "0bd10b43c1a48673c40566d9ead1dbf739323705c89329c3cc93f6edd6a06772",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0005.NEF": {
+          "bytes": 17143296,
+          "sha256": "02a89611fff808fe667e64c815efc53693aefd1be81121abe5908649909d7a05",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0006.NEF": {
+          "bytes": 17143296,
+          "sha256": "acef546c62fde17e1ee355e9e0f6996101edf0dcb16fc019033e67637a0ff727",
+          "raw_binding_verified": true
+        }
+      }
+    },
+    {
+      "case": "same_R_E_reused_after_completion_and_cancellation",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 3,
+      "header_frees": 2,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0003.NEF": {
+          "bytes": 17143296,
+          "sha256": "aa362fda6e22bc2e70ef934246b8252ae44099aeb0f1c61ca20b82e55f9d05ca",
+          "raw_binding_verified": true
+        }
+      }
+    },
+    {
+      "case": "second_trigger_before_first_writer",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 2,
+      "header_frees": 2,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": true
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0002.NEF": {
+          "bytes": 17143296,
+          "sha256": "7e5a0808c9c25e1bcd7011f7128e1f70ef398bcb7662c9a4321ba82383902948",
+          "raw_binding_verified": true
+        }
+      }
+    },
+    {
+      "case": "failure_blocks_next_burst",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 2,
+      "header_frees": 2,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NE_": {
+          "bytes": 1099,
+          "sha256": "345aa3a795bab54c7e8ac42f3b4d35718a399ee7dc00ee99418566898e83991c",
+          "raw_binding_verified": false
+        },
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "98be1054ccb828962e2dfd168d5b9944fb6ed2c73d257ceefb987b08748c6dea",
+          "raw_binding_verified": false
+        }
+      }
+    },
+    {
+      "case": "stop_marker_create_failure_allows_retry",
+      "result": "known_limitation_reproduced",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 2,
+      "header_frees": 2,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NE_": {
+          "bytes": 1099,
+          "sha256": "345aa3a795bab54c7e8ac42f3b4d35718a399ee7dc00ee99418566898e83991c",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0002.NEF": {
+          "bytes": 17143296,
+          "sha256": "7e5a0808c9c25e1bcd7011f7128e1f70ef398bcb7662c9a4321ba82383902948",
+          "raw_binding_verified": true
+        }
+      }
+    },
+    {
+      "case": "optional_flags_7",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 2,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": true
+        }
+      }
+    },
+    {
+      "case": "optional_flags_11",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 2,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143808,
+          "sha256": "a403ef63b12c37d31395ddac8ed76480fb8f72f6d08944503c2165fb168f62bc",
+          "raw_binding_verified": true
+        }
+      }
+    },
+    {
+      "case": "optional_flags_15",
+      "result": "pass",
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 2,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143808,
+          "sha256": "7bcb064c44767fb50b2ecaeb2d804ff9f2abb8254177ae1a02afb0695e7fdcaf",
+          "raw_binding_verified": true
+        }
+      }
+    }
+  ],
+  "negative_controls": [
+    {
+      "define": "NEG_READ_PAYLOAD",
+      "rejected": true,
+      "reason": "CPU read opaque HE payload"
+    },
+    {
+      "define": "NEG_NO_CLEAN",
+      "rejected": true,
+      "reason": "DMA consumed unclean CPU output"
+    }
+  ],
+  "original_firmware_cleanup_executed": true,
+  "stock_QEMU_boot_verified": false,
+  "original_cleanup_scope": "R+0x748 with other resource pointers zero; allocator release is modeled",
+  "valid_HE_decode_verified": false,
+  "hardware_verified": false,
+  "camera_update_generated": false,
+  "real_filesystem_or_power_loss_verified": false,
+  "physical_timing_verified": false
+}

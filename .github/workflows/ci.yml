@@ -69,3 +69,27 @@ jobs:
         with:
           path: .build/ccache
           key: ccache-v1-${{ runner.os }}-${{ runner.arch }}-qemu10.2.4-${{ hashFiles('tools/build.py', '.github/workflows/ci.yml') }}-${{ github.sha }}
+  he-history-hooks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Bounded execution dependencies
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get install -y clang-18
+          python -m pip install -r requirements-he-history.txt
+      - uses: actions/checkout@v4
+        with:
+          repository: XinmiaoZhao/NikonFirmwarePatch
+          ref: 85c7538724e8b9972918aeb3726c033bd54af90c
+          path: .local/he-source
+          persist-credentials: false
+      - name: Synthetic fixtures
+        run: python -B -m unittest discover -s tests -p test_z8_he_history_audit.py -v
+      - name: Execute pinned HE hooks without Nikon firmware
+        run: |
+          python -B tools/z8_he_history_audit.py --source .local/he-source --compiler clang-18 --report .local/he-history-ci.json

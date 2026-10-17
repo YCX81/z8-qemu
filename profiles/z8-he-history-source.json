@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "repository": "https://github.com/XinmiaoZhao/NikonFirmwarePatch",
+  "commit": "85c7538724e8b9972918aeb3726c033bd54af90c",
+  "upstream_license": "GPL-3.0-only; external source is not vendored",
+  "source_sha256": {
+    "z8precapture/firmware.c": "71bc565f8c62b46d6698f1bdb664d16778cf4b91dc280b1dc1c301b4cb491492",
+    "z8precapture/crc32_table.inc": "fe021e684d78717732adddb6c9dde91f6fc6918f18cb0aeccfb349db5511a515",
+    "z8precapture/linker.py": "a65a9ec04410fbc39c3c81b0b2ae7e6199901af387a74e8eefce0d15d4a1fa2b",
+    "z8prores/package.py": "e908e18a00c9dde9892fcce5b5aa0ab7f61d21228ab7744ebfb48355df649ecb",
+    "resources/precapture.json": "d62d24da524e5080e7b05de3ed5e52bc63e9d3c424fbc52614097726fe48af9b"
+  },
+  "stock_main_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+  "hooks": {
+    "P1": "0x40f6fe90",
+    "P2": "0x40ea915c",
+    "P3": "0x40ea367c"
+  }
+}

@@ -30,3 +30,8 @@ mistaken for recovered factory data or a hardware specification.
 The overlay/tools use GPL-2.0-or-later. QEMU retains its upstream licensing;
 see COPYING and LICENSES/QEMU-LICENSE.txt. No proprietary firmware is relicensed
 under the source license.
+
+The optional HE-history validation harness references XinmiaoZhao/NikonFirmwarePatch
+at commit 85c7538724e8b9972918aeb3726c033bd54af90c (GPL-3.0-only). Its source is
+supplied separately by the caller and is not vendored, linked into this project's
+QEMU overlay, or relicensed here. See docs/z8-he-history.md for execution scope.

@@ -10,6 +10,10 @@ The status below was reconciled against source snapshot `a97f5df` and the record
 
 ## Current results and limits
 
+Separate experiment (2026-10-17): [historical HE retention lifecycle checks](docs/z8-he-history.md)
+execute pinned external hooks with modeled services. This is not camera acceptance
+or a replacement for the independent lossless research.
+
 | Area | Recorded evidence | Remaining boundary |
 |---|---|---|
 | Menus and synthetic live view | Three MENU → half-press return cycles; five scanout checks with an independent decoder. Historical run: 1,743 RAW frames, 2,547 LCD frames, 731 containing live view; zero unknown MMIO accesses. | External MCU peer and explicit virtual resources required. Menu hashes are regression baselines, without real-camera image comparison. Bare-model full boot is unverified. |

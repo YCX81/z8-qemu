@@ -1,0 +1,2 @@
+# Optional bounded ARM64 execution; no firmware or QEMU build required.
+unicorn==2.1.4
