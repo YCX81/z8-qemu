@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "repository": "https://github.com/XinmiaoZhao/NikonFirmwarePatch",
+  "commit": "39665d1347aba2d6181c6b60b630a2156f4407cd",
+  "profile_sha256": "be5aaa1c6bac8a4cc4f5c2ae6b1d9d3e9c401fe03382ba6549cc8bdfc6312fa2",
+  "code_sha256": "479f4e37db3968a9e796fc97d865246793ebbac83b28f10a95711535c45cb715",
+  "code_bytes": 30301,
+  "entries": {
+    "precapture_history_entry": "0x40960000",
+    "precapture_tdec_release": "0x40960484",
+    "precapture_write_file": "0x40961ea4",
+    "precapture_main_rc": "0x40961d64",
+    "precapture_current_entry": "0x4096044c",
+    "precapture_y_size_entry": "0x40967140",
+    "precapture_y_alloc_entry": "0x40967148",
+    "precapture_main_step": "0x409616c4"
+  },
+  "stock_main_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+  "archive_sha256": "4f2dde963e888987c1ad6f03f151de6b335780d378206f4320d9ecc864cf4a53"
+}

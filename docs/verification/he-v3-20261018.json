@@ -1,0 +1,3742 @@
+{
+  "schema": 1,
+  "status": "EXPECTED_BEHAVIORS_VERIFIED",
+  "upstream_commit": "39665d1347aba2d6181c6b60b630a2156f4407cd",
+  "exact_prebuilt_code": true,
+  "code_sha256": "479f4e37db3968a9e796fc97d865246793ebbac83b28f10a95711535c45cb715",
+  "code_bytes": 30301,
+  "harness_sha256": "fd88a0d5362ad9f3e3bd8ed3f93c7c19db0e9f8ac89504cccab9b0c391614d70",
+  "helper_sha256": "0ff708450f24a01964e07ddb8a9f7a4d692e427795ace1d1fe524bb4c08e1699",
+  "profile_sha256": "8ad761426a876b9c28c24d80f9611fcd96e9ca46ca3311638ecf00a839f812d4",
+  "cases": [
+    {
+      "case": "mode3_history_type1_grade0_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_history_type0_grade0_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode3_history_type0_grade0_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode3_history_type0_grade1_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode3_history_type0_grade1_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode3_history_type0_grade2_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_history_type0_grade2_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode3_history_type3_grade0_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_history_type3_grade0_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_history_type3_grade1_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_history_type3_grade1_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_history_type3_grade2_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_history_type3_grade2_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_current_type1_grade0_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_current_type0_grade0_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode3_current_type0_grade0_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode3_current_type0_grade1_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode3_current_type0_grade1_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode3_current_type0_grade2_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_current_type0_grade2_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode3_current_type3_grade0_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_current_type3_grade0_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_current_type3_grade1_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_current_type3_grade1_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_current_type3_grade2_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode3_current_type3_grade2_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_history_type1_grade0_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_history_type0_grade0_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode6_history_type0_grade0_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode6_history_type0_grade1_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode6_history_type0_grade1_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode6_history_type0_grade2_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_history_type0_grade2_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode6_history_type3_grade0_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_history_type3_grade0_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_history_type3_grade1_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_history_type3_grade1_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_history_type3_grade2_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_history_type3_grade2_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_current_type1_grade0_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_current_type0_grade0_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode6_current_type0_grade0_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode6_current_type0_grade1_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode6_current_type0_grade1_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode6_current_type0_grade2_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_current_type0_grade2_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "mode6_current_type3_grade0_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_current_type3_grade0_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_current_type3_grade1_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_current_type3_grade1_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_current_type3_grade2_star0",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "mode6_current_type3_grade2_star1",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type0_db_add",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type0_lock",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type0_no_db",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type0_nef_write",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "517ba749d87d8ab9c84eb7c2b1ab0583346698826124b20d9f715ca7c7297ff1",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type0_cancel_jpeg",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type0_alloc",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type0_slow_stock",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        },
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "e1eb2aefb4dbc72920ae53385cca08d857b850c9cde6c2114f017df7fe2295a3",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type0_missing_nef",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "fed0b1d8e883fcc4eaff429fcc9cd20d79135470da71b630dd1b10b94fcd88d3",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type1_db_add",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type1_lock",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type1_no_db",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type1_nef_write",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "09d17d21a2a3adbae5997b857d676156586c7b3d898104202c90a4751fe22bff",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 3,
+          "jid": 18
+        },
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type1_cancel_jpeg",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 3,
+          "jid": 18
+        },
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type1_alloc",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type1_slow_stock",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        },
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "1a899aa348a464ca20b4a1c3c5b8d23c4ecbcdc77f0e266a77d24b08f36ae026",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "type1_missing_nef",
+      "outcome": "known_limitation_false_success_cancels_JPEG",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "6e8b837f4a2e29442fe8244c39c87b83f12d805fd04ff11b1bdd9610dd8a16bb",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "preview_preview_zero_cleanup",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 2,
+          "full_preview_selected": false,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "case": "preview_preview_oversize_cleanup",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 2,
+          "full_preview_selected": false,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 65537
+        }
+      ]
+    },
+    {
+      "case": "preview_capacity_cleanup",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 2,
+          "full_preview_selected": false,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "preview_overlap_cleanup",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 2,
+          "full_preview_selected": false,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "preview_desc_init_cleanup",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 2,
+          "full_preview_selected": false,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "3775644872f3f2ef06bee8f644b071c3be6e4668cc85ee4b4c4087950a43e1e8",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "cancel_pending_frame_with_extra_preview",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {},
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "preview_allocation_failure_then_cancel",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {},
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [],
+      "preview_jobs": []
+    },
+    {
+      "case": "repeat_original_cleanup_after_completed_preview",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "pending_frame_keeps_submit_time_menu",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 3,
+          "jid": 18
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "invalid_header_prepare_falls_back_and_releases",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 1,
+      "header_frees": 1,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "busy_second_trigger_and_out_of_order_writer",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0004.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0005.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0002.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0006.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0003.NEF": {
+          "raw_dimensions": [
+            8280,
+            5520
+          ],
+          "bits": 14,
+          "subifds": 3,
+          "full_preview_selected": true,
+          "payload_bytes": 17139200,
+          "source_binding_verified": true,
+          "valid_HE_decoded": false
+        }
+      },
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 6,
+      "header_frees": 6,
+      "files": {
+        "A:\\DCIM\\100NCZ_8\\DSC_0004.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0004.NEF": {
+          "bytes": 17143296,
+          "sha256": "ec1af8da61d1e92f336dd121f196e8f0f3e32f9410aef66d29bbe23b5915478e",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.NEF": {
+          "bytes": 17143296,
+          "sha256": "106c8f3558f3f12200ffbcff4d7786e8ad69b574b28f77dcb1a1c7c5bb7dc928",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0005.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0005.NEF": {
+          "bytes": 17143296,
+          "sha256": "51adcdf3c617a53446797088b39fa1e7849c7894f72e0fa62fb3014d42757a8b",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0002.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0002.NEF": {
+          "bytes": 17143296,
+          "sha256": "32e3597e0b9e8833d00c0ed625f3d8c431d3afd968bb096bb369c9c4fcf46389",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0006.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0006.NEF": {
+          "bytes": 17143296,
+          "sha256": "cc41bfb1e848ad3b0d04f8092a9813aba4392372b5a5c053a92e3387a4534503",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0003.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0003.NEF": {
+          "bytes": 17143296,
+          "sha256": "8b199f1f723ad30b5520799866384f74970ba211376687a803cab2ab012a1cb9",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 64
+        },
+        {
+          "mode": 3,
+          "jid": 66
+        },
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 3,
+          "jid": 18
+        },
+        {
+          "mode": 0,
+          "jid": 80
+        },
+        {
+          "mode": 3,
+          "jid": 82
+        },
+        {
+          "mode": 0,
+          "jid": 32
+        },
+        {
+          "mode": 3,
+          "jid": 34
+        },
+        {
+          "mode": 0,
+          "jid": 96
+        },
+        {
+          "mode": 3,
+          "jid": 98
+        },
+        {
+          "mode": 0,
+          "jid": 48
+        },
+        {
+          "mode": 3,
+          "jid": 50
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        },
+        {
+          "engine": 1,
+          "y": 38654791680,
+          "bytes": 4
+        },
+        {
+          "engine": 1,
+          "y": 38654857216,
+          "bytes": 4
+        },
+        {
+          "engine": 1,
+          "y": 38654922752,
+          "bytes": 4
+        },
+        {
+          "engine": 1,
+          "y": 38654988288,
+          "bytes": 4
+        },
+        {
+          "engine": 1,
+          "y": 38655053824,
+          "bytes": 4
+        }
+      ]
+    },
+    {
+      "case": "failed_burst_then_current_frame_under_stop",
+      "outcome": "expected_behavior",
+      "nef_output_checks": {},
+      "live_e": 0,
+      "live_scratch": 0,
+      "open_files": 0,
+      "live_headers": 0,
+      "e_frees": 2,
+      "header_frees": 2,
+      "files": {
+        "A:\\Z8PRESTP.BIN": {
+          "bytes": 32,
+          "sha256": "09d17d21a2a3adbae5997b857d676156586c7b3d898104202c90a4751fe22bff",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0001.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        },
+        "A:\\DCIM\\100NCZ_8\\DSC_0002.JPG": {
+          "bytes": 4,
+          "sha256": "32461d5bd1773012acef0ba15636752949bd7c2ce50f9172159d9f56cf0dd9af",
+          "raw_binding_verified": false
+        }
+      },
+      "live_y": 0,
+      "live_source": 0,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 0,
+      "stock_writer_calls": [
+        {
+          "mode": 3,
+          "jid": 18
+        },
+        {
+          "mode": 0,
+          "jid": 16
+        },
+        {
+          "mode": 0,
+          "jid": 32
+        }
+      ],
+      "preview_jobs": []
+    },
+    {
+      "case": "blocked_stock_writer_keeps_inflight_owners",
+      "outcome": "known_limitation",
+      "nef_output_checks": {},
+      "live_e": 1,
+      "live_scratch": 1,
+      "open_files": 0,
+      "live_headers": 1,
+      "e_frees": 0,
+      "header_frees": 0,
+      "files": {},
+      "live_y": 1,
+      "live_source": 1,
+      "db_locked": false,
+      "jpeg_locks": 0,
+      "reservations": 2,
+      "stock_writer_calls": [
+        {
+          "mode": 0,
+          "jid": 16
+        }
+      ],
+      "preview_jobs": [
+        {
+          "engine": 1,
+          "y": 38654726144,
+          "bytes": 4
+        }
+      ]
+    }
+  ],
+  "original_R_cleanup_executed": true,
+  "original_allocator_executed": false,
+  "original_writer_executed": false,
+  "valid_HE_codec_input": false,
+  "scope": "Exact patch CPU execution; modeled database/writer/allocator/JPEG services; synthetic opaque payload",
+  "hardware_verified": false,
+  "full_C15_C30_QEMU_verified": false
+}
