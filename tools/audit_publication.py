@@ -118,6 +118,9 @@ FILES.update({'tools/z8_he_v3_audit.py', 'tools/z8_he_v3_image.py',
               'tests/test_z8_he_v3.py', 'profiles/z8-he-v3-source.json',
               'docs/z8-he-v3.md', 'docs/halfpress-reference-20261018.md',
               'docs/verification/he-v3-20261018.json'})
+FILES.update({'tools/z8_he_v3_fixture.py', 'docs/z8-he-v3-native.md',
+              'docs/z8-he-v3-decode.md', 'docs/verification/he-v3-native-20261018.json',
+              'docs/verification/he-v3-decode-20261018.json'})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),

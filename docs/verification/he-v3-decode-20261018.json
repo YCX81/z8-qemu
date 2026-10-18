@@ -1,0 +1,273 @@
+{
+  "schema": 1,
+  "date": "2026-10-18",
+  "classification": "Real HE fixture replay and external decode; not native capture",
+  "installation": {
+    "installer_sha256": "360b392693999094ac6d22e863db297fb5ad299f767120f08c548ee2138cc90e",
+    "installer_signer": "CN=Adobe Inc., OU=\"Lightroom, Camera RAW\", O=Adobe Inc., L=San Jose, S=ca, C=US, SERIALNUMBER=2748129, OID.2.5.4.15=Private Organization, OID.1.3.6.1.4.1.311.60.2.1.2=Delaware, OID.1.3.6.1.4.1.311.60.2.1.3=US",
+    "installer_exit_code": 0,
+    "file_version": "18.7",
+    "product_version": "18.7",
+    "executable_sha256": "6fd0af0d40e72ab634460fd00085a035ae7d5048bc69fbd19ae926c7e904e8a1"
+  },
+  "source": {
+    "source_url": "https://raw.pixls.us/",
+    "source_record": 6616,
+    "source_license": "CC0 as listed by source",
+    "source_sha256": "82df041542b8d328738443bb5ff3373b396e406ecc8cbe7dc3b35252790c53e7",
+    "payload_sha256": "b8b1cbcca67da6fa7a7fcbb9364d6798747b6c622dd87dd55022167404b82827"
+  },
+  "exact_execution": {
+    "code_sha256": "479f4e37db3968a9e796fc97d865246793ebbac83b28f10a95711535c45cb715",
+    "stock_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+    "tool_sha256": "624068c800fee0d7d81a6f483b68b480bcd1da03dc03a8bf740111f107e32015"
+  },
+  "scope": "Exact hooks; real public HE payload and JPEGs; authored metadata header; modeled DCF/writer/JPEG services; no camera or full QEMU",
+  "normal_optimized_reports_identical": true,
+  "source_negative_controls": [
+    {
+      "mode": "normal",
+      "exit_code": 1,
+      "changed_sample_rejected": true
+    },
+    {
+      "mode": "optimized",
+      "exit_code": 1,
+      "changed_sample_rejected": true
+    }
+  ],
+  "outputs": [
+    {
+      "kind": 0,
+      "files": [
+        {
+          "name": "DSC_0001.JPG",
+          "bytes": 5879531,
+          "sha256": "905e6b3b68462148e429c3c4a91693d9ef72ac10f6e09c3744c6270451a4e1d7"
+        },
+        {
+          "name": "DSC_0001.NEF",
+          "bytes": 24184320,
+          "sha256": "9217b17146eaf998592a25851d742e3bd1c4081fa80ee7ba1a0f4285eea1caad"
+        }
+      ],
+      "lifecycle_closed": true,
+      "source_binding_verified": true,
+      "full_preview_selected": true
+    },
+    {
+      "kind": 1,
+      "files": [
+        {
+          "name": "DSC_0001.NEF",
+          "bytes": 24184320,
+          "sha256": "9217b17146eaf998592a25851d742e3bd1c4081fa80ee7ba1a0f4285eea1caad"
+        }
+      ],
+      "lifecycle_closed": true,
+      "source_binding_verified": true,
+      "full_preview_selected": true
+    }
+  ],
+  "adobe_conversion": [
+    {
+      "label": "source",
+      "exit_code": 0,
+      "input_sha256": "82df041542b8d328738443bb5ff3373b396e406ecc8cbe7dc3b35252790c53e7",
+      "output_sha256": "eda666e4e775b1b47546ee592b69151b01b281b8e12e331c505d3127eb07410b",
+      "output_bytes": 91891114,
+      "options": [
+        "-u",
+        "-p0",
+        "-d",
+        "<fresh output directory>",
+        "<input NEF>"
+      ]
+    },
+    {
+      "label": "type0",
+      "exit_code": 0,
+      "input_sha256": "9217b17146eaf998592a25851d742e3bd1c4081fa80ee7ba1a0f4285eea1caad",
+      "output_sha256": "b69c0be1c9299d9ab73f3b5e93012d44140b60b52ea023a8309779b2681fac62",
+      "output_bytes": 91819706,
+      "options": [
+        "-u",
+        "-p0",
+        "-d",
+        "<fresh output directory>",
+        "<input NEF>"
+      ]
+    },
+    {
+      "label": "type1",
+      "exit_code": 0,
+      "input_sha256": "9217b17146eaf998592a25851d742e3bd1c4081fa80ee7ba1a0f4285eea1caad",
+      "output_sha256": "47f5e7c48adcf682cc2168959140ec86a021eedbb84379159df11d0b4d88ee34",
+      "output_bytes": 91819706,
+      "options": [
+        "-u",
+        "-p0",
+        "-d",
+        "<fresh output directory>",
+        "<input NEF>"
+      ]
+    }
+  ],
+  "comparison": {
+    "scope": "One public HE sample and two exact-hook rewraps, all decoded by the same Adobe engine; rawpy reads resulting DNG mosaics",
+    "rawpy_version": "0.27.1",
+    "libraw_version": [
+      0,
+      22,
+      1
+    ],
+    "numpy_version": "2.5.4",
+    "reference": {
+      "file": "pixls-6616.dng",
+      "file_bytes": 91891114,
+      "file_sha256": "eda666e4e775b1b47546ee592b69151b01b281b8e12e331c505d3127eb07410b",
+      "shape": [
+        5520,
+        8280
+      ],
+      "dtype": "uint16",
+      "samples": 45705600,
+      "mosaic_sha256": "a273a25f3b3f99be4c4ded39a8c8646464b92d29e98ceffcb47a4e0dd7b46ae1",
+      "cfa_pattern": [
+        [
+          0,
+          1
+        ],
+        [
+          3,
+          2
+        ]
+      ],
+      "color_desc": "RGBG",
+      "black_levels": [
+        1008,
+        1008,
+        1008,
+        1008
+      ],
+      "white_level": 15892,
+      "camera_whitebalance": [
+        1.9824239015579224,
+        1.0,
+        1.4335931539535522,
+        0.0
+      ],
+      "visible_dimensions": [
+        8280,
+        5520
+      ],
+      "margins": [
+        0,
+        0
+      ]
+    },
+    "candidates": [
+      {
+        "file": "DSC_0001.dng",
+        "file_bytes": 91819706,
+        "file_sha256": "b69c0be1c9299d9ab73f3b5e93012d44140b60b52ea023a8309779b2681fac62",
+        "shape": [
+          5520,
+          8280
+        ],
+        "dtype": "uint16",
+        "samples": 45705600,
+        "mosaic_sha256": "a273a25f3b3f99be4c4ded39a8c8646464b92d29e98ceffcb47a4e0dd7b46ae1",
+        "cfa_pattern": [
+          [
+            0,
+            1
+          ],
+          [
+            3,
+            2
+          ]
+        ],
+        "color_desc": "RGBG",
+        "black_levels": [
+          1008,
+          1008,
+          1008,
+          1008
+        ],
+        "white_level": 15892,
+        "camera_whitebalance": [
+          1.9824239015579224,
+          1.0,
+          1.4335931539535522,
+          0.0
+        ],
+        "visible_dimensions": [
+          8280,
+          5520
+        ],
+        "margins": [
+          0,
+          0
+        ],
+        "kind": 0,
+        "full_mosaic_identical": true,
+        "different_samples": 0,
+        "cfa_identical": true,
+        "black_levels_identical": true
+      },
+      {
+        "file": "DSC_0001.dng",
+        "file_bytes": 91819706,
+        "file_sha256": "47f5e7c48adcf682cc2168959140ec86a021eedbb84379159df11d0b4d88ee34",
+        "shape": [
+          5520,
+          8280
+        ],
+        "dtype": "uint16",
+        "samples": 45705600,
+        "mosaic_sha256": "a273a25f3b3f99be4c4ded39a8c8646464b92d29e98ceffcb47a4e0dd7b46ae1",
+        "cfa_pattern": [
+          [
+            0,
+            1
+          ],
+          [
+            3,
+            2
+          ]
+        ],
+        "color_desc": "RGBG",
+        "black_levels": [
+          1008,
+          1008,
+          1008,
+          1008
+        ],
+        "white_level": 15892,
+        "camera_whitebalance": [
+          1.9824239015579224,
+          1.0,
+          1.4335931539535522,
+          0.0
+        ],
+        "visible_dimensions": [
+          8280,
+          5520
+        ],
+        "margins": [
+          0,
+          0
+        ],
+        "kind": 1,
+        "full_mosaic_identical": true,
+        "different_samples": 0,
+        "cfa_identical": true,
+        "black_levels_identical": true
+      }
+    ],
+    "one_sample_difference_rejected": true,
+    "independent_second_he_decoder": false,
+    "physical_precapture_verified": false
+  }
+}

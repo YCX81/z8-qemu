@@ -7,6 +7,10 @@ It executes the external release's exact 30,301 bytes, SHA-256
 There is no recompilation or compiler-fingerprint bypass. No upstream machine
 code, Nikon firmware or captured image is included in this repository.
 
+Follow-up checkpoints separate [native C15/C30 scheduling stops](z8-he-v3-native.md)
+from [real HE payload replay and external decode](z8-he-v3-decode.md). The original
+81-case receipt below remains a synthetic lifecycle result.
+
 ## Scope
 
 The v3 implementation controls historical and current C15/C30 frames from the

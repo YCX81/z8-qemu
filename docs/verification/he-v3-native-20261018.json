@@ -1,0 +1,236 @@
+{
+  "schema": 1,
+  "date": "2026-10-18",
+  "classification": "Native firmware scheduling discovery; strict unsupported hardware stops; no photographs",
+  "qemu_sha256": "def8e55fae62a04e89abeb6a74573c229a18cea1360fa0022b7c553acba1c7d0",
+  "qemu_version": "10.2.4",
+  "frozen_model": "I6i NR02; 47 build inputs checked against retained source",
+  "physical_hardware_verified": false,
+  "full_c15_c30_passed": false,
+  "he_codec_implemented": false,
+  "runs": [
+    {
+      "name": "c30-he-04",
+      "mode": "C30",
+      "variant": "he",
+      "source_main_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+      "executed_main_sha256": "3cd4f0a562d16bad319eb65595cffa748cfc28b804954ae50948ac0591a1b127",
+      "raw_input_sha256": "85878e2e56ee0f6bc10cc0d5dd474375e2ee67bc310d24acf955b0fa5efba293",
+      "first_unknown": "Z9_UNKNOWN cpu=1 pc=0x40c30ec8 write addr=0x15300008 size=4 value=0x1",
+      "synthetic_receiver_packets": 26,
+      "packet_format": "NZ8BAYR1; not a Nikon HE bitstream",
+      "menu_readbacks": [
+        {
+          "label": "raw-leave-half",
+          "values": {
+            "0xa03bc6bc8": 0,
+            "0xa03bc6bac": 0,
+            "0xa03d482c8": 1,
+            "0xa03d482cc": 1,
+            "0xa03d482d0": 0
+          }
+        },
+        {
+          "label": "d3-leave-half",
+          "values": {
+            "0xa03bc6bc8": 0,
+            "0xa03bc6bac": 0,
+            "0xa03d482c8": 1,
+            "0xa03d482cc": 1,
+            "0xa03d482d0": 0
+          }
+        },
+        {
+          "label": "history-half",
+          "values": {
+            "0xa03bc6bc8": 3,
+            "0xa03bc6bac": 30,
+            "0xa03d482c8": 1,
+            "0xa03d482cc": 1,
+            "0xa03d482d0": 0
+          }
+        },
+        {
+          "label": "history-full",
+          "values": {
+            "0xa03bc6bc8": 3,
+            "0xa03bc6bac": 30,
+            "0xa03d482c8": 1,
+            "0xa03d482cc": 1,
+            "0xa03d482d0": 0
+          }
+        }
+      ],
+      "boot_copy": {
+        "address": "0xa0ff60000",
+        "bytes": 30301,
+        "sha256": "479f4e37db3968a9e796fc97d865246793ebbac83b28f10a95711535c45cb715",
+        "matches_release": true,
+        "scope": "Readback of declared boot-copy destination; not CPU fetch evidence"
+      },
+      "actual_proc_argv_recorded": false,
+      "private_wrapper_snapshot_at_launch": false,
+      "owned_qemu_stopped": true,
+      "input_unchanged": true,
+      "fsck_exit": 0,
+      "card_source_unchanged": true,
+      "card_regular_file_names": [
+        "Z8PRE.CFG",
+        "NIKON001.DSC"
+      ],
+      "nef_count": 0,
+      "jpeg_count": 0,
+      "result_sha256": "4b10cae81121422c059218f3c2abdd84ea8c74368ce75d4ed37dca4e178d9f6d",
+      "stderr_sha256": "a4c456f65e0d93d6931ad9149abc92ebc4e1f77c64f154aa5ad2c5f3e34ac1ac",
+      "decoder_words_hex": {
+        "15300530": "2",
+        "15300534": "1058600",
+        "15300544": "30a0",
+        "15300548": "2058",
+        "1530054c": "1590",
+        "15b00084": "20581590"
+      }
+    },
+    {
+      "name": "c15-he-01",
+      "mode": "C15",
+      "variant": "he",
+      "source_main_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+      "executed_main_sha256": "3cd4f0a562d16bad319eb65595cffa748cfc28b804954ae50948ac0591a1b127",
+      "raw_input_sha256": "85878e2e56ee0f6bc10cc0d5dd474375e2ee67bc310d24acf955b0fa5efba293",
+      "first_unknown": "Z9_UNKNOWN cpu=1 pc=0x40c3167c write addr=0x152c0008 size=4 value=0x1",
+      "synthetic_receiver_packets": 0,
+      "packet_format": "NZ8BAYR1; not a Nikon HE bitstream",
+      "menu_readbacks": [
+        {
+          "label": "raw-leave-half",
+          "values": {
+            "0xa03bc6bc8": 0,
+            "0xa03bc6bac": 0,
+            "0xa03d482c8": 1,
+            "0xa03d482cc": 1,
+            "0xa03d482d0": 0
+          }
+        },
+        {
+          "label": "d3-leave-half",
+          "values": {
+            "0xa03bc6bc8": 0,
+            "0xa03bc6bac": 0,
+            "0xa03d482c8": 1,
+            "0xa03d482cc": 1,
+            "0xa03d482d0": 0
+          }
+        },
+        {
+          "label": "history-half",
+          "values": {
+            "0xa03bc6bc8": 6,
+            "0xa03bc6bac": 15,
+            "0xa03d482c8": 1,
+            "0xa03d482cc": 1,
+            "0xa03d482d0": 0
+          }
+        }
+      ],
+      "boot_copy": {
+        "address": "0xa0ff60000",
+        "bytes": 30301,
+        "sha256": "479f4e37db3968a9e796fc97d865246793ebbac83b28f10a95711535c45cb715",
+        "matches_release": true,
+        "scope": "Readback of declared boot-copy destination; not CPU fetch evidence"
+      },
+      "actual_proc_argv_recorded": true,
+      "private_wrapper_snapshot_at_launch": false,
+      "owned_qemu_stopped": true,
+      "input_unchanged": true,
+      "fsck_exit": 0,
+      "card_source_unchanged": true,
+      "card_regular_file_names": [
+        "Z8PRE.CFG",
+        "NIKON001.DSC"
+      ],
+      "nef_count": 0,
+      "jpeg_count": 0,
+      "result_sha256": "22062bd62a92f7cb484fb0a141a6796b8b50794abc463b1eff7f933526d84cfa",
+      "stderr_sha256": "06f3b32c8feafabb562332e4c9359ef1bb956a1440b220fee51729ddca4c1d1f",
+      "receiver_bank0_114_hex": "0"
+    },
+    {
+      "name": "c30-stock-01",
+      "mode": "C30",
+      "variant": "stock",
+      "source_main_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+      "executed_main_sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+      "raw_input_sha256": "85878e2e56ee0f6bc10cc0d5dd474375e2ee67bc310d24acf955b0fa5efba293",
+      "first_unknown": "Z9_UNKNOWN cpu=1 pc=0x40c30ec8 write addr=0x15300008 size=4 value=0x1",
+      "synthetic_receiver_packets": 27,
+      "packet_format": "NZ8BAYR1; not a Nikon HE bitstream",
+      "menu_readbacks": [
+        {
+          "label": "raw-leave-half",
+          "values": {
+            "0xa03bc6bc8": 0,
+            "0xa03bc6bac": 0,
+            "0xa03d482c8": 1,
+            "0xa03d482cc": 1,
+            "0xa03d482d0": 0
+          }
+        },
+        {
+          "label": "d3-leave-half",
+          "values": {
+            "0xa03bc6bc8": 0,
+            "0xa03bc6bac": 0,
+            "0xa03d482c8": 1,
+            "0xa03d482cc": 1,
+            "0xa03d482d0": 0
+          }
+        },
+        {
+          "label": "history-half",
+          "values": {
+            "0xa03bc6bc8": 3,
+            "0xa03bc6bac": 30,
+            "0xa03d482c8": 1,
+            "0xa03d482cc": 1,
+            "0xa03d482d0": 0
+          }
+        },
+        {
+          "label": "history-full",
+          "values": {
+            "0xa03bc6bc8": 3,
+            "0xa03bc6bac": 30,
+            "0xa03d482c8": 1,
+            "0xa03d482cc": 1,
+            "0xa03d482d0": 0
+          }
+        }
+      ],
+      "boot_copy": null,
+      "actual_proc_argv_recorded": true,
+      "private_wrapper_snapshot_at_launch": false,
+      "owned_qemu_stopped": true,
+      "input_unchanged": true,
+      "fsck_exit": 0,
+      "card_source_unchanged": true,
+      "card_regular_file_names": [
+        "Z8PRE.CFG",
+        "NIKON001.DSC"
+      ],
+      "nef_count": 0,
+      "jpeg_count": 0,
+      "result_sha256": "c64248909da07f4cdf21b85887dc53cb43e26eb62ccaca00218a836bf2300fff",
+      "stderr_sha256": "4f65ce34fa129b3aab1f871fbeeb32e0a1e61f28672c3ef58b1e4db35612802a",
+      "decoder_words_hex": {
+        "15300530": "2",
+        "15300534": "1058600",
+        "15300544": "30a0",
+        "15300548": "2058",
+        "1530054c": "1590",
+        "15b00084": "20581590"
+      }
+    }
+  ]
+}
