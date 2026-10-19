@@ -26,7 +26,26 @@ RAW 预拍验收至少需要**两帧不同的触发前保留帧和一帧拍后�
 
 Open Gate 视频、AF 增强、尼康云创在线接入、完整胶片模拟、照片 Log、RED Log3G10/R3D NE 和机内全景仍未实现或未验收，详见 [TODO](docs/TODO.md)。原厂视频 N-Log 不计为项目新增功能，main 上的录像仿真仍未验收。
 
-HEIF 1602、RAW/视频集成、视频 C1、方向、Live 图和 AF 锁定等主题分支的工作，连同各分支的源码回归，索引在[发布进度](docs/publication-progress-20261015.md)。这些结果属于各自分支，不属于 main，也不计入上表；各分支保留自己未完成的验收边界。
+## 公开分支
+
+上表只描述 `main`。主题分支保存尚未合并的实验和检查点，其结果属于各自分支，不属于 main，各分支保留自己未完成的验收边界。各分支的源码回归结果见[发布进度](docs/publication-progress-20261015.md)。
+
+| 分支 | 用途 |
+|---|---|
+| [`main`](https://github.com/YCX81/z8-qemu/tree/main) | 已审核的基线：Z8 启动、菜单与取景运行、C32/C64 槽位、普通 NEF 拍摄、逐照片审计与 F0，以及保留的 Z9 参考工具 |
+| [`codex/z8-integration`](https://github.com/YCX81/z8-qemu/tree/codex/z8-integration) | RAW、录像与方向的合并集成实验 |
+| [`codex/raw-precapture-shared146`](https://github.com/YCX81/z8-qemu/tree/codex/raw-precapture-shared146) | 预拍用的 RAW 历史帧传输，以及 1540/153c 双编码器 |
+| [`codex/z8-he-history-20261017`](https://github.com/YCX81/z8-qemu/tree/codex/z8-he-history-20261017) | 第三方 HE 预拍钩子的生命周期测试、真实 HE 样本回放，以及发现的原生模型缺口 |
+| [`codex/z8-heif-1602`](https://github.com/YCX81/z8-qemu/tree/codex/z8-heif-1602) | 经 1602 静态照片编码器的 HLG/HEIF 照片管线，以及有界恢复探针 |
+| [`codex/z8-video-c1`](https://github.com/YCX81/z8-qemu/tree/codex/z8-video-c1) | C1 视频传输、编码与 MCU 实验 |
+| [`codex/z8-orientation`](https://github.com/YCX81/z8-qemu/tree/codex/z8-orientation) | 录像方向与视频数据路径实验 |
+| [`codex/z8-live-photo`](https://github.com/YCX81/z8-qemu/tree/codex/z8-live-photo) | 仅宿主侧的 Live 图帧保留模型 |
+| [`codex/z8-live-photo-video`](https://github.com/YCX81/z8-qemu/tree/codex/z8-live-photo-video) | Live 图的视频输入与配对审核研究 |
+| [`codex/z8-af-lockon`](https://github.com/YCX81/z8-qemu/tree/codex/z8-af-lockon) | AF 资源追踪与遮挡响应探针 |
+| [`archive/z8-raw-precapture-20261013`](https://github.com/YCX81/z8-qemu/tree/archive/z8-raw-precapture-20261013) | 归档：早期 RAW 预拍传输实验 |
+| [`archive/z8-internal-stream-20261012`](https://github.com/YCX81/z8-qemu/tree/archive/z8-internal-stream-20261012) | 归档：早期内部流记录，为溯源保留 |
+| [`archive/z8-capture-evidence-20261012`](https://github.com/YCX81/z8-qemu/tree/archive/z8-capture-evidence-20261012) | 归档：早期拍摄证据记录，为溯源保留 |
+| [`archive/z8-merge-rehearsal-20261014`](https://github.com/YCX81/z8-qemu/tree/archive/z8-merge-rehearsal-20261014) | 归档：未解决冲突的合并演练，有意保持不可构建 |
 
 ## 固件输入
 
@@ -98,5 +117,24 @@ PowerShell 包装脚本当前选择 WSL **Ubuntu**，自动读取对应用户的
 REA/Ghidra 使用从本地固件切片制作、明确标注的分析 ELF 容器，不是原厂 Nikon ELF。`REA.ps1` 调用已安装的 WSL 后端；历史 CLI 使用不代表全局 Codex MCP 注册。详见[实施记录](docs/z8-status.md)。
 
 继承的 CPU/GIC、内存窗口、虚拟时序及模拟 Bayer/ISP/JPEG 路径属于功能研究模型。真实 CMOS、机身校准、完整外设协议、尼康成像处理和物理时序未验。`BoundaryPeer` 的33是诊断间隔毫秒数，不是测得的相机 FPS。
+
+## 引用的仓库与来源
+
+main 使用：
+
+- [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu)：上游分叉起点（`27498735…`），提供共享模型和 Z9 参考工具。F0 lossless14 编码器 `qemu/nikon-expeed-lossless.h` 取自该上游，保留 RdWing 版权与 GPL 声明。
+- [QEMU](https://www.qemu.org/) 10.2.4：构建器固定版本并校验 SHA-256，保留上游许可。
+- [LibRaw/LibRaw](https://github.com/LibRaw/LibRaw)：F0 编码器的格式参考（`nikon_load_raw`），也是审计经 rawpy 使用的独立 NEF 解码器。
+- [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool)：解密并校验本地升级容器（固定提交 `33426e8…`）。
+
+主题分支另外引用：
+
+- [WonderLantern/zr-qemu](https://github.com/WonderLantern/zr-qemu) `f9cc5d1`：输入配对与视频处理模型由此改编（视频 C1、方向、集成）。
+- [WonderLantern/wonder-lantern-z30](https://github.com/WonderLantern/wonder-lantern-z30) 的 `video-rot`：录制开始时锁定视频方向的设计参考（方向、集成、视频 C1）。
+- [XinmiaoZhao/NikonFirmwarePatch](https://github.com/XinmiaoZhao/NikonFirmwarePatch) v0.1.0 工具包与 [Ivan-mato/nikon-z8-halfpress-raw-precapture](https://github.com/Ivan-mato/nikon-z8-halfpress-raw-precapture) `205fd05`：被测试或复核其代码与样本的第三方预拍项目。[raw.pixls.us](https://raw.pixls.us/) 第 6616 号记录提供真实的 Z8 HE 样本（he-history）。
+- [videolan/x265](https://github.com/videolan/x265) 用于 Main10 静态照片编码，[strukturag/libheif](https://github.com/strukturag/libheif) 作容器规则参考，[exiftool/exiftool](https://github.com/exiftool/exiftool) 作标签定义参考（HEIF）。
+- [LimitPoint/LivePhoto](https://github.com/LimitPoint/LivePhoto)、[minutechreview/livephoto-maker](https://github.com/minutechreview/livephoto-maker) 与 ExifTool：Live 图配对的参考（Live 图视频）。
+
+分支固定了提交或版本时，其文档会记录下来。引用链接不授予对应项目材料或尼康固件的任何权利。
 
 保留上游 GPL-2.0-or-later 许可与作者信息，详见 [NOTICE](NOTICE.md) 与[贡献约定](CONTRIBUTING.md)。贡献需记录机型/固件、合成输入、命令、结构化结果和未覆盖范围。

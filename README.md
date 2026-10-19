@@ -26,7 +26,26 @@ RAW pre-release acceptance requires at least **two distinct retained pre-trigger
 
 Open Gate video, AF enhancements, online Nikon Imaging Cloud integration, complete film simulation, photo Log, RED Log3G10/R3D NE and in-camera panorama remain unimplemented or unaccepted; see [TODO](docs/TODO.md). Native video N-Log is not a new project feature. Video recording emulation remains unverified on main.
 
-Work on the topic branches, including HEIF 1602, RAW/video integration, video C1, orientation, Live Photo and AF lock-on, is indexed in the [publication progress](docs/publication-progress-20261015.md) together with each branch's source regression. Those results belong to their branches. They are not part of main or the table above, and each keeps its own incomplete acceptance boundaries.
+## Public branches
+
+The table above describes `main`. Topic branches hold unmerged experiments and checkpoints. Their results belong to those branches, are not part of main, and each keeps its own incomplete acceptance boundaries. Each branch's source regression result is listed in the [publication progress](docs/publication-progress-20261015.md).
+
+| Branch | Purpose |
+|---|---|
+| [`main`](https://github.com/YCX81/z8-qemu/tree/main) | Reviewed base: Z8 bring-up, menu and live-view runs, C32/C64 slots, ordinary NEF capture, per-photo audit and F0, plus the retained Z9 reference tools |
+| [`codex/z8-integration`](https://github.com/YCX81/z8-qemu/tree/codex/z8-integration) | Combined RAW, video and orientation integration experiment |
+| [`codex/raw-precapture-shared146`](https://github.com/YCX81/z8-qemu/tree/codex/raw-precapture-shared146) | RAW history transport for pre-release capture, with the dual 1540/153c encoders |
+| [`codex/z8-he-history-20261017`](https://github.com/YCX81/z8-qemu/tree/codex/z8-he-history-20261017) | Lifecycle tests for a third-party HE precapture hook, replay of a real HE sample, and the native model gaps found |
+| [`codex/z8-heif-1602`](https://github.com/YCX81/z8-qemu/tree/codex/z8-heif-1602) | HLG/HEIF still pipeline through the 1602 still encoder, plus bounded recovery probes |
+| [`codex/z8-video-c1`](https://github.com/YCX81/z8-qemu/tree/codex/z8-video-c1) | C1 video transport, codec and MCU experiments |
+| [`codex/z8-orientation`](https://github.com/YCX81/z8-qemu/tree/codex/z8-orientation) | Video orientation and video data path experiments |
+| [`codex/z8-live-photo`](https://github.com/YCX81/z8-qemu/tree/codex/z8-live-photo) | Host-only Live Photo frame retention model |
+| [`codex/z8-live-photo-video`](https://github.com/YCX81/z8-qemu/tree/codex/z8-live-photo-video) | Live Photo video inputs and pair audit research |
+| [`codex/z8-af-lockon`](https://github.com/YCX81/z8-qemu/tree/codex/z8-af-lockon) | AF resource tracing and occlusion response probes |
+| [`archive/z8-raw-precapture-20261013`](https://github.com/YCX81/z8-qemu/tree/archive/z8-raw-precapture-20261013) | Archive: earlier RAW precapture transport experiment |
+| [`archive/z8-internal-stream-20261012`](https://github.com/YCX81/z8-qemu/tree/archive/z8-internal-stream-20261012) | Archive: earlier internal stream notes, kept for provenance |
+| [`archive/z8-capture-evidence-20261012`](https://github.com/YCX81/z8-qemu/tree/archive/z8-capture-evidence-20261012) | Archive: earlier capture evidence notes, kept for provenance |
+| [`archive/z8-merge-rehearsal-20261014`](https://github.com/YCX81/z8-qemu/tree/archive/z8-merge-rehearsal-20261014) | Archive: unresolved merge rehearsal; deliberately not buildable |
 
 ## Firmware input
 
@@ -98,5 +117,24 @@ This wrapper does not enable slot expansion or provide complete RAW pre-release 
 REA/Ghidra uses explicitly marked analysis ELF containers made from local firmware slices, not original Nikon ELF files. `REA.ps1` calls an already-installed WSL backend; historical CLI use does not imply global Codex MCP registration. See the [implementation record](docs/z8-status.md).
 
 Inherited CPU/GIC, memory windows, virtual timing and synthetic Bayer/ISP/JPEG paths are functional research models. Real CMOS, calibration, complete peripheral protocols, Nikon image processing and physical timing remain unverified. `BoundaryPeer`'s 33 is a diagnostic interval in milliseconds, not measured camera FPS.
+
+## Referenced repositories and sources
+
+Used by `main`:
+
+- [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu): upstream fork base (`27498735…`), providing the shared model and the Z9 reference tools. The F0 lossless14 encoder `qemu/nikon-expeed-lossless.h` comes from this upstream and keeps its RdWing copyright and GPL notice.
+- [QEMU](https://www.qemu.org/) 10.2.4: pinned and SHA-256-checked by the builder; upstream licensing retained.
+- [LibRaw/LibRaw](https://github.com/LibRaw/LibRaw): the format reference for the F0 encoder (`nikon_load_raw`), and the independent NEF decoder used by the audits through rawpy.
+- [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool): decrypts and checks the local update container (pinned commit `33426e8…`).
+
+Also referenced by topic branches:
+
+- [WonderLantern/zr-qemu](https://github.com/WonderLantern/zr-qemu) `f9cc5d1`: the input-pair and video-processing models are adapted from it (video C1, orientation, integration).
+- [WonderLantern/wonder-lantern-z30](https://github.com/WonderLantern/wonder-lantern-z30) `video-rot`: design reference for locking video orientation at record start (orientation, integration, video C1).
+- [XinmiaoZhao/NikonFirmwarePatch](https://github.com/XinmiaoZhao/NikonFirmwarePatch) v0.1.0 toolkit and [Ivan-mato/nikon-z8-halfpress-raw-precapture](https://github.com/Ivan-mato/nikon-z8-halfpress-raw-precapture) `205fd05`: third-party precapture projects whose code and samples were tested or reviewed. [raw.pixls.us](https://raw.pixls.us/) record 6616 supplies the real Z8 HE sample (he-history).
+- [videolan/x265](https://github.com/videolan/x265) for Main10 still encoding, [strukturag/libheif](https://github.com/strukturag/libheif) for container rules, and [exiftool/exiftool](https://github.com/exiftool/exiftool) for tag definitions (HEIF).
+- [LimitPoint/LivePhoto](https://github.com/LimitPoint/LivePhoto), [minutechreview/livephoto-maker](https://github.com/minutechreview/livephoto-maker) and ExifTool: references for Live Photo pairing (Live Photo video).
+
+Where a branch pins a commit or version, its documents record it. A reference link does not grant rights to that project's material or to Nikon firmware.
 
 Upstream GPL-2.0-or-later licensing and attribution are retained. See [NOTICE](NOTICE.md) and [contribution guidelines](CONTRIBUTING.md). Contributions should identify camera/firmware, synthetic inputs, commands, structured results and uncovered scope.
