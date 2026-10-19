@@ -28,8 +28,17 @@ regressions only; skipped device tests were not run.
 
 Three old publishing copies (`z8-evidence-publish-20261012`,
 `z8-internal20-model-20261013`, `z8-serial5-publish-20261012`) contain source
-blobs already present in main history. Their original files and staging are
-preserved; duplicate commits are unnecessary.
+blobs already present in main history; duplicate commits are unnecessary.
+
+Update 2026-10-19: those three copies were removed from the local workspace,
+along with the `z8-internal-stream-publish-20261012` and
+`z8-todo-publish-20261012` copies. The HEADs of the last two match the
+`archive/z8-internal-stream-20261012` and `archive/z8-capture-evidence-20261012`
+branches above. Main already contained newer versions of every uncommitted
+change in the removed copies. Before removal, their ignored local evidence,
+uncommitted patches, the stash and a bundle of every local ref were saved to a
+private local archive outside this repository. This publication does not
+include that archive.
 
 RAW precapture, completed video files, HEIF repeat-shot recovery, AF behavior
 and Live Photo import each retain their own incomplete acceptance boundaries.
