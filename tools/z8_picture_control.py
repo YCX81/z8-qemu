@@ -620,6 +620,11 @@ class PictureControl:
         offset = 4
         while offset < len(blob):
             if offset + 8 > len(blob):
+                # Original 0x410add94 reads a 4-byte key and stops on zero
+                # (0x410add9c cbz).  Accept only that terminator: 4..7 B left,
+                # every byte zero.  Any other short tail is still truncation.
+                if len(blob) - offset >= 4 and not any(blob[offset:]):
+                    break
                 raise ValueError('Truncated NP3 TLV header')
             _, length = struct.unpack_from('>II', blob, offset)
             offset += 8 + length

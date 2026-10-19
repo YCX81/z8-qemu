@@ -365,7 +365,10 @@ class NativeSlots(legacy.PictureControl):
         if not 4<=len(blob)<=4096:raise ValueError('NP3 length')
         offset=4
         while offset<len(blob):
-            if offset+8>len(blob):raise ValueError('TLV header')
+            if offset+8>len(blob):
+                # Original zero-key terminator (0x410add9c cbz): 4..7 zero bytes only.
+                if len(blob)-offset>=4 and not any(blob[offset:]):break
+                raise ValueError('TLV header')
             _,length=struct.unpack_from('>II',blob,offset);offset+=8+length
             if offset>len(blob):raise ValueError('TLV data')
         self.uc.mem_write(self.layout.address('input'),blob)
