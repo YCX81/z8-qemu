@@ -37,6 +37,7 @@ Open Gate 视频、AF 增强、尼康云创在线接入、完整胶片模拟、�
 | [`codex/raw-precapture-shared146`](https://github.com/YCX81/z8-qemu/tree/codex/raw-precapture-shared146) | 预拍用的 RAW 历史帧传输，以及 1540/153c 双编码器 |
 | [`codex/z8-he-history-20261017`](https://github.com/YCX81/z8-qemu/tree/codex/z8-he-history-20261017) | 第三方 HE 预拍钩子的生命周期测试、真实 HE 样本回放，以及发现的原生模型缺口 |
 | [`codex/z8-r4-lifecycle`](https://github.com/YCX81/z8-qemu/tree/codex/z8-r4-lifecycle) | 扩展槽位 NP3 预检、取景槽号提示与原生卡片输入回退实验；复制页扩展默认关闭 |
+| [`codex/e7-neural-research`](https://github.com/YCX81/z8-qemu/tree/codex/e7-neural-research) | 自写 E7 解析器、候选 CPU 回放、量化与研究合同；外部 E7-bird 算术单独提供 |
 | [`codex/z8-heif-1602`](https://github.com/YCX81/z8-qemu/tree/codex/z8-heif-1602) | 经 1602 静态照片编码器的 HLG/HEIF 照片管线，以及有界恢复探针 |
 | [`codex/z8-video-c1`](https://github.com/YCX81/z8-qemu/tree/codex/z8-video-c1) | C1 视频传输、编码与 MCU 实验 |
 | [`codex/z8-orientation`](https://github.com/YCX81/z8-qemu/tree/codex/z8-orientation) | 录像方向与视频数据路径实验 |
@@ -133,6 +134,7 @@ main 使用：
 - [WonderLantern/zr-qemu](https://github.com/WonderLantern/zr-qemu) `f9cc5d1`：输入配对与视频处理模型由此改编（视频 C1、方向、集成）。
 - [WonderLantern/wonder-lantern-z30](https://github.com/WonderLantern/wonder-lantern-z30) 的 `video-rot`：录制开始时锁定视频方向的设计参考（方向、集成、视频 C1）。
 - [XinmiaoZhao/NikonFirmwarePatch](https://github.com/XinmiaoZhao/NikonFirmwarePatch) v0.1.0 工具包与 [Ivan-mato/nikon-z8-halfpress-raw-precapture](https://github.com/Ivan-mato/nikon-z8-halfpress-raw-precapture) `205fd05`：被测试或复核其代码与样本的第三方预拍项目。[raw.pixls.us](https://raw.pixls.us/) 第 6616 号记录提供真实的 Z8 HE 样本（he-history）。
+- [WonderLantern/e7-bird-network](https://github.com/WonderLantern/e7-bird-network/tree/8ced43b19edb845baef39a80c45d40be0b49efba) `8ced43b`：单独提供的 resource744 算术及过程生成参考夹具（e7-neural-research）；不把其 ZR 验证当作本项目 Z8 验证。
 - [videolan/x265](https://github.com/videolan/x265) 用于 Main10 静态照片编码，[strukturag/libheif](https://github.com/strukturag/libheif) 作容器规则参考，[exiftool/exiftool](https://github.com/exiftool/exiftool) 作标签定义参考（HEIF）。
 - [LimitPoint/LivePhoto](https://github.com/LimitPoint/LivePhoto)、[minutechreview/livephoto-maker](https://github.com/minutechreview/livephoto-maker) 与 ExifTool：Live 图配对的参考（Live 图视频）。
 

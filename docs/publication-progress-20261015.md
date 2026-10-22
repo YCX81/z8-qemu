@@ -90,3 +90,20 @@ results do not establish full QEMU UI, real card import, camera behavior or
 hardware acceptance. Firmware and real NP3 exports remain private; no firmware
 package was built or flashed for publication. The experiment remains separate
 from main's implementation.
+
+## E7 neural source checkpoint, 2026-10-22
+
+The separate `codex/e7-neural-research` worktree publishes authored PCNNP/CDNN
+parsers, candidate CPU replay and animal quantization/postprocessing components,
+with dated model and peer benchmark summaries. It explicitly references
+[WonderLantern/e7-bird-network](https://github.com/WonderLantern/e7-bird-network/tree/8ced43b19edb845baef39a80c45d40be0b49efba)
+at `8ced43b`; the separately supplied arithmetic helper is hash-pinned.
+External source and model assets are not redistributed.
+
+The [research checkpoint](https://github.com/YCX81/z8-qemu/tree/codex/e7-neural-research/research/e7)
+passed 48 private-input/CPU tests, including a finite resource744 procedural-head
+comparison with the pinned peer. Public-only checks passed the same suite with
+33 explicit dependency/input skips. The new I/O adapter measured 100% coverage
+of its 31 statements and 12 branches, not of all inference code. Historical
+benchmark/vendor-backend runs were not repeated, and no Z8 accelerator, full
+camera-input, AF, or physical-camera validation is claimed.
