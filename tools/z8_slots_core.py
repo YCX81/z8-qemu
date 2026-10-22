@@ -50,7 +50,7 @@ def build_plan(source, layout=Layout()):
         generation=0x3600,current_gate=0x3800,current_base=0x3A00,extra_map=0x3E00,
         save_callback=0x4000,load_callback=0x4040,file_valid=0x4100,file_alloc=0x4140,
         file_free=0x4180,parsed_copy=0x4200,encode=0x4400,list_adapter=0x4600,
-        list_trampoline=0x4900).items()}
+        list_trampoline=0x4900,main_write=0x4A00,main_write_trampoline=0x4B00).items()}
     E=entries
 
     def original(address,size):
@@ -129,8 +129,12 @@ def build_plan(source, layout=Layout()):
         ((0x410AACD0,0x410AACD8,0x410AACE0,0x410AACF0),'x11',A('list1')),
         ((0x410AAD3C,0x410AAD44,0x410AAD4C,0x410AAD5C),'x11',A('list0'))):relocate(addresses,reg,target)
     for address in (0x410AAD14,0x410AAD80):ins(address,f'cmp x9,#{L.slots}','Configured custom list count')
-    for address in (0x410ADCA8,0x410AC834):ins(address,f"bl #{E['file']}",'Explicit NP3 input service')
-    for address,name in ((0x410DAC58,'parsed_copy'),(0x410AC7EC,'file_valid'),(0x410AC7FC,'file_alloc'),(0x410AC924,'file_free')):
+    for address,callee in ((0x410ADCA8,0x410AE940),(0x410AC834,0x410AE940)):
+        if original(address,4)[0]!=_assemble(f'bl #{callee}',address):raise ValueError('NP3 input call site changed')
+        ins(address,f"bl #{E['file']}",'Explicit NP3 input service')
+    for address,name,callee in ((0x410DAC58,'parsed_copy',0x410A924C),(0x410AC7EC,'file_valid',0x40863C4C),
+                                (0x410AC7FC,'file_alloc',0x40D2C408),(0x410AC924,'file_free',0x40D2C448)):
+        if original(address,4)[0]!=_assemble(f'bl #{callee}',address):raise ValueError('NP3 runtime call site changed')
         ins(address,f"bl #{E[name]}",'Bounded NP3 runtime service')
 
     emit('record',f'''sub w8,w0,#1; cmp w8,#{L.slots-1}; b.hi bad; cmp w1,#1; b.hi bad;
@@ -160,7 +164,8 @@ def build_plan(source, layout=Layout()):
         {c('x0',0xA047027C0)} bl #0x40d2c660;
         mov w8,#1; str w8,[x20]; mov w0,#1; b done;
         bad: mov w0,#0;
-        done: ldp x23,x30,[sp,#32]; ldp x21,x22,[sp,#16]; ldp x19,x20,[sp],#64; ret;
+        done: {c('x8',A('params'))} stp xzr,xzr,[x8];
+        ldp x23,x30,[sp,#32]; ldp x21,x22,[sp,#16]; ldp x19,x20,[sp],#64; ret;
     ''',0x600)
     emit('select',f"mov w2,w1; b #{E['select_full']};",0x80)
     emit('select_full',f'''
@@ -197,18 +202,36 @@ def build_plan(source, layout=Layout()):
     displaced=original(0x410AAC98,4)[0]
     emit('list_trampoline',f".word {int.from_bytes(displaced,'little')}; b #0x410aac9c;",0x40)
     ins(0x410AAC98,f"b #{E['list_adapter']}",'Never read beyond original nine-byte caller bitmap')
+    # A successful original main-parameter write (card copy, manage/edit pages)
+    # registers the configured custom record; the original writer runs unchanged.
+    displaced=original(0x410D9968,4)[0]
+    if displaced!=_assemble('sub sp,sp,#0x1f0',0x410D9968):raise ValueError('Original main writer prologue changed')
+    emit('main_write_trampoline',f".word {int.from_bytes(displaced,'little')}; b #0x410d996c;",0x40)
+    emit('main_write',f'''stp x19,x20,[sp,#-32]!; str x30,[sp,#16]; mov w19,w0;
+        bl #{E['main_write_trampoline']}; mov w20,w0; tbz w0,#0,done;
+        {decode_asm(L,'w19','custom','done','mainwrite')}
+        custom: {record_asm(L)} mov w8,#1; str w8,[x10];
+        done: mov w0,w20; ldr x30,[sp,#16]; ldp x19,x20,[sp],#32; ret;''',0x100)
+    ins(0x410D9968,f"b #{E['main_write']}",'Original main writer registers configured custom record')
 
-    emit('file',f'''{c('x8',A('params'))} ldp x9,x10,[x8]; cbz x9,bad; cmp x10,#1,lsl #12; b.hi bad;
+    # The experimental input is active only while import_np3 owns params (it
+    # clears them on every exit). Otherwise every service resumes the original
+    # callee with untouched arguments, so card import keeps its native path.
+    emit('file',f'''{c('x8',A('params'))} ldp x9,x10,[x8]; cbz x9,original; cmp x10,#1,lsl #12; b.hi bad;
         str x9,[x1]; str w10,[x1,#8]; str wzr,[x1,#12]; mov w0,#1; ret;
-        bad: mov w0,#0; ret;''',0x100)
-    emit('file_valid',f'''{c('x8',A('params'))} ldp x9,x10,[x8]; cmp x9,#0; cset w9,ne;
-        cmp x10,#4; cset w10,hs; and w0,w9,w10; ret;''',0x40)
-    emit('file_alloc',f'''cmp x0,#1,lsl #12; b.hi bad; {c('x0',A('file'))} ret;
-        bad: mov x0,#0; ret;''',0x40)
-    emit('file_free','mov x0,#0; ret;',0x40)
-    emit('parsed_copy',f'''cmp w0,#200; b.ne bad; str x30,[sp,#-16]!;
+        bad: mov w0,#0; ret; original: b #0x410ae940;''',0x100)
+    emit('file_valid',f'''{c('x8',A('params'))} ldp x9,x10,[x8]; cbz x9,original;
+        cmp x10,#4; cset w0,hs; ret; original: b #0x40863c4c;''',0x40)
+    emit('file_alloc',f'''{c('x8',A('params'))} ldr x9,[x8]; cbz x9,original;
+        cmp x0,#1,lsl #12; b.hi bad; {c('x0',A('file'))} ret;
+        bad: mov x0,#0; ret; original: b #0x40d2c408;''',0x40)
+    emit('file_free',f'''{c('x8',A('params'))} ldr x9,[x8]; cbz x9,original;
+        mov x0,#0; ret; original: b #0x40d2c448;''',0x40)
+    emit('parsed_copy',f'''{c('x8',A('params'))} ldr x9,[x8]; cbz x9,original;
+        cmp w0,#200; b.ne bad; str x30,[sp,#-16]!;
         mov x0,x1; {c('x1',A('parsed'))} mov x2,#0x158; bl #0x4127a900;
-        mov w0,#1; ldr x30,[sp],#16; ret; bad: mov w0,#0; ret;''',0x100)
+        mov w0,#1; ldr x30,[sp],#16; ret; bad: mov w0,#0; ret;
+        original: b #0x410a924c;''',0x100)
 
     for native,name in ((0x410A95E8,'main_map'),(0x410AA9F4,'aux_map'),(0x410A7E70,'main_read'),
         (0x410A9E90,'extra_map'),(0x410AABC0,'menu_map'),(0x410A7BCC,'photo_select'),

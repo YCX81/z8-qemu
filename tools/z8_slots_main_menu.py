@@ -29,7 +29,7 @@ TABLE_REFERENCES = (
 )
 
 
-def build_main_menu_plan(source, layout=Layout(), *, core_plan=None):
+def build_main_menu_plan(source, layout=Layout(), *, core_plan=None, extend_copy_page=False):
     """Return native patches and a guarded overlay in the reserved core gap.
 
     The caller must apply core_data_overlay to a COPY of the core RW region,
@@ -232,6 +232,87 @@ def build_main_menu_plan(source, layout=Layout(), *, core_plan=None):
     for address in (0x40600ED4, 0x4060179C):
         instruction(address, 'mov w9,#40', f'mov w9,#{TOTAL}')
 
+    # Liveview Picture Control indicator (OSD item 0x24, drawer 4041a7dc). The
+    # drawer indexes 58-entry icon/text tables by display setting 0x251d; the
+    # original producer has no index for configured slots and publishes 0
+    # (Auto). The original C1..C9 entries are single composite bitmaps
+    # ("FC C-1" is 0x1824), so no original glyph can carry a new number, and
+    # "FC C-N" as text in the only style verified on this layer (0x21f) is
+    # about twice the field width. Only when that index is 0 and the original
+    # photo selector getter (403f9608) returns a configured slot does the hook
+    # set both widgets to the owned menu label "C-N" (variant 1 for a Flexible
+    # Color record, type 0x20, else variant 0).
+    LV_INDICATOR = MAIN_CODE + 0x2000
+    ICONS, TEXTS = 0x42AE751C, 0x42AE7604
+    icons = original(ICONS, 58 * 4)[1]; texts = original(TEXTS, 58 * 4)[1]
+    if (struct.unpack_from('<HH', icons, 0) != (0x7C5, 0x7C7) or struct.unpack_from('<H', texts, 0)[0] != 0x7C6 or
+            struct.unpack_from('<HH', icons, 49 * 4) != (0x1824, 0x1824) or struct.unpack_from('<H', icons, 31 * 4)[0] == 0):
+        raise ValueError('Original liveview Picture Control tables changed')
+    tail = original(0x4041A988, 0x24)[1]
+    if tail != _assemble('''ldrh w3,[x9]; mov w0,#0x24; ldrh w4,[x8]; orr w1,wzr,#1; mov w2,wzr;
+            ldp x19,x30,[sp,#0x20]; ldp x21,x20,[sp,#0x10]; ldr x22,[sp],#0x30; b #0x4041ecb4''', 0x4041A988):
+        raise ValueError('Original liveview indicator tail changed')
+    instruction(0x4041A86C, 'cmp w19,#0x39', f'b #{LV_INDICATOR}')
+    emit(LV_INDICATOR, f'''cbnz w19,old;
+        bl #0x403f9608;
+        {decode_asm(L,'w0','custom','old','lvind',extended_only=True)}
+        custom: cbnz w9,old; mov w15,w8; {record_asm(L)}
+        ldrh w11,[x10,#0x120]; sub w15,w15,#9; cmp w11,#0x20; cset w14,eq;
+        mov w13,#5; mov w4,#0x7e00; madd w4,w15,w13,w4; add w4,w4,w14;
+        mov w3,w4; mov w0,#0x24; mov w1,#1; mov w2,wzr;
+        ldp x19,x30,[sp,#0x20]; ldp x21,x20,[sp,#0x10]; ldr x22,[sp],#0x30; b #0x4041ecb4;
+        old: cmp w19,#0x39; b #0x4041a870;''', 0x200)
+    # Manage Picture Control "copy to camera" destination page (LCD id 0xd1).
+    # Its rows keep the page's own native event list; the original row event
+    # 405e81c8 maps the row key to a selector through the 40601708 pair getter
+    # and then calls the original card load/write chain. Only the getter's
+    # table address/count and the page definition change; the count is never
+    # 40, so 403eb788 keeps its original bounds.
+    # NOT applied by default: it rewrites the original page row count (9) and
+    # the getter count. Held for coordinator approval (IND-1, 2026-10-21).
+    copy_page = None
+    if extend_copy_page:
+        copy_definition, copy_pairs_old, copy_count_old = 0xA028CFDB0, 0x42B2BE48, 9
+        descriptor = original(copy_definition, 0x22)[1]
+        copy_rows_old, copy_events_old, count = struct.unpack_from('<QQH', descriptor, 0x10)
+        if count != copy_count_old:
+            raise ValueError('Original copy-destination page changed')
+        copy_rows = original(copy_rows_old, count * 44)[1]
+        copy_events = original(copy_events_old, count * 8)[1]
+        copy_pairs = original(copy_pairs_old, count * 8)[1]
+        if [struct.unpack_from('<I', copy_pairs, i * 8)[0] for i in range(count)] != [L.selector(s, 0) for s in range(1, 10)]:
+            raise ValueError('Original copy-destination selectors changed')
+        if len(set(copy_events[i:i + 8] for i in range(0, len(copy_events), 8))) != 1:
+            raise ValueError('Copy-destination rows no longer share one native event list')
+        copy_keys = {struct.unpack_from('<I', copy_rows, i * 44 + 0x18)[0] for i in range(count)}
+        added_rows, added_pairs, copy_extensions = bytearray(), bytearray(), []
+        for slot in range(10, COUNT + 1):
+            key = 0x7A00 + slot
+            if key in copy_keys:
+                raise ValueError('Copy-destination key collision')
+            row = bytearray(copy_rows[-44:]); struct.pack_into('<II', row, 0x14, L.label_id(slot), key)
+            added_rows += row; added_pairs += struct.pack('<II', L.selector(slot, 0), key)
+            copy_extensions.append(dict(slot=slot, selector=L.selector(slot, 0), key=key))
+        copy_pairs_new = allocate(copy_pairs + added_pairs)
+        copy_rows_new = allocate(copy_rows + added_rows)
+        copy_events_new = allocate(copy_events + copy_events[-8:] * (COUNT - 9))
+        change(copy_definition + 0x10, struct.pack('<QQH', copy_rows_new, copy_events_new, COUNT),
+               'Copy-destination page: configured rows with the original row event')
+        getter = 0x4060170C
+        for shift in (0, 16, 32, 48):
+            op = 'movz' if shift == 0 else 'movk'; suffix = '' if shift == 0 else f',lsl #{shift}'
+            at = getter + shift // 4
+            old = f'{op} x0,#{copy_pairs_old >> shift & 0xFFFF}{suffix}'
+            new = f'{op} x0,#{copy_pairs_new >> shift & 0xFFFF}{suffix}'
+            _at, expected = original(at, 4)
+            if expected != _assemble(old, at):
+                raise ValueError('Unexpected copy-destination pair getter')
+            change(at, _assemble(new, at), 'Copy-destination pair getter uses the configured table')
+        instruction(0x4060171C, f'mov w9,#{copy_count_old}', f'mov w9,#{COUNT}')
+        copy_page = dict(definition=copy_definition, rows=copy_rows_new, events=copy_events_new,
+                         pairs=copy_pairs_new, old_pairs=copy_pairs_old, count=COUNT,
+                         getter=0x40601708, extensions=copy_extensions)
+
     # Generic lookup grows only when given one of these owned pair tables.
     owned=[p['pairs'] for p in pages]+[L.address('imenu')+o for o in (0x2000,0x2400,0x2800,0x2C00)]
     for entry,fallback,target in ((0x403EB6A8,0x403EB6D8,MAIN_CODE+0x400),
@@ -314,7 +395,7 @@ def build_main_menu_plan(source, layout=Layout(), *, core_plan=None):
 
                 item_id=C10_ITEM_ID, table=dict(address=TABLE, rows=TOTAL, stride=28),
                 registry_entries=[REGISTRY0, REGISTRY1], original_failure_id=0xD2,
-                lcd_pages=pages,label_choose=LCD_LABEL_CHOOSE,membership=membership,
+                lcd_pages=pages,copy_page=copy_page,label_choose=LCD_LABEL_CHOOSE,membership=membership,
                 lcd_cache_read=cache_read, lcd_cache_write=cache_write,
                 limitations=['Native LCD definition/event contracts require whole-QEMU MCU and pixel acceptance',
                              'Only Set Picture Control photo/movie pages are extended; management/edit pages are separate'])

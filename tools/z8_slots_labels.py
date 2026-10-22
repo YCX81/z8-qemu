@@ -12,6 +12,7 @@ from z8_slots_layout import Layout
 
 SETTER = 0x403F645C
 RESOLVER = 0x4032E70C
+CONTENT_SETTER = 0x403F61EC  # Original (widget, kind, id) setter used by liveview OSD items.
 DEFAULT_STYLE_ID = 0x21F  # Original main LCD custom-name style.
 MAX_STYLE_ID = 0x652  # Original 40695e3c style lookup, not 8-bit font face.
 
@@ -76,7 +77,22 @@ def build_label_plan(source, layout=Layout(), style_ids=None):
         not_ready: str xzr,[x1]; str wzr,[x2]; str wzr,[x3]; ret;
         original_resource: .word {int.from_bytes(original_resolver,'little')}; b #{RESOLVER+4};
     ''', 0x300)
-    patches = [dict(address=SETTER, expected=original_setter,
+    # The liveview OSD item setter reaches 403f61ec (widget, kind 1, id) instead
+    # of SETTER. Only owned extension ids are routed to the same native text
+    # conversion; every original id resumes the displaced instruction.
+    content = CONTENT_SETTER
+    original_content = source[content - BASE:content - BASE + 4]
+    if original_content != _assemble('cmp w2,#0x12b', content):
+        raise ValueError('Original widget content setter differs')
+    emit(LABEL_CODE + 0x800, f'''
+        mov w9,#0x7e00; sub w8,w2,w9; cmp w8,#{count-1}; b.hi old_content;
+        cmp w1,#1; b.ne old_content; mov w1,w2; b #{LABEL_CODE};
+        old_content: .word {int.from_bytes(original_content,'little')}; b #{content+4};
+    ''', 0x100)
+    patches = [dict(address=content, expected=original_content,
+                    replacement=_assemble(f'b #{LABEL_CODE+0x800}', content),
+                    name='Owned extended-slot ids set through 403f61ec use native ASCII text kind'),
+               dict(address=SETTER, expected=original_setter,
                     replacement=_assemble(f'b #{LABEL_CODE}', SETTER),
                     name='Configured extended-slot IDs use native ASCII text kind; old IDs retain bitmap kind'),
                dict(address=RESOLVER, expected=original_resolver,
