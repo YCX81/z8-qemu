@@ -1,0 +1,357 @@
+{
+  "scope": "Numeric resource identities and interpreted descriptors only; not model assets or hardware acceptance.",
+  "firmware": {
+    "z8-c311": {
+      "sha256": "2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853",
+      "bytes": 81807709
+    },
+    "z9-c532": {
+      "sha256": "6380ded18395ce11cb327c766721274c85127d2cf1a1e887ee60e3d156810bdd",
+      "bytes": 81823629
+    }
+  },
+  "pcnnp": [
+    {
+      "main_offset": 32309248,
+      "body_offset": 32309488,
+      "body_bytes": 1300972,
+      "body_sha256": "1c3e9753aaf23635b033ad15be3505ae1fdc9477e53363eb302e7954bc2fbbad",
+      "workspace_bytes": 393216,
+      "auxiliary_bytes": 0,
+      "auxiliary_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input": {
+        "offset": 0,
+        "width": 384,
+        "height": 256,
+        "channels": 3,
+        "row_bytes": 384,
+        "plane_bytes": 98304,
+        "type_raw": 2
+      },
+      "outputs": [
+        {
+          "offset": 0,
+          "width": 12,
+          "height": 8,
+          "channels": 8,
+          "row_bytes": 32,
+          "plane_bytes": 256,
+          "type_raw": 1
+        },
+        {
+          "offset": 2048,
+          "width": 24,
+          "height": 16,
+          "channels": 8,
+          "row_bytes": 48,
+          "plane_bytes": 768,
+          "type_raw": 1
+        },
+        {
+          "offset": 8192,
+          "width": 24,
+          "height": 16,
+          "channels": 8,
+          "row_bytes": 48,
+          "plane_bytes": 768,
+          "type_raw": 1
+        },
+        {
+          "offset": 14336,
+          "width": 24,
+          "height": 16,
+          "channels": 8,
+          "row_bytes": 48,
+          "plane_bytes": 768,
+          "type_raw": 1
+        }
+      ],
+      "resource_id": 700
+    },
+    {
+      "main_offset": 33619968,
+      "body_offset": 33620112,
+      "body_bytes": 132470,
+      "body_sha256": "8b0a5ca5cf5c9aba3b11362766cd778f38948eb1de948968a9bee205796442aa",
+      "workspace_bytes": 0,
+      "auxiliary_bytes": 0,
+      "auxiliary_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input": {
+        "offset": 0,
+        "width": 32,
+        "height": 32,
+        "channels": 3,
+        "row_bytes": 32,
+        "plane_bytes": 1024,
+        "type_raw": 2
+      },
+      "outputs": [
+        {
+          "offset": 0,
+          "width": 32,
+          "height": 32,
+          "channels": 2,
+          "row_bytes": 64,
+          "plane_bytes": 2048,
+          "type_raw": 1
+        }
+      ],
+      "resource_id": 710
+    },
+    {
+      "main_offset": 33816576,
+      "body_offset": 33816720,
+      "body_bytes": 249124,
+      "body_sha256": "373cd288cb60130ad74694635a0917906d60e0326eb674fd41210aa154f1d586",
+      "workspace_bytes": 0,
+      "auxiliary_bytes": 24576,
+      "auxiliary_sha256": "276118b3d6c071409918eb1ce9a2264178f6b3e74f4b8fe7587a5a4818bbac36",
+      "input": {
+        "offset": 0,
+        "width": 32,
+        "height": 32,
+        "channels": 3,
+        "row_bytes": 32,
+        "plane_bytes": 1024,
+        "type_raw": 2
+      },
+      "outputs": [
+        {
+          "offset": 0,
+          "width": 12,
+          "height": 1,
+          "channels": 1,
+          "row_bytes": 32,
+          "plane_bytes": 32,
+          "type_raw": 1
+        }
+      ],
+      "resource_id": 720
+    },
+    {
+      "main_offset": 34144256,
+      "body_offset": 34144432,
+      "body_bytes": 1165636,
+      "body_sha256": "2cd4c959add30076c872a36d4275ebc8e102c469b405a9e034476c0872fac4d0",
+      "workspace_bytes": 393216,
+      "auxiliary_bytes": 0,
+      "auxiliary_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input": {
+        "offset": 0,
+        "width": 384,
+        "height": 256,
+        "channels": 3,
+        "row_bytes": 384,
+        "plane_bytes": 98304,
+        "type_raw": 2
+      },
+      "outputs": [
+        {
+          "offset": 0,
+          "width": 24,
+          "height": 16,
+          "channels": 30,
+          "row_bytes": 48,
+          "plane_bytes": 768,
+          "type_raw": 1
+        },
+        {
+          "offset": 23040,
+          "width": 12,
+          "height": 8,
+          "channels": 30,
+          "row_bytes": 32,
+          "plane_bytes": 256,
+          "type_raw": 1
+        }
+      ],
+      "resource_id": 740
+    },
+    {
+      "main_offset": 36896768,
+      "body_offset": 36896944,
+      "body_bytes": 1130110,
+      "body_sha256": "67e8ff4a578200a9a94f67b27bf49a9e5f29497180d980d71812b72d2457dd34",
+      "workspace_bytes": 393216,
+      "auxiliary_bytes": 0,
+      "auxiliary_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input": {
+        "offset": 0,
+        "width": 384,
+        "height": 256,
+        "channels": 3,
+        "row_bytes": 384,
+        "plane_bytes": 98304,
+        "type_raw": 2
+      },
+      "outputs": [
+        {
+          "offset": 0,
+          "width": 24,
+          "height": 16,
+          "channels": 26,
+          "row_bytes": 48,
+          "plane_bytes": 768,
+          "type_raw": 1
+        },
+        {
+          "offset": 19968,
+          "width": 12,
+          "height": 8,
+          "channels": 26,
+          "row_bytes": 32,
+          "plane_bytes": 256,
+          "type_raw": 1
+        }
+      ],
+      "resource_id": 750
+    },
+    {
+      "main_offset": 39649280,
+      "body_offset": 39649424,
+      "body_bytes": 810554,
+      "body_sha256": "ba0574da3aa0e79f72e2e2d1c38f6e6ae80bd1c1ed27061acfc5dd44585407cc",
+      "workspace_bytes": 786432,
+      "auxiliary_bytes": 197726,
+      "auxiliary_sha256": "c23455e87d234242fa2b4ddc014dcc2e2bc44be1c719b4d041c346678b9b15a6",
+      "input": {
+        "offset": 0,
+        "width": 384,
+        "height": 256,
+        "channels": 3,
+        "row_bytes": 384,
+        "plane_bytes": 98304,
+        "type_raw": 2
+      },
+      "outputs": [
+        {
+          "offset": 0,
+          "width": 7,
+          "height": 1,
+          "channels": 1,
+          "row_bytes": 16,
+          "plane_bytes": 16,
+          "type_raw": 1
+        }
+      ],
+      "resource_id": 760
+    },
+    {
+      "main_offset": 35323904,
+      "body_offset": 35324080,
+      "body_bytes": 1543726,
+      "body_sha256": "e8d371e77efc3035d0c633c8c90aa4851f1675e5abcf7999edb23adc6439722b",
+      "workspace_bytes": 393216,
+      "auxiliary_bytes": 0,
+      "auxiliary_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input": {
+        "offset": 0,
+        "width": 384,
+        "height": 256,
+        "channels": 3,
+        "row_bytes": 384,
+        "plane_bytes": 98304,
+        "type_raw": 2
+      },
+      "outputs": [
+        {
+          "offset": 0,
+          "width": 24,
+          "height": 16,
+          "channels": 22,
+          "row_bytes": 48,
+          "plane_bytes": 768,
+          "type_raw": 1
+        },
+        {
+          "offset": 16896,
+          "width": 12,
+          "height": 8,
+          "channels": 33,
+          "row_bytes": 32,
+          "plane_bytes": 256,
+          "type_raw": 1
+        }
+      ],
+      "resource_id": 744
+    },
+    {
+      "main_offset": 38076416,
+      "body_offset": 38076592,
+      "body_bytes": 1540550,
+      "body_sha256": "66a34f2456804699256b3c9d79da3bb241e2d5b617877b18948c37bdd898d32d",
+      "workspace_bytes": 393216,
+      "auxiliary_bytes": 0,
+      "auxiliary_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input": {
+        "offset": 0,
+        "width": 384,
+        "height": 256,
+        "channels": 3,
+        "row_bytes": 384,
+        "plane_bytes": 98304,
+        "type_raw": 2
+      },
+      "outputs": [
+        {
+          "offset": 0,
+          "width": 24,
+          "height": 16,
+          "channels": 26,
+          "row_bytes": 48,
+          "plane_bytes": 768,
+          "type_raw": 1
+        },
+        {
+          "offset": 19968,
+          "width": 12,
+          "height": 8,
+          "channels": 26,
+          "row_bytes": 32,
+          "plane_bytes": 256,
+          "type_raw": 1
+        }
+      ],
+      "resource_id": 754
+    },
+    {
+      "main_offset": 40697856,
+      "body_offset": 40698032,
+      "body_bytes": 1842602,
+      "body_sha256": "fd35487517b86de748fd01b581b37a72bb33faefd0b1ac740a965eb70952ba2e",
+      "workspace_bytes": 393216,
+      "auxiliary_bytes": 0,
+      "auxiliary_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "input": {
+        "offset": 0,
+        "width": 384,
+        "height": 256,
+        "channels": 3,
+        "row_bytes": 384,
+        "plane_bytes": 98304,
+        "type_raw": 2
+      },
+      "outputs": [
+        {
+          "offset": 0,
+          "width": 24,
+          "height": 16,
+          "channels": 24,
+          "row_bytes": 48,
+          "plane_bytes": 768,
+          "type_raw": 1
+        },
+        {
+          "offset": 18432,
+          "width": 12,
+          "height": 8,
+          "channels": 24,
+          "row_bytes": 32,
+          "plane_bytes": 256,
+          "type_raw": 1
+        }
+      ],
+      "resource_id": 770
+    }
+  ]
+}

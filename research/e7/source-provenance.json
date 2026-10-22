@@ -1,0 +1,73 @@
+{
+  "scope": "Authored research source only; original inputs and original files preserved privately.",
+  "adaptations": "Explicit private input/output paths, pinned external peer import, and optional private-test skips; inference math unchanged.",
+  "files": [
+    {
+      "source": "e7-nn-20261012/parse_models.py",
+      "source_sha256": "05e349b16902e0d4643bfb18d389db4cf322d6f7ed7029153799a82dee867326",
+      "published": "parse_models.py",
+      "published_sha256": "13b74dd4f82501c496c16abf6fc993c95d0e83f0d3f9e26ad88428426ce44292"
+    },
+    {
+      "source": "e7-nn-20261012/animal_channels.py",
+      "source_sha256": "d9558b5d97de02164613ba7cd5dbdca3f61623b33e305c7c0b813d7e63a6345c",
+      "published": "animal_channels.py",
+      "published_sha256": "7ecbb87571fb2ecca47b21521b58c5543e5d9910f9ecae22c1396216aaded5b6"
+    },
+    {
+      "source": "e7-full-repro-20261020/packets.py",
+      "source_sha256": "95f1a94f7dc4e3d7cd0ed554da9b14d75c6547e799cf10c48f241f08e135ee1f",
+      "published": "pcnn_packets.py",
+      "published_sha256": "b7958f84338f0462d1269f64b56c2298b9d18f59d51da6d6cb2abb0785233763"
+    },
+    {
+      "source": "e7-full-repro-20261020/replay.py",
+      "source_sha256": "e7a5993cfdc84bd49c2b982f6c823fad2fcb80ddb2554859957612d42b1cf685",
+      "published": "pcnn_replay.py",
+      "published_sha256": "341fc4ecec5158b7db7213c9c363ae34782914f9b092207d866b9081174760f1"
+    },
+    {
+      "source": "e7-full-repro-20261020/inventory.py",
+      "source_sha256": "71ce9c293acf6d331fb0309f7c58635423460667eca3669b77faf41a14dae67e",
+      "published": "pcnn_inventory.py",
+      "published_sha256": "cc2f0bc9956a556552b1348e18912600f10ca527a79a51ace36daf2bc2814c1a"
+    },
+    {
+      "source": "e7-neupro-forward-20261020/fixed_forward.py",
+      "source_sha256": "371cb60e037f22c02e205a200ac2a2ee8da0bc84c750eeb08f511580c266e324",
+      "published": "neupro_forward.py",
+      "published_sha256": "308c5b120e93d28211b7872634a3990a2e36b0e8f8a38f2d47ef11844eeac82b"
+    },
+    {
+      "source": "e7-nn-20261012/test_parse_models.py",
+      "source_sha256": "cac007224582e91ce40954df3bad7228046ac7438724d144cea4f367163b04a9",
+      "published": "tests/test_parse_models.py",
+      "published_sha256": "87cbfd0288fa17758f414b7f8f3deb9768724dbe858e125f5ff2976ff86b737f"
+    },
+    {
+      "source": "e7-nn-20261012/test_animal_channels.py",
+      "source_sha256": "0f4b67e2adb0244f22b910aeeb0fb891af880b580a03408048f3374c2a23dbed",
+      "published": "tests/test_animal_channels.py",
+      "published_sha256": "b5007e260bdbfc1a4f114f3ca3303866054d91a3f346718bbabc0095a6f06381"
+    }
+  ],
+  "reports": [
+    {
+      "source": "e7-model-benchmark-20261022/REPORT.txt",
+      "source_sha256": "ec3620a2ace357f0711eb863ad5f9c887f3c96697b886d3aef445b2ac51ae953",
+      "published": "docs/model-benchmark-20261022.zh-CN.txt"
+    },
+    {
+      "source": "e7-peer-benchmark-20261022/REPORT.txt",
+      "source_sha256": "f2cf9bd96c0f6742a88d0cd4ab2a493d823e191ebaa2c02d7a91b56e83b347a9",
+      "published": "docs/peer-benchmark-20261022.zh-CN.txt"
+    }
+  ],
+  "publication_added_components": [
+    "e7_inputs.py",
+    "tests/test_e7_inputs.py",
+    "tests/test_public_contracts.py",
+    "tests/test_neupro_arithmetic.py",
+    "bilingual docs and source-only numeric summaries"
+  ]
+}

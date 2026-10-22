@@ -37,6 +37,7 @@ The table above describes `main`. Topic branches hold unmerged experiments and c
 | [`codex/raw-precapture-shared146`](https://github.com/YCX81/z8-qemu/tree/codex/raw-precapture-shared146) | RAW history transport for pre-release capture, with the dual 1540/153c encoders |
 | [`codex/z8-he-history-20261017`](https://github.com/YCX81/z8-qemu/tree/codex/z8-he-history-20261017) | Lifecycle tests for a third-party HE precapture hook, replay of a real HE sample, and the native model gaps found |
 | [`codex/z8-r4-lifecycle`](https://github.com/YCX81/z8-qemu/tree/codex/z8-r4-lifecycle) | Extended-slot NP3 preflight, liveview labels and native card-input fallback experiments; copy-page expansion default off |
+| [`codex/e7-neural-research`](https://github.com/YCX81/z8-qemu/tree/codex/e7-neural-research) | Authored E7 parsers, candidate CPU replay, quantization and research contracts; external E7-bird arithmetic kept separate |
 | [`codex/z8-heif-1602`](https://github.com/YCX81/z8-qemu/tree/codex/z8-heif-1602) | HLG/HEIF still pipeline through the 1602 still encoder, plus bounded recovery probes |
 | [`codex/z8-video-c1`](https://github.com/YCX81/z8-qemu/tree/codex/z8-video-c1) | C1 video transport, codec and MCU experiments |
 | [`codex/z8-orientation`](https://github.com/YCX81/z8-qemu/tree/codex/z8-orientation) | Video orientation and video data path experiments |
@@ -133,6 +134,7 @@ Also referenced by topic branches:
 - [WonderLantern/zr-qemu](https://github.com/WonderLantern/zr-qemu) `f9cc5d1`: the input-pair and video-processing models are adapted from it (video C1, orientation, integration).
 - [WonderLantern/wonder-lantern-z30](https://github.com/WonderLantern/wonder-lantern-z30) `video-rot`: design reference for locking video orientation at record start (orientation, integration, video C1).
 - [XinmiaoZhao/NikonFirmwarePatch](https://github.com/XinmiaoZhao/NikonFirmwarePatch) v0.1.0 toolkit and [Ivan-mato/nikon-z8-halfpress-raw-precapture](https://github.com/Ivan-mato/nikon-z8-halfpress-raw-precapture) `205fd05`: third-party precapture projects whose code and samples were tested or reviewed. [raw.pixls.us](https://raw.pixls.us/) record 6616 supplies the real Z8 HE sample (he-history).
+- [WonderLantern/e7-bird-network](https://github.com/WonderLantern/e7-bird-network/tree/8ced43b19edb845baef39a80c45d40be0b49efba) `8ced43b`: separately supplied resource744 arithmetic and procedural reference fixtures (e7-neural-research).
 - [videolan/x265](https://github.com/videolan/x265) for Main10 still encoding, [strukturag/libheif](https://github.com/strukturag/libheif) for container rules, and [exiftool/exiftool](https://github.com/exiftool/exiftool) for tag definitions (HEIF).
 - [LimitPoint/LivePhoto](https://github.com/LimitPoint/LivePhoto), [minutechreview/livephoto-maker](https://github.com/minutechreview/livephoto-maker) and ExifTool: references for Live Photo pairing (Live Photo video).
 

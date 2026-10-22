@@ -1,0 +1,9 @@
+{
+  "project": "WonderLantern/e7-bird-network",
+  "url": "https://github.com/WonderLantern/e7-bird-network",
+  "commit": "8ced43b19edb845baef39a80c45d40be0b49efba",
+  "core_sha256": "02d876f5f0958c931b43bb81bf887de503b039012598234b8c1feef6c35f3562",
+  "role": "Separately supplied, hash-pinned arithmetic helper and optional procedural reference fixtures.",
+  "external_assets_distributed": false,
+  "upstream_hardware_claim": "Upstream reports finite-input validation on Nikon ZR C1.10; not a local Z8 hardware test."
+}

@@ -110,6 +110,30 @@ FILES.update({'docs/z8-photo-audit.md','profiles/z8-lossless14-properties.json',
 FILES.update({'docs/z8-experiment-assumptions.md', 'docs/verification/raw-research-log-20261013.md', 'docs/z8-model-split-plan.md', 'docs/z8-public-review-20261013.md'})
 FILES.update({'docs/publication-checkpoint-20261015.md'})
 FILES.add('docs/publication-progress-20261015.md')
+FILES.update({
+    'research/e7/README.md',
+    'research/e7/README.zh-CN.md',
+    'research/e7/animal_channels.py',
+    'research/e7/docs/model-benchmark-20261022.zh-CN.txt',
+    'research/e7/docs/peer-benchmark-20261022.zh-CN.txt',
+    'research/e7/docs/resource-identities.json',
+    'research/e7/docs/status.md',
+    'research/e7/e7_inputs.py',
+    'research/e7/external-reference.json',
+    'research/e7/neupro_forward.py',
+    'research/e7/parse_models.py',
+    'research/e7/pcnn_inventory.py',
+    'research/e7/pcnn_packets.py',
+    'research/e7/pcnn_replay.py',
+    'research/e7/requirements-replay.txt',
+    'research/e7/requirements.txt',
+    'research/e7/source-provenance.json',
+    'research/e7/tests/test_animal_channels.py',
+    'research/e7/tests/test_e7_inputs.py',
+    'research/e7/tests/test_neupro_arithmetic.py',
+    'research/e7/tests/test_parse_models.py',
+    'research/e7/tests/test_public_contracts.py',
+})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),

@@ -1,0 +1,2 @@
+# Public parser and CPU data-array dependency.
+numpy>=1.26,<3

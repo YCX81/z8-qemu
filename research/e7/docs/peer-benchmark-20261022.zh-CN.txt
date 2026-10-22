@@ -1,0 +1,108 @@
+Historical lab report, retained as a dated evidence summary.
+The underlying model, image and vendor-backend runs were not rerun for publication.
+Relative lab paths below refer to private inputs, not files distributed here.
+
+E7与代表性轻量模型：同图比较
+日期：2026-10-22（Asia/Taipei）
+
+结论：在本批图片和固定门限下，YOLO11n/YOLO26n对整猫狗、整车标注的几何覆盖优于当前E7离线候选链，但鸟类、飞机以及脸/头不能概括为YOLO26n全面领先。YuNet默认0.9门限漏检较多，现有结果不支持直接替代原E7脸/头检测。头眼精度尚无匹配标注可验收。
+本次实际执行YOLO11n、YOLO26n、YuNet、RTMPose-t Face6、RTMPose-m AP10K，未声称穷尽所有优秀模型或建立SOTA排名。所有比较是桌面CPU/候选解释器，原E7加速器算术与相机输入未独立验证。
+
+输入和比较规则
+- 使用上一批固定的14张COCO val2017图片，图片不因结果而更换。384×256 stretch/letterbox直接读取上一批保存的PNG，逐字节验证RGB像素完全一致。
+- YOLO保持模型要求的/255归一化，E7保留/256；不改变模型原始权重、固定门限或校准表。YOLO confidence=.25、max_det=300；YOLO11n NMS IoU=.7，YOLO26n使用实际end-to-end后端。
+- 每个任务使用与上一批E7相同的正例/跨类对照子集和GT。动物组只评估cat/dog，车辆组只评估car/bus；类别组内做整体定位，不据此声称所有物种或车型分类正确。
+- 另测640×640 letterbox，像素预算为384×256的4.17倍，独立列出，不混入同分辨率结论。
+- IoU>=.5/.75最大数量一对一匹配。不是官方mAP，没有置信区间或完整数据集总体排名。E7候选中的部位框不能全部当误报。
+- 人物700的BodyInd更像躯干区域，尚未证明对应COCO完整人体范围，因此不能把700的0/8整人IoU当成零识别人。
+- YOLO公共权重按COCO预训练使用；这批来自val2017。其它预训练数据与本批图片的潜在重合尚未完整审计，尤其Face6多数据集训练；关键点结果只作观察。
+
+整物体框结果（匹配/GT，固定IoU>=.5）
+任务 | 模型 | 适配 | 匹配/GT | 候选数 | 无相关GT图片有候选/无GT图片
+person | PCNN700 body | stretch | 0/8 | 6 | 0/2
+person | PCNN700 body | letterbox | 0/8 | 4 | 0/2
+person | yolo11n | stretch | 5/8 | 10 | 0/2
+person | yolo11n | letterbox | 5/8 | 7 | 0/2
+person | yolo11n | letterbox640 | 6/8 | 7 | 1/2
+person | yolo26n | stretch | 5/8 | 7 | 0/2
+person | yolo26n | letterbox | 6/8 | 7 | 0/2
+person | yolo26n | letterbox640 | 6/8 | 6 | 0/2
+animal | NeuPro animal | stretch | 1/5 | 9 | 0/1
+animal | NeuPro animal | letterbox | 1/5 | 10 | 0/1
+animal | yolo11n | stretch | 3/5 | 3 | 0/1
+animal | yolo11n | letterbox | 3/5 | 3 | 0/1
+animal | yolo11n | letterbox640 | 5/5 | 5 | 0/1
+animal | yolo26n | stretch | 3/5 | 3 | 0/1
+animal | yolo26n | letterbox | 3/5 | 3 | 0/1
+animal | yolo26n | letterbox640 | 5/5 | 5 | 0/1
+vehicle | NeuPro vehicle | stretch | 1/7 | 2 | 0/1
+vehicle | NeuPro vehicle | letterbox | 2/7 | 3 | 0/1
+vehicle | yolo11n | stretch | 5/7 | 7 | 0/1
+vehicle | yolo11n | letterbox | 5/7 | 8 | 0/1
+vehicle | yolo11n | letterbox640 | 5/7 | 6 | 0/1
+vehicle | yolo26n | stretch | 5/7 | 6 | 0/1
+vehicle | yolo26n | letterbox | 5/7 | 7 | 0/1
+vehicle | yolo26n | letterbox640 | 5/7 | 5 | 0/1
+bird | PCNN744 profile5 | stretch | 2/4 | 8 | 1/1
+bird | PCNN744 profile5 | letterbox | 2/4 | 5 | 0/1
+bird | PCNN744 raw | stretch | 2/4 | 10 | 1/1
+bird | PCNN744 raw | letterbox | 3/4 | 12 | 1/1
+bird | yolo11n | stretch | 2/4 | 2 | 0/1
+bird | yolo11n | letterbox | 1/4 | 1 | 0/1
+bird | yolo11n | letterbox640 | 3/4 | 3 | 0/1
+bird | yolo26n | stretch | 2/4 | 2 | 0/1
+bird | yolo26n | letterbox | 2/4 | 2 | 0/1
+bird | yolo26n | letterbox640 | 2/4 | 2 | 0/1
+airplane | yolo11n | stretch | 2/3 | 2 | 0/0
+airplane | yolo11n | letterbox | 2/3 | 2 | 0/0
+airplane | yolo11n | letterbox640 | 3/3 | 4 | 0/0
+airplane | yolo26n | stretch | 2/3 | 2 | 0/0
+airplane | yolo26n | letterbox | 1/3 | 2 | 0/0
+airplane | yolo26n | letterbox640 | 2/3 | 2 | 0/0
+
+同图观察与建议
+1. 猫狗：384×256留边，当前E7候选链匹配1/5，两款YOLO均3/5；640留边两款均5/5。这里包含猫局部遮挡、床上两只猫及玩具熊。YOLO26n在电脑旁猫头图定位更好，床上猫图却不如YOLO11n。
+2. 汽车/公交车：同分辨率留边，E7候选2/7，两款YOLO均5/7。挡风玻璃破损的大巴，两款YOLO能匹配，当前E7候选无框；蓝色越野车那张，E7和YOLO11n有匹配，YOLO26n却没有。
+3. 鸟：同分辨率留边，E7原始候选3/4、profile5为2/4；YOLO11n为1/4、YOLO26n为2/4。猫头鹰图E7原始候选覆盖两只，YOLO只匹配一只；但E7原始候选在非鸟对照上有输出，因此不能只按原始覆盖数判断胜负。
+4. 飞机：同分辨率留边，YOLO11n匹配2/3，YOLO26n为1/3；640时分别3/3和2/3。E7资源754还没有本批可确认的检测框解码，不能宣称胜过它。
+5. 完整人体：YOLO11n/26n在留边输入下为5/8、6/8；与700的躯干/脸/头输出不是完全相同的任务。保留原E7部位支路有研究价值。
+6. 因此，YOLO适合作为统一粗检测候选，当前证据不支持一次性删除所有专用模型。应扩大固定测试集并以相同误报预算比较，之后再决定替换哪些支路。
+
+头眼模型实际结果
+- YuNet：使用OpenCV Zoo官方2023mar ONNX，score=.9、NMS=.3；28个384×256输入和两张原分辨率人像均实际运行。两张主选人像分别只检出1张脸、0张脸；原图尺寸下也为1、0。E7候选在两张图上有多组脸/头框。
+- 该结果只说明本配置的漏检问题，不能证明YuNet所有门限或完整数据集表现较差。没有按这些图片降低门限来制造优势。缺少脸框真值，未计算正式人脸AP。
+- RTMPose-t Face6：实际完成3个YuNet人脸ROI的106点推理。前端漏掉的脸不会自动得到精定位；点数多不能代替准确性验证。没有将106点直接当成可见瞳孔或AF真值。
+- RTMPose-m AP10K：实际完成6个由YOLO26n检测出的猫狗ROI，每个17点，点0/1按官方元数据为左右眼。两张狗图眼点视觉上接近眼部；侧脸猫仍预测两只眼，遮挡/可见性必须另测。床上两只猫在384输入下被前端漏掉，后续关键点模型没有机会运行。
+- 本批无动物眼/脸106点独立标注，也没有鸟眼专用替代模型。因此没有得出头眼精度优于E7的结论。
+- 可视化：face-comparison.png和animal-keypoints.png。所有点按原模型结果展示，不手工修正。
+
+RTMPose包配置不一致的处理
+官方Face6和AP10K下载包的pipeline.json预处理image_size写192×256，实际ONNX输入均为N×3×256×256，SimCC codec也为256×256。本批明确采用实际模型/codec的256×256；保留原配置未修改。
+预处理：由检测框求中心，宽高最大边乘1.25形成方形，cv2线性仿射到256×256；RGB减[123.675,116.28,103.53]再除[58.395,57.12,57.375]。SimCC两轴argmax除2，映射回图像。
+全部9个ROI再次推理得到相同输入哈希、坐标与score，并用逆仿射独立核对坐标变换，最大误差小于1e-4像素。pose-rechecks/保存输入和原始SimCC张量。这核对实现一致性，不是独立原厂精度证明。
+
+本机CPU耗时（4线程，batch1）
+yolo11n [256, 384]: 10.854 ms，实际融合后端纯forward，预热3次、10次中位数。
+yolo11n [640, 640]: 22.879 ms，实际融合后端纯forward，预热3次、10次中位数。
+yolo26n [256, 384]: 10.213 ms，实际融合后端纯forward，预热3次、10次中位数。
+yolo26n [640, 640]: 22.071 ms，实际融合后端纯forward，预热3次、10次中位数。
+RTMPose-t Face6: 3.993 ms；forward only per256x256 ROI；预热3次、10次中位数。
+RTMPose-m AP10K: 11.539 ms；forward only per256x256 ROI；预热3次、10次中位数。
+YuNet: 2.890 ms；OpenCV detect including decoding/NMS；预热3次、10次中位数。
+YuNet耗时包含检测解码/NMS，RTMPose为每个ROI纯forward，不能直接相加当成任意人数场景的固定端到端时间。以上均不是E7机内时延，也不能与位级E7模拟器几秒级耗时直接比较芯片性能。
+
+执行与核验
+84次YOLO图片配置推理，30次YuNet图片推理，9个关键点ROI；308组匹配经SciPy独立分配实现核对。
+verification.json通过。所有权重/输入哈希、逐图原始检测框、配置及耗时保存；既有E7分析、原权重和SDK均未改。
+
+复现：依次prepare.py（生成协议、下载模型）、run_yolo.py、run_parts.py、analyze.py、audit.py、write_report.py。
+YOLO使用既有e7-bird-env Python；ONNX部分和audit使用e7-onnx-probe-env Python，图像/绘图库复用已安装版本。无需新安装全套MMPose。
+主要产物：comparison.json、scored-cases.json、parts.json、yolo11n.json、yolo26n.json、verification.json；模型来源与SHA在model-sources.json中。
+
+来源：
+https://docs.ultralytics.com/models/yolo26/
+https://docs.ultralytics.com/models/yolo11/
+https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet
+https://github.com/open-mmlab/mmpose/tree/main/projects/rtmpose
+https://github.com/open-mmlab/mmpose/blob/main/configs/_base_/datasets/ap10k.py
+https://github.com/open-mmlab/mmpose/blob/main/projects/rtmpose/examples/onnxruntime/main.py

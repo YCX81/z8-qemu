@@ -30,3 +30,12 @@ mistaken for recovered factory data or a hardware specification.
 The overlay/tools use GPL-2.0-or-later. QEMU retains its upstream licensing;
 see COPYING and LICENSES/QEMU-LICENSE.txt. No proprietary firmware is relicensed
 under the source license.
+
+## Authored E7 research checkpoint
+
+The authored parsing, dispatch, candidate quantization and test sources under
+`research/e7/` are contributed under GPL-2.0-or-later. The pinned external
+E7-bird arithmetic helper is obtained separately and is not redistributed or
+relicensed here. Firmware, model assets, photographic inputs, vendor SDKs and
+licenses are not included. Dated benchmark reports retain their candidate-model
+and historical-evidence limits.

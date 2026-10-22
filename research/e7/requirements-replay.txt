@@ -1,0 +1,3 @@
+-r requirements.txt
+# Optional; locally checked with CPU Torch 2.9.1+cpu. No model assets are installed.
+torch==2.9.1
