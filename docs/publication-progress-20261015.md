@@ -74,3 +74,19 @@ HIF: the remaining strict stop is JPEG bank1. Those samples used single-source
 mask 0x40; the separately recorded first P22 run covers the dual-source stop.
 No firmware execution, device QTest or camera acceptance was rerun to publish
 these sources. Earlier index sections retain their original snapshot scope.
+
+## Extended-slot instruction tests, 2026-10-22
+
+The `codex/z8-r4-lifecycle` branch publishes the existing NP3 zero-key terminator
+preflight fix and a new extended-slot indicator/card-input fallback checkpoint.
+The complete regression ran 645 tests: with the private original MAIN, 3 were
+skipped and all eleven new instruction-level cases ran; the exported public
+source snapshot passed with 102 explicit private-input skips. Both runs also
+completed the existing C checks. Real external NP3 files were not supplied.
+
+See the [2026-10-22 source checkpoint](https://github.com/YCX81/z8-qemu/blob/codex/z8-r4-lifecycle/docs/publication-checkpoint-20261022.md).
+Copy-destination page expansion remains opt-in and disabled by default. These
+results do not establish full QEMU UI, real card import, camera behavior or
+hardware acceptance. Firmware and real NP3 exports remain private; no firmware
+package was built or flashed for publication. The experiment remains separate
+from main's implementation.

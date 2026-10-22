@@ -36,6 +36,7 @@ Open Gate 视频、AF 增强、尼康云创在线接入、完整胶片模拟、�
 | [`codex/z8-integration`](https://github.com/YCX81/z8-qemu/tree/codex/z8-integration) | RAW、录像与方向的合并集成实验 |
 | [`codex/raw-precapture-shared146`](https://github.com/YCX81/z8-qemu/tree/codex/raw-precapture-shared146) | 预拍用的 RAW 历史帧传输，以及 1540/153c 双编码器 |
 | [`codex/z8-he-history-20261017`](https://github.com/YCX81/z8-qemu/tree/codex/z8-he-history-20261017) | 第三方 HE 预拍钩子的生命周期测试、真实 HE 样本回放，以及发现的原生模型缺口 |
+| [`codex/z8-r4-lifecycle`](https://github.com/YCX81/z8-qemu/tree/codex/z8-r4-lifecycle) | 扩展槽位 NP3 预检、取景槽号提示与原生卡片输入回退实验；复制页扩展默认关闭 |
 | [`codex/z8-heif-1602`](https://github.com/YCX81/z8-qemu/tree/codex/z8-heif-1602) | 经 1602 静态照片编码器的 HLG/HEIF 照片管线，以及有界恢复探针 |
 | [`codex/z8-video-c1`](https://github.com/YCX81/z8-qemu/tree/codex/z8-video-c1) | C1 视频传输、编码与 MCU 实验 |
 | [`codex/z8-orientation`](https://github.com/YCX81/z8-qemu/tree/codex/z8-orientation) | 录像方向与视频数据路径实验 |

@@ -36,6 +36,7 @@ The table above describes `main`. Topic branches hold unmerged experiments and c
 | [`codex/z8-integration`](https://github.com/YCX81/z8-qemu/tree/codex/z8-integration) | Combined RAW, video and orientation integration experiment |
 | [`codex/raw-precapture-shared146`](https://github.com/YCX81/z8-qemu/tree/codex/raw-precapture-shared146) | RAW history transport for pre-release capture, with the dual 1540/153c encoders |
 | [`codex/z8-he-history-20261017`](https://github.com/YCX81/z8-qemu/tree/codex/z8-he-history-20261017) | Lifecycle tests for a third-party HE precapture hook, replay of a real HE sample, and the native model gaps found |
+| [`codex/z8-r4-lifecycle`](https://github.com/YCX81/z8-qemu/tree/codex/z8-r4-lifecycle) | Extended-slot NP3 preflight, liveview labels and native card-input fallback experiments; copy-page expansion default off |
 | [`codex/z8-heif-1602`](https://github.com/YCX81/z8-qemu/tree/codex/z8-heif-1602) | HLG/HEIF still pipeline through the 1602 still encoder, plus bounded recovery probes |
 | [`codex/z8-video-c1`](https://github.com/YCX81/z8-qemu/tree/codex/z8-video-c1) | C1 video transport, codec and MCU experiments |
 | [`codex/z8-orientation`](https://github.com/YCX81/z8-qemu/tree/codex/z8-orientation) | Video orientation and video data path experiments |
