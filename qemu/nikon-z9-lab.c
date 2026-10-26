@@ -83,6 +83,7 @@ static const struct {
     { UINT64_C(0x840000000), UINT64_C(0x8adf8da00) },
     { UINT64_C(0x8adf8dc00), UINT64_C(0x8fff47400) },
 };
+#include "nikon-dma-observe.h"
 
 /* External clock fixture: complete 16-bit words, not pin-level SPI timing. */
 typedef struct Z9SerialTransfer {
@@ -17157,6 +17158,7 @@ static const MemoryRegionOps dma_ops = {
 static void nikon_z9_init(MachineState *machine)
 {
     NikonZ9State *s = NIKON_Z9_LAB(machine);
+    wl_dma_observer_configure(machine->ram_size, s->image_bank_model);
     s->producer_journal_initialized = true;
     if (s->producer_journal.enabled) {
         /* Preserve the existing GLib unrecoverable OOM semantics. */

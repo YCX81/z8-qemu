@@ -113,7 +113,7 @@ This wrapper does not enable slot expansion or provide complete RAW pre-release 
 - [Feature TODO](docs/TODO.md), [implementation history](docs/z8-status.md), [engineering progress](docs/research-progress.md), [parameter provenance](docs/z8-parameters.md).
 - [C10](docs/z8-c10.md), [C32/C64 slots](docs/z8-c32.md), [persistent media](docs/z8-persistent-media.md).
 - [RAW runtime](docs/z8-raw-runtime.md), [explicit capture resources](docs/z8-capture-resources.md), [capture evidence](docs/z8-capture-evidence.md), [writer observer](docs/z8-writer-observer.md), [NVMe evidence](docs/z8-nvme-evidence.md).
-- [Internal FIFO start](docs/z8-d980-internal.md), [F04F stop](docs/z8-primary-f04f-stop.md), [C0 stop](docs/z8-1543-c0-stop.md), [producer journal](docs/z8-producer-journal.md), [multi-frame audit](docs/z8-precapture-audit.md).
+- [Internal FIFO start](docs/z8-d980-internal.md), [F04F stop](docs/z8-primary-f04f-stop.md), [C0 stop](docs/z8-1543-c0-stop.md), [board-write observer](docs/z8-dma-observe.md), [producer journal](docs/z8-producer-journal.md), [multi-frame audit](docs/z8-precapture-audit.md).
 - [Per-photo audit, output ownership and F0](docs/z8-photo-audit.md), [topic-branch publication progress](docs/publication-progress-20261015.md).
 
 REA/Ghidra uses explicitly marked analysis ELF containers made from local firmware slices, not original Nikon ELF files. `REA.ps1` calls an already-installed WSL backend; historical CLI use does not imply global Codex MCP registration. See the [implementation record](docs/z8-status.md).

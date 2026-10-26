@@ -51,6 +51,8 @@ jobs:
         run: |
           python tests/test_z8_buffer_ownership.py --qemu .build/build/qemu-system-aarch64 --output .local/output-owner-ci
           python tests/test_z8_lossless14.py --qemu .build/build/qemu-system-aarch64 --output .local/lossless14-ci
+      - name: Default-off board-write observer
+        run: python tests/test_z8_dma_observe.py --qemu .build/build/qemu-system-aarch64 --output .local/dma-observe-ci
       - name: Exact wide internal control transactions
         run: python -O tests/test_z8_d980_wide_internal.py --qemu .build/build/qemu-system-aarch64 --output .local/d980-wide-ci
       - name: Firmware-free realization

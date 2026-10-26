@@ -110,6 +110,7 @@ FILES.update({'docs/z8-photo-audit.md','profiles/z8-lossless14-properties.json',
 FILES.update({'docs/z8-experiment-assumptions.md', 'docs/verification/raw-research-log-20261013.md', 'docs/z8-model-split-plan.md', 'docs/z8-public-review-20261013.md'})
 FILES.update({'docs/publication-checkpoint-20261015.md'})
 FILES.add('docs/publication-progress-20261015.md')
+FILES.update({'docs/z8-dma-observe.md', 'qemu/nikon-dma-observe.h', 'tests/test_z8_dma_observe.py'})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),
