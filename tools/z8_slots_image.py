@@ -15,11 +15,11 @@ from z8_c10_image import source_offset
 from z8_picture_control import _assemble
 
 
-def compose(source,layout=Layout()):
+def compose(source,layout=Layout(),*,extend_copy_page=False):
     L=layout
     core=build_plan(source,L)
     plans=dict(core=core,imenu=build_menu_plan(source,L),labels=build_label_plan(source,L),
-               main_menu=build_main_menu_plan(source,L,core_plan=core))
+               main_menu=build_main_menu_plan(source,L,core_plan=core,extend_copy_page=extend_copy_page))
     memory=reservation_patch(source)
     memory['patch']=dict(memory['patch'],replacement=struct.pack('<I',L.general_bytes),
         name='C32/C64 simulation reservation: remove General heap tail 1 MiB')
@@ -63,14 +63,15 @@ def compose(source,layout=Layout()):
         media=media,memory_reservation=metadata,source_sha256=hashlib.sha256(source).hexdigest())
 
 
-def build_experiment(source,output,layout=Layout()):
-    result=compose(source,layout);output=Path(output);output.mkdir(parents=True,exist_ok=False)
+def build_experiment(source,output,layout=Layout(),*,extend_copy_page=False):
+    result=compose(source,layout,extend_copy_page=extend_copy_page);output=Path(output);output.mkdir(parents=True,exist_ok=False)
     image=output/'simulation-main-not-an-update.bin';image.write_bytes(result['image'])
     loaders=[]
     for index,region in enumerate(result['regions']):
         path=output/f'owned-region-{index}.bin';path.write_bytes(region['data'])
         loaders.append(dict(address=region['address'],path=path,bytes=len(region['data']),sha256=hashlib.sha256(region['data']).hexdigest()))
     metadata=dict(simulation_only=True,camera_update_container=False,slots_per_bank=layout.slots,reserved_capacity=64,
+        extend_copy_page=extend_copy_page,
         memory_reservation=result['memory_reservation'],original_sha256=result['source_sha256'],
         derived_sha256=hashlib.sha256(result['image']).hexdigest(),
         source_patches=[dict(address=hex(p['address']),source_offset=hex(p['source_offset']),name=p['name'],

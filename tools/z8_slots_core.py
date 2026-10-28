@@ -50,7 +50,7 @@ def build_plan(source, layout=Layout()):
         generation=0x3600,current_gate=0x3800,current_base=0x3A00,extra_map=0x3E00,
         save_callback=0x4000,load_callback=0x4040,file_valid=0x4100,file_alloc=0x4140,
         file_free=0x4180,parsed_copy=0x4200,encode=0x4400,list_adapter=0x4600,
-        list_trampoline=0x4900,main_write=0x4A00,main_write_trampoline=0x4B00).items()}
+        list_trampoline=0x4900,main_write=0x4A00,main_write_trampoline=0x4C00).items()}
     E=entries
 
     def original(address,size):
@@ -204,14 +204,26 @@ def build_plan(source, layout=Layout()):
     ins(0x410AAC98,f"b #{E['list_adapter']}",'Never read beyond original nine-byte caller bitmap')
     # A successful original main-parameter write (card copy, manage/edit pages)
     # registers the configured custom record; the original writer runs unchanged.
+    # Extended slots (C10+): the original photo writer gates the settings key
+    # at 410d9b8c to the native C1..C9 range, so a key in the owned settings
+    # groups 0x7c/0x7d is written by the original settings store 41015ec0 into
+    # its Layout record and the record is registered. Every other selector or
+    # key (C1..C9, built-ins, unknown) executes the original writer unchanged.
+    # SIMULATION ONLY - review before any hardware build.
     displaced=original(0x410D9968,4)[0]
     if displaced!=_assemble('sub sp,sp,#0x1f0',0x410D9968):raise ValueError('Original main writer prologue changed')
     emit('main_write_trampoline',f".word {int.from_bytes(displaced,'little')}; b #0x410d996c;",0x40)
     emit('main_write',f'''stp x19,x20,[sp,#-32]!; str x30,[sp,#16]; mov w19,w0;
-        bl #{E['main_write_trampoline']}; mov w20,w0; tbz w0,#0,done;
+        cbz x1,original;
+        {decode_asm(L,'w0','extended','original','mainext',extended_only=True)}
+        extended: {record_asm(L)} ldr w11,[x10,#4]; ubfx w12,w11,#8,#8; sub w12,w12,#0x7c; cmp w12,#1; b.hi original;
+        mov x20,x10; mov x2,x1; mov w0,w11; mov w1,#0x114; bl #0x41015ec0; cbz w0,failed;
+        mov w8,#1; str w8,[x20]; mov w20,#1; b done;
+        failed: mov w20,#0; b done;
+        original: bl #{E['main_write_trampoline']}; mov w20,w0; tbz w0,#0,done;
         {decode_asm(L,'w19','custom','done','mainwrite')}
         custom: {record_asm(L)} mov w8,#1; str w8,[x10];
-        done: mov w0,w20; ldr x30,[sp,#16]; ldp x19,x20,[sp],#32; ret;''',0x100)
+        done: mov w0,w20; ldr x30,[sp,#16]; ldp x19,x20,[sp],#32; ret;''',0x200)
     ins(0x410D9968,f"b #{E['main_write']}",'Original main writer registers configured custom record')
 
     # The experimental input is active only while import_np3 owns params (it

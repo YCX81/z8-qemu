@@ -309,7 +309,21 @@ def build_main_menu_plan(source, layout=Layout(), *, core_plan=None, extend_copy
                 raise ValueError('Unexpected copy-destination pair getter')
             change(at, _assemble(new, at), 'Copy-destination pair getter uses the configured table')
         instruction(0x4060171C, f'mov w9,#{copy_count_old}', f'mov w9,#{COUNT}')
-        copy_page = dict(definition=copy_definition, rows=copy_rows_new, events=copy_events_new,
+        # Two shared row loops still map row keys through the old 9-pair table:
+        # row label draw (table in x21, count w22 at 405fef34) and row validity
+        # (table in x22, count w8 at 405ff7ac). Both `mov #9` are shared with
+        # other 9-row pages, so only an exact 0x42B2BE48 table is switched to
+        # the configured pairs and count; every other table resumes unchanged.
+        # Extended selectors in the label loop are already labelled by
+        # LCD_LABEL_ROW (405ff058) before any selector-0x1f table index.
+        copy_draw, copy_valid = MAIN_CODE + 0x2200, MAIN_CODE + 0x2280
+        instruction(0x405FEF34, f'mov w22,#{copy_count_old}', f'b #{copy_draw}')
+        emit(copy_draw, f'''mov w22,#{copy_count_old}; {_constant('x8', copy_pairs_old)} cmp x21,x8; b.ne back;
+            {_constant('x21', copy_pairs_new)} mov w22,#{COUNT}; back: b #0x405fef38;''', 0x80)
+        instruction(0x405FF7AC, f'mov w8,#{copy_count_old}', f'b #{copy_valid}')
+        emit(copy_valid, f'''mov w8,#{copy_count_old}; {_constant('x9', copy_pairs_old)} cmp x22,x9; b.ne back;
+            {_constant('x22', copy_pairs_new)} mov w8,#{COUNT}; back: b #0x405ff7b0;''', 0x80)
+        copy_page = dict(draw_hook=copy_draw, validity_hook=copy_valid,definition=copy_definition, rows=copy_rows_new, events=copy_events_new,
                          pairs=copy_pairs_new, old_pairs=copy_pairs_old, count=COUNT,
                          getter=0x40601708, extensions=copy_extensions)
 

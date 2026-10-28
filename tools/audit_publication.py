@@ -115,6 +115,7 @@ FILES.update({
     'tests/test_z8_np3_padding.py',
     'tests/test_z8_slots_indicator.py',
 })
+FILES.update({'tests/test_z8_slots_copy_page.py', 'tests/test_z8_slots_write_path.py'})
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),
