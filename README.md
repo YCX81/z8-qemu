@@ -1,5 +1,7 @@
 # Nikon Z8 firmware emulation research
 
+[November Z8 Live / Wave5 development checkpoint](docs/progress-20261111.md) — source archive on this progress branch.
+
 [简体中文](README.zh-CN.md)
 
 Documentation updated: **2026-10-19**. This workspace ports Nikon Z8 C3.11 to the research emulator from [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu), starting from upstream commit `27498735e3ed202052dfc6306ded6b867af70a58`. Z8 firmware identities, MCU bindings, resources and acceptance baselines are defined separately from the retained Z9 reference tools.

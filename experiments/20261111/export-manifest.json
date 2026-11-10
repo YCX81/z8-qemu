@@ -1,0 +1,553 @@
+{
+  "date": "2026-11-11",
+  "scope": "development source snapshot, not a tested integrated release",
+  "transforms": [
+    "workstation home/workspace paths replaced with /path/to placeholders",
+    "QEMU contribution SPDX headers added where absent",
+    "CRLF line endings normalized to LF for canonical Git source verification"
+  ],
+  "excluded": [
+    "firmware and derived MAIN images",
+    "RAM/flash dumps and raw runtime logs",
+    "camera photographs/audio/video and screenshots",
+    "virtual environments, dependencies, objects and executables",
+    "generated disassembly, raw agent transcripts, build audit output and redundant generated diffs",
+    "older migration bundles other than the preserved baseline source"
+  ],
+  "files": [
+    {
+      "source": "qemu-cardhp/cfexpress-hotplug.patch",
+      "destination": "experiments/20261111/card-hotplug/cfexpress-hotplug.patch",
+      "source_sha256": "1b88c91524acc13a427ac2992097926578fd45ce99875930028136baa3c5b6a0",
+      "published_sha256": "1b88c91524acc13a427ac2992097926578fd45ce99875930028136baa3c5b6a0"
+    },
+    {
+      "source": "qemu-cardhp/chains.py",
+      "destination": "experiments/20261111/card-hotplug/chains.py",
+      "source_sha256": "41445e291cad54f4d4ede5c67c16739ac75a1471b1ce7ae92696352179f8c6cd",
+      "published_sha256": "a5771945142f52c37527f4fb7aba9f24f1b660cdf2252ecba1fc05ff45c3d66e"
+    },
+    {
+      "source": "qemu-cardhp/evlog.c",
+      "destination": "experiments/20261111/card-hotplug/evlog.c",
+      "source_sha256": "11a3776d53b2c21ae9c1621c1dcbb220bd212193985c9b364a53078e687792a7",
+      "published_sha256": "f4bed20abf1d803d2836b3a8456340d3be1fea268100bc391d42f4f09e0c999c"
+    },
+    {
+      "source": "qemu-cardhp/irqmap.c",
+      "destination": "experiments/20261111/card-hotplug/irqmap.c",
+      "source_sha256": "937de368cb88a665fe33860d7e6308e9a9077c8774f422352d050c1b34558f03",
+      "published_sha256": "5083fbecf9b35419bf90111e1dfae368ac6415b6dae9907cb7cd8381345a736d"
+    },
+    {
+      "source": "qemu-cardhp/mmiolog.c",
+      "destination": "experiments/20261111/card-hotplug/mmiolog.c",
+      "source_sha256": "80855c46117336ed402662d64313bcc86d9a94286717c499f18d4ab43cec3b81",
+      "published_sha256": "ad762473b28a8b176b9660a96a1593926453c22ee25062e8301ffad74f0d8976"
+    },
+    {
+      "source": "qemu-cardhp/powercut.c",
+      "destination": "experiments/20261111/card-hotplug/powercut.c",
+      "source_sha256": "24d46c5d5b4ecfe2c5dbdb64ba232e3ad1c714d2e929e95c6660c44de299b6a4",
+      "published_sha256": "bb6ecd9ee1947cd7e83a41e3e3fba49724ee4747c61f21f4b30e7053b6b666e0"
+    },
+    {
+      "source": "qemu-cardhp/run_pull.py",
+      "destination": "experiments/20261111/card-hotplug/run_pull.py",
+      "source_sha256": "246a9088399656434c9745dc94ac24e276e28b741c8ebcfb81f5351aa225dafb",
+      "published_sha256": "3829ff3b7b93e1315ad11145f12b5a26eada02aae68123eff5867e05cc8b0cca"
+    },
+    {
+      "source": "qemu-cardhp/swaprun.py",
+      "destination": "experiments/20261111/card-hotplug/swaprun.py",
+      "source_sha256": "3d948f0c4c7d094475ca2588677540560db794d0d9164efc3f9f2933508ac04a",
+      "published_sha256": "de6630ab78e4a442def47dd51a1550c2dc10b9e62457976e3108ac056f4fa056"
+    },
+    {
+      "source": "qemu-exmcu/exmcu-port.patch",
+      "destination": "experiments/20261111/exmcu/exmcu-port.patch",
+      "source_sha256": "ac8616e25d176a3a339c5d2a0807272494e68b94793bade4f1343286c74c9e76",
+      "published_sha256": "ac8616e25d176a3a339c5d2a0807272494e68b94793bade4f1343286c74c9e76"
+    },
+    {
+      "source": "qemu-exmcu/host-wake.patch",
+      "destination": "experiments/20261111/exmcu/host-wake.patch",
+      "source_sha256": "e7df1f7085df7002b5a243b5eb290676e68d9529ce63da3331c01bdf521017eb",
+      "published_sha256": "e7df1f7085df7002b5a243b5eb290676e68d9529ce63da3331c01bdf521017eb"
+    },
+    {
+      "source": "qemu-exmcu/native_run.py",
+      "destination": "experiments/20261111/exmcu/native_run.py",
+      "source_sha256": "e4dbda1c4d6cef015ff4ffeea2dbb09c41b79910a42511d20ccab10b92238bbf",
+      "published_sha256": "cf311d64aafaa05558b6ee7f32a24c83df2c3523623d44aabe7ec658f09c6bb4"
+    },
+    {
+      "source": "_mac-migration/live-session/qemu-patches/merged-prepared.patch",
+      "destination": "experiments/20261111/wave5/merged-prepared.patch",
+      "source_sha256": "7549f2c0d2229d54f3e0291e545f7dd698520d06d94ff2d9f3efe538584fb0b9",
+      "published_sha256": "7549f2c0d2229d54f3e0291e545f7dd698520d06d94ff2d9f3efe538584fb0b9"
+    },
+    {
+      "source": "_mac-migration/live-session/qemu-patches/wave5-prepared.patch",
+      "destination": "experiments/20261111/wave5/wave5-prepared.patch",
+      "source_sha256": "c246b7f26b4ce41b9f8f5a8592eeb04881afb446c3f976350896c038a74e6ba0",
+      "published_sha256": "70fe5da8088ae44eb37091d4a274d3b0dbad067e864fad8de22f772ae88042ea"
+    },
+    {
+      "source": "_mac-migration/live-session/qemu-patches/wave5.patch",
+      "destination": "experiments/20261111/wave5/wave5.patch",
+      "source_sha256": "616b81a77a27b8b39f6ceeae78015c18cd9f71e8688411ceda489caecdc49c0e",
+      "published_sha256": "191fd2581a8bd7e00f0bd814f02438149794fb55c845f79b2817b1d944d3591e"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/arm-service-events.patch",
+      "destination": "experiments/20261111/wave5/source/arm-service-events.patch",
+      "source_sha256": "3b021d31feacb1b123432cdf1537041781f4a9fd3d70ea5159039ebb943a6874",
+      "published_sha256": "3b021d31feacb1b123432cdf1537041781f4a9fd3d70ea5159039ebb943a6874"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/designware-dma.patch",
+      "destination": "experiments/20261111/wave5/source/designware-dma.patch",
+      "source_sha256": "5c061d85d126f358836745b27e505ea7bd66f245e0a5b4bc9cf7745f1515a82c",
+      "published_sha256": "5c061d85d126f358836745b27e505ea7bd66f245e0a5b4bc9cf7745f1515a82c"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-bayer-packet.h",
+      "destination": "experiments/20261111/wave5/source/nikon-bayer-packet.h",
+      "source_sha256": "fd1cae51960c9aa6178cabaf68cd75292486a6123d3b98be71595157a806f569",
+      "published_sha256": "fd1cae51960c9aa6178cabaf68cd75292486a6123d3b98be71595157a806f569"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-buffer-ownership.h",
+      "destination": "experiments/20261111/wave5/source/nikon-buffer-ownership.h",
+      "source_sha256": "0a869d7221ea902236fac39be006b1ff713909e39d5cf8d3da47d58d85d98b75",
+      "published_sha256": "0a869d7221ea902236fac39be006b1ff713909e39d5cf8d3da47d58d85d98b75"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-expeed-lossless.h",
+      "destination": "experiments/20261111/wave5/source/nikon-expeed-lossless.h",
+      "source_sha256": "6f6ef0da9d01571dcf3470ccf1b160fb1c50c5859b6b70ef78d63b4bc97e9100",
+      "published_sha256": "6f6ef0da9d01571dcf3470ccf1b160fb1c50c5859b6b70ef78d63b4bc97e9100"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-persistent-media.h",
+      "destination": "experiments/20261111/wave5/source/nikon-persistent-media.h",
+      "source_sha256": "fc50ae4f4cf950d84a2ab61145156999bd15bcdb7d7363cf50f9ff20be98e51a",
+      "published_sha256": "fc50ae4f4cf950d84a2ab61145156999bd15bcdb7d7363cf50f9ff20be98e51a"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-producer-journal-qemu.h",
+      "destination": "experiments/20261111/wave5/source/nikon-producer-journal-qemu.h",
+      "source_sha256": "c284283c4ac4fd04f425c649322dcf481fa0da6252ee8e84f595e417669fad76",
+      "published_sha256": "c284283c4ac4fd04f425c649322dcf481fa0da6252ee8e84f595e417669fad76"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-producer-journal.h",
+      "destination": "experiments/20261111/wave5/source/nikon-producer-journal.h",
+      "source_sha256": "f44b9757dc9d6b13fde226dbcf938c3da4be7b0ea94fed593da763f675dd014f",
+      "published_sha256": "f44b9757dc9d6b13fde226dbcf938c3da4be7b0ea94fed593da763f675dd014f"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-raw-pixels.h",
+      "destination": "experiments/20261111/wave5/source/nikon-raw-pixels.h",
+      "source_sha256": "92ce49075054677a490aeea027f1ddf133a90b866fccab88f870e05742e95bf7",
+      "published_sha256": "92ce49075054677a490aeea027f1ddf133a90b866fccab88f870e05742e95bf7"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-sensor-tag.h",
+      "destination": "experiments/20261111/wave5/source/nikon-sensor-tag.h",
+      "source_sha256": "32e0c4cff9676af518b638358d1e84582b9913969e8a0b8ac8797db0500eaec7",
+      "published_sha256": "32e0c4cff9676af518b638358d1e84582b9913969e8a0b8ac8797db0500eaec7"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-wave5-codec.h",
+      "destination": "experiments/20261111/wave5/source/nikon-wave5-codec.h",
+      "source_sha256": "0dab88186943ddabe7edbdbad4e82aa98946dd91f57cfdff00fc3b21043470af",
+      "published_sha256": "0dab88186943ddabe7edbdbad4e82aa98946dd91f57cfdff00fc3b21043470af"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-1534-addresses.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-1534-addresses.h",
+      "source_sha256": "748384657bc36e41e1869b8c0df2b270f2132d5ddfa02ef1a5f52a1af7d0b5d1",
+      "published_sha256": "748384657bc36e41e1869b8c0df2b270f2132d5ddfa02ef1a5f52a1af7d0b5d1"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-1534-reference-qemu.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-1534-reference-qemu.h",
+      "source_sha256": "1a6adfc39626b42f92eef8378cf228955bc5398c54f2d35a937bafb211d422dc",
+      "published_sha256": "1a6adfc39626b42f92eef8378cf228955bc5398c54f2d35a937bafb211d422dc"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-1534-reference.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-1534-reference.h",
+      "source_sha256": "79a34ec4b39db2a47507e8a148ffaec2419d320229b26b44dbb74595a6a373ec",
+      "published_sha256": "79a34ec4b39db2a47507e8a148ffaec2419d320229b26b44dbb74595a6a373ec"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-bank0-d980.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-bank0-d980.h",
+      "source_sha256": "8c1de5899b06146f30e1c72081e9b9a92a48f5acc4b7520b46fff59e6674abce",
+      "published_sha256": "8c1de5899b06146f30e1c72081e9b9a92a48f5acc4b7520b46fff59e6674abce"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-cadence.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-cadence.h",
+      "source_sha256": "1551551caa418942f1d01d6b77ac7a28a736d3beb7989a5d88aaeff24cd05915",
+      "published_sha256": "1551551caa418942f1d01d6b77ac7a28a736d3beb7989a5d88aaeff24cd05915"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-frame-period.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-frame-period.h",
+      "source_sha256": "c1227efd736bc2f386731dc0a3d713067673f74b449b41b99c60c57e24ae65c2",
+      "published_sha256": "c1227efd736bc2f386731dc0a3d713067673f74b449b41b99c60c57e24ae65c2"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-heif-menu-stop-qemu.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-heif-menu-stop-qemu.h",
+      "source_sha256": "1a04459c6970fbc7d2c9d0b9db4d2196f6625bb7b1862671d1af37401af5190b",
+      "published_sha256": "1a04459c6970fbc7d2c9d0b9db4d2196f6625bb7b1862671d1af37401af5190b"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-heif-menu-stop.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-heif-menu-stop.h",
+      "source_sha256": "f34607b74bb3489e89bdcb135aaac955899477d4e8aadb423235115608fe7fd8",
+      "published_sha256": "f34607b74bb3489e89bdcb135aaac955899477d4e8aadb423235115608fe7fd8"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-hevc-sps.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-hevc-sps.h",
+      "source_sha256": "d61234a34e529385f50b6005ac9ad4bfdd3d844541c204ed555e8cd706b037e4",
+      "published_sha256": "d61234a34e529385f50b6005ac9ad4bfdd3d844541c204ed555e8cd706b037e4"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-hlg-c1-rearm.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-hlg-c1-rearm.h",
+      "source_sha256": "a5966b3761efb41036c43601bfd1edabc8c024b4f549d745fca6e12ccd318d10",
+      "published_sha256": "a5966b3761efb41036c43601bfd1edabc8c024b4f549d745fca6e12ccd318d10"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-hlg-capture.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-hlg-capture.h",
+      "source_sha256": "fa6d9025f60890335de69021a5439ceb11843c6afc72da097df98c2a220b0d23",
+      "published_sha256": "fa6d9025f60890335de69021a5439ceb11843c6afc72da097df98c2a220b0d23"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-hlg-jpeg-bank1.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-hlg-jpeg-bank1.h",
+      "source_sha256": "69ebc0b6fd48b04b4958277409208b7bacf8fd716c7ccf299eb5d4b8ce5b95ca",
+      "published_sha256": "69ebc0b6fd48b04b4958277409208b7bacf8fd716c7ccf299eb5d4b8ce5b95ca"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-hlg-pipeline-pixels.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-hlg-pipeline-pixels.h",
+      "source_sha256": "df70cdd25b4611b5d4d7f4094e8d9981e8423dd493d2d74f4fde8452e75c9884",
+      "published_sha256": "df70cdd25b4611b5d4d7f4094e8d9981e8423dd493d2d74f4fde8452e75c9884"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-hlg-pipeline-profile.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-hlg-pipeline-profile.h",
+      "source_sha256": "b470b76d91e355d3ad9a353871837092b9619fae0ac7725690a56adf4f9c4ce3",
+      "published_sha256": "b470b76d91e355d3ad9a353871837092b9619fae0ac7725690a56adf4f9c4ce3"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-hlg-pipeline.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-hlg-pipeline.h",
+      "source_sha256": "9d1cd343ab718c5b9a651bd6a8ebc1fe9fcbf411c7e9b2887598dd9bdbfc2496",
+      "published_sha256": "9d1cd343ab718c5b9a651bd6a8ebc1fe9fcbf411c7e9b2887598dd9bdbfc2496"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-hlg-pixels.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-hlg-pixels.h",
+      "source_sha256": "c4b28df26caf8c94cdd5931977a5726be520fe5f3d95f4a555f2e64d9a6ed232",
+      "published_sha256": "c4b28df26caf8c94cdd5931977a5726be520fe5f3d95f4a555f2e64d9a6ed232"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-hlg-thumbnail-pixels.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-hlg-thumbnail-pixels.h",
+      "source_sha256": "3d3500e03c2b3af4d309d2687659ae7f0f2f98636eda65e0f7b3192e273c6214",
+      "published_sha256": "3d3500e03c2b3af4d309d2687659ae7f0f2f98636eda65e0f7b3192e273c6214"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-hlg-thumbnail.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-hlg-thumbnail.h",
+      "source_sha256": "802795256035501c263195b663e637b9c720fca1927ca4edcb8b0e1aff10e216",
+      "published_sha256": "802795256035501c263195b663e637b9c720fca1927ca4edcb8b0e1aff10e216"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-hsfc-decode.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-hsfc-decode.h",
+      "source_sha256": "381dcdbdbdea50694187f0bf0aafe26c2c7cb45d91166e6a1b8917a0e5e1079c",
+      "published_sha256": "381dcdbdbdea50694187f0bf0aafe26c2c7cb45d91166e6a1b8917a0e5e1079c"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-hsfc-encode.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-hsfc-encode.h",
+      "source_sha256": "17ba0a16b37bb5e0911ba47f0cfe1d26ecb6eaaf814a31ed81b649e35832cb70",
+      "published_sha256": "17ba0a16b37bb5e0911ba47f0cfe1d26ecb6eaaf814a31ed81b649e35832cb70"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-hsfc-pixels.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-hsfc-pixels.h",
+      "source_sha256": "a27386407a464829666e58b89b8d30beb333d711261805745f6a9f08c4ba8977",
+      "published_sha256": "a27386407a464829666e58b89b8d30beb333d711261805745f6a9f08c4ba8977"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-hsfc153c.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-hsfc153c.h",
+      "source_sha256": "cb5a8d7602524c1f2c7c50c799595387a858c2b34fa8cf22ffb946faa7267e2e",
+      "published_sha256": "cb5a8d7602524c1f2c7c50c799595387a858c2b34fa8cf22ffb946faa7267e2e"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-input-pair.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-input-pair.h",
+      "source_sha256": "602009872705f900c9e89d40d8dbb1d484aac02410d206e49108a60f58ea5c62",
+      "published_sha256": "602009872705f900c9e89d40d8dbb1d484aac02410d206e49108a60f58ea5c62"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-jpeg-sources.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-jpeg-sources.h",
+      "source_sha256": "270f1f187658b3a0f029923401f63b10ea111e04f9bd1c49399c761375f0df93",
+      "published_sha256": "270f1f187658b3a0f029923401f63b10ea111e04f9bd1c49399c761375f0df93"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-jpeg-types.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-jpeg-types.h",
+      "source_sha256": "b5980dad3450839fc28b84271f07d4e227ee100a9c37187dca3d3db175921d51",
+      "published_sha256": "b5980dad3450839fc28b84271f07d4e227ee100a9c37187dca3d3db175921d51"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-jpeg.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-jpeg.h",
+      "source_sha256": "cc6d42020fb764911d82a703ce35749e40d8d53d4e1ac499bcf2faf8ddd2c6e4",
+      "published_sha256": "cc6d42020fb764911d82a703ce35749e40d8d53d4e1ac499bcf2faf8ddd2c6e4"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-lossless-u16.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-lossless-u16.h",
+      "source_sha256": "c3996e56dd2654dda6e168002b54eca459ee2ed638ef41e4abb7b1ec93607253",
+      "published_sha256": "c3996e56dd2654dda6e168002b54eca459ee2ed638ef41e4abb7b1ec93607253"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-lpcm-audio.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-lpcm-audio.h",
+      "source_sha256": "ab7479c19e09a3720765be60db4434aa08e80c612b7c2c5cb8d2106e16e5e2b9",
+      "published_sha256": "ab7479c19e09a3720765be60db4434aa08e80c612b7c2c5cb8d2106e16e5e2b9"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-nr-identity-properties.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-nr-identity-properties.h",
+      "source_sha256": "462f80b760fee242c60ec5015cd238405860d460e69e8654a0c2038ac3557be3",
+      "published_sha256": "462f80b760fee242c60ec5015cd238405860d460e69e8654a0c2038ac3557be3"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-nr-properties.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-nr-properties.h",
+      "source_sha256": "16e119b2b4f81d814b6c46dc0409749fbfa1f2c85a2e42339cb6fa30dc77f846",
+      "published_sha256": "16e119b2b4f81d814b6c46dc0409749fbfa1f2c85a2e42339cb6fa30dc77f846"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-packet.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-packet.h",
+      "source_sha256": "95459cec7f8e3f7fe57ed3f74ca1046ec14d37c98de77944808f9ba9ecb41e0f",
+      "published_sha256": "95459cec7f8e3f7fe57ed3f74ca1046ec14d37c98de77944808f9ba9ecb41e0f"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-pcie-config.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-pcie-config.h",
+      "source_sha256": "e4af539faae778005d4fea83bbd01db54bc57f5324e7e992e348bafead89d080",
+      "published_sha256": "e4af539faae778005d4fea83bbd01db54bc57f5324e7e992e348bafead89d080"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-photo-menu-stop-qemu.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-photo-menu-stop-qemu.h",
+      "source_sha256": "d48bf7c34fdf53e937855bca0597e6dd0902d0170219cf15cd46fbac09b4bae6",
+      "published_sha256": "d48bf7c34fdf53e937855bca0597e6dd0902d0170219cf15cd46fbac09b4bae6"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-photo-menu-stop.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-photo-menu-stop.h",
+      "source_sha256": "f9835f902836be41fb3ff1f1275fc5b8b938f19cf3491ba9b0dfd067346bc14f",
+      "published_sha256": "f9835f902836be41fb3ff1f1275fc5b8b938f19cf3491ba9b0dfd067346bc14f"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-secondary-stop.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-secondary-stop.h",
+      "source_sha256": "ea5b7c3df3c8499a41a8f79ea8a0ab921fec589d63a2608671d96fdcbef5a69e",
+      "published_sha256": "ea5b7c3df3c8499a41a8f79ea8a0ab921fec589d63a2608671d96fdcbef5a69e"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-still-hevc-backend.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-still-hevc-backend.h",
+      "source_sha256": "2570c09f5f1fa1a706eabc044c1516b416e3c115d9d59035bcf52cc25a386d50",
+      "published_sha256": "2570c09f5f1fa1a706eabc044c1516b416e3c115d9d59035bcf52cc25a386d50"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-still-hevc-codec.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-still-hevc-codec.h",
+      "source_sha256": "bf5c310df730a32fd3d677da306f92a64134bcac099c4f22ea53ceea7c93583d",
+      "published_sha256": "bf5c310df730a32fd3d677da306f92a64134bcac099c4f22ea53ceea7c93583d"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-still-hevc-photo2.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-still-hevc-photo2.h",
+      "source_sha256": "f7fbc9417d3a2942888048b841f492b65803d59001584f9a5dfee5a0e5979d91",
+      "published_sha256": "f7fbc9417d3a2942888048b841f492b65803d59001584f9a5dfee5a0e5979d91"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-still-hevc-pixels.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-still-hevc-pixels.h",
+      "source_sha256": "2734b4bc03dc3b658665bcb78c58078053e8a5989083ed79fc5bd9790663e5c6",
+      "published_sha256": "2734b4bc03dc3b658665bcb78c58078053e8a5989083ed79fc5bd9790663e5c6"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-still-hevc-profile.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-still-hevc-profile.h",
+      "source_sha256": "00ed88454ecc2c70f5604f830badf4cc78768a6d98cb87fd48bc76103746def5",
+      "published_sha256": "00ed88454ecc2c70f5604f830badf4cc78768a6d98cb87fd48bc76103746def5"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-still-hevc-qemu.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-still-hevc-qemu.h",
+      "source_sha256": "18deea566daac92d4a3dc60e0f6a929afb64d30531e453890a6674446595b875",
+      "published_sha256": "18deea566daac92d4a3dc60e0f6a929afb64d30531e453890a6674446595b875"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-still-hevc.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-still-hevc.h",
+      "source_sha256": "1139d01263a80b90f5b1f2a90aa9c3b05f982219781aa41c222d210ba88a09f5",
+      "published_sha256": "1139d01263a80b90f5b1f2a90aa9c3b05f982219781aa41c222d210ba88a09f5"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-video-admission.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-video-admission.h",
+      "source_sha256": "8ba37e8f40b4d9e99ad5fa77f16f935963aea584af2d2e0e109af66ec5e12781",
+      "published_sha256": "8ba37e8f40b4d9e99ad5fa77f16f935963aea584af2d2e0e109af66ec5e12781"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-video-data.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-video-data.h",
+      "source_sha256": "c19aa4a717a3f158dafa91f64f7ba6ba51eb191fd922bc42ae9d54a8b1cc7949",
+      "published_sha256": "c19aa4a717a3f158dafa91f64f7ba6ba51eb191fd922bc42ae9d54a8b1cc7949"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-video-nr-empty-reset.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-video-nr-empty-reset.h",
+      "source_sha256": "e1ceeb14ba85350e603285cb2971aa1a471d51e712a00742ddec5d910ddf7ead",
+      "published_sha256": "e1ceeb14ba85350e603285cb2971aa1a471d51e712a00742ddec5d910ddf7ead"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-video-processing.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-video-processing.h",
+      "source_sha256": "6363e7e79838891d6a5382d17a8659181425e2af2d0c268366beb55796767c99",
+      "published_sha256": "6363e7e79838891d6a5382d17a8659181425e2af2d0c268366beb55796767c99"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-video-ring.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-video-ring.h",
+      "source_sha256": "4327c0221f22baa591176753f95efa03a63ac3c7a2147f568d20c1150a855ccf",
+      "published_sha256": "4327c0221f22baa591176753f95efa03a63ac3c7a2147f568d20c1150a855ccf"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-wave5-headers.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-wave5-headers.h",
+      "source_sha256": "e0dc475a4be43c9167525d9ae5d4f26805e1516fc0c298373073828a0e06b898",
+      "published_sha256": "e0dc475a4be43c9167525d9ae5d4f26805e1516fc0c298373073828a0e06b898"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-wave5.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-wave5.h",
+      "source_sha256": "c6692b51b09da827748c1c311f60f137228c0320cd4970b831c260197248b3aa",
+      "published_sha256": "c6692b51b09da827748c1c311f60f137228c0320cd4970b831c260197248b3aa"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-yuv-dma.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-yuv-dma.h",
+      "source_sha256": "49076e6f51f2bfffbe9eae6693bb270f1a0e818c7f6e9bc7f204847ba9126360",
+      "published_sha256": "49076e6f51f2bfffbe9eae6693bb270f1a0e818c7f6e9bc7f204847ba9126360"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-yuv-single.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-yuv-single.h",
+      "source_sha256": "3329ece6d792a1ff5e5d0fe84aad4480a1a201e73c9c78a8e9dbd04b6bfe72a2",
+      "published_sha256": "3329ece6d792a1ff5e5d0fe84aad4480a1a201e73c9c78a8e9dbd04b6bfe72a2"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-yuv-wave5.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-yuv-wave5.h",
+      "source_sha256": "4c9b04f33a2166f120b40ab89e0e071ad4c2ba640946879d94fa6714e7a6a3f5",
+      "published_sha256": "4c9b04f33a2166f120b40ab89e0e071ad4c2ba640946879d94fa6714e7a6a3f5"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z8-yuv.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z8-yuv.h",
+      "source_sha256": "d0be2e5e42244f325585ea4a39c3d47b96e83ab7e77488928af82fbc8cfabe5e",
+      "published_sha256": "d0be2e5e42244f325585ea4a39c3d47b96e83ab7e77488928af82fbc8cfabe5e"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z9-capture-nv16.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z9-capture-nv16.h",
+      "source_sha256": "6ba34bf8609827ea6ec03437136e9f95cbf9559ab8f4548387361dff974445e8",
+      "published_sha256": "6ba34bf8609827ea6ec03437136e9f95cbf9559ab8f4548387361dff974445e8"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z9-d980.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z9-d980.h",
+      "source_sha256": "3f997f12b06763571cca034e1485b1fdfe0f61b415243bc9d9c9a1a121bdca5e",
+      "published_sha256": "3f997f12b06763571cca034e1485b1fdfe0f61b415243bc9d9c9a1a121bdca5e"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z9-jpeg.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z9-jpeg.h",
+      "source_sha256": "562ae7a1ebbc3fa5c7631bbb5a885630bac0bb2d8479738e90f3c4cbce7f6798",
+      "published_sha256": "562ae7a1ebbc3fa5c7631bbb5a885630bac0bb2d8479738e90f3c4cbce7f6798"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z9-lab.c",
+      "destination": "experiments/20261111/wave5/source/nikon-z9-lab.c",
+      "source_sha256": "e19359e60b2e714dc80d6aeaaf7804215c825da8d28427769b9f4bd709744a03",
+      "published_sha256": "e19359e60b2e714dc80d6aeaaf7804215c825da8d28427769b9f4bd709744a03"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z9-pcie.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z9-pcie.h",
+      "source_sha256": "be38c522dca55edf23b93d6ec9e4669a3d786ca5179fc3db7a268da54d844d08",
+      "published_sha256": "be38c522dca55edf23b93d6ec9e4669a3d786ca5179fc3db7a268da54d844d08"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z9-pixels.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z9-pixels.h",
+      "source_sha256": "9fb90924c4733f14974ce226c13adfa04cbfbdd5702cbbe01728e176718ef5cc",
+      "published_sha256": "9fb90924c4733f14974ce226c13adfa04cbfbdd5702cbbe01728e176718ef5cc"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z9-thumbnail-nv16.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z9-thumbnail-nv16.h",
+      "source_sha256": "9998e9e96298556de91d944c62fb1ef4b4fa41f8ec962804c453a3a6c286f183",
+      "published_sha256": "9998e9e96298556de91d944c62fb1ef4b4fa41f8ec962804c453a3a6c286f183"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nikon-z9-wave5.h",
+      "destination": "experiments/20261111/wave5/source/nikon-z9-wave5.h",
+      "source_sha256": "8dd4e5090158e76f091c6654c0feaf089fe4831d0e12a5ad488098a7a9c753be",
+      "published_sha256": "8dd4e5090158e76f091c6654c0feaf089fe4831d0e12a5ad488098a7a9c753be"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nvme-audit-state.patch",
+      "destination": "experiments/20261111/wave5/source/nvme-audit-state.patch",
+      "source_sha256": "eb668890161e91fb5b1903f9bf5c65a8d33b98d7dbdbf20594f3f090cc3aa241",
+      "published_sha256": "eb668890161e91fb5b1903f9bf5c65a8d33b98d7dbdbf20594f3f090cc3aa241"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/nvme-completion-trace.patch",
+      "destination": "experiments/20261111/wave5/source/nvme-completion-trace.patch",
+      "source_sha256": "e163612e017172b095765ef787dc06d101e4d6def39669add133b51affa131a7",
+      "published_sha256": "e163612e017172b095765ef787dc06d101e4d6def39669add133b51affa131a7"
+    },
+    {
+      "source": "_mac-migration/live-session/live-photo-20261030/audio-qemu/src/qemu/prepare_source.py",
+      "destination": "experiments/20261111/wave5/source/prepare_source.py",
+      "source_sha256": "52c56159082090c1a9aecc4b9b568e266e7cecf1517ca909e8024fb45d50a0b8",
+      "published_sha256": "52c56159082090c1a9aecc4b9b568e266e7cecf1517ca909e8024fb45d50a0b8"
+    }
+  ]
+}
