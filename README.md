@@ -1,14 +1,14 @@
 # Nikon Z8 firmware emulation research
 
-[November Z8 Live / Wave5 development checkpoint](docs/progress-20261111.md) — source archive on this progress branch.
+[Feature and usage guide (中文)](docs/features-and-usage.zh-CN.md) · [Merged Live / Wave5 source checkpoint](docs/progress-20261111.md)
 
 [简体中文](README.zh-CN.md)
 
-Documentation updated: **2026-10-19**. This workspace ports Nikon Z8 C3.11 to the research emulator from [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu), starting from upstream commit `27498735e3ed202052dfc6306ded6b867af70a58`. Z8 firmware identities, MCU bindings, resources and acceptance baselines are defined separately from the retained Z9 reference tools.
+Documentation updated: **2026-11-11**. This workspace ports Nikon Z8 C3.11 to the research emulator from [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu), starting from upstream commit `27498735e3ed202052dfc6306ded6b867af70a58`. Z8 firmware identities, MCU bindings, resources and acceptance baselines are defined separately from the retained Z9 reference tools.
 
 **Assisted original-firmware menus, synthetic live view and ordinary post-trigger NEFs (one packed14 and one F0 lossless) have recorded local QEMU acceptance. RAW pre-release capture remains incomplete.** This is an experimental emulator, not camera-installable firmware. It does not connect to or flash a physical camera.
 
-The status below was reconciled on 2026-10-19 against main `a140c42` (later commits change documentation only) and the results recorded in its documents. This documentation update did not rerun firmware, verify the current binary or test physical hardware. Historical results belong to their recorded inputs, sources and binaries. Detailed research notes are mostly in Chinese; see the [feature TODO](docs/TODO.md) and [implementation record](docs/z8-status.md).
+The baseline runtime evidence below was reconciled on 2026-10-19 against main `a140c42` and its recorded results. The November source checkpoint is now merged into `experiments/20261111/`; it does not replace the default `qemu/` build overlay or extend those runtime acceptance claims. This documentation update did not rerun firmware, verify the current binary or test physical hardware. Historical results belong to their recorded inputs, sources and binaries. Detailed research notes are mostly in Chinese; see the [feature TODO](docs/TODO.md) and [implementation record](docs/z8-status.md).
 
 ## Current results and limits
 
@@ -28,13 +28,17 @@ RAW pre-release acceptance requires at least **two distinct retained pre-trigger
 
 Open Gate video, AF enhancements, online Nikon Imaging Cloud integration, complete film simulation, photo Log, RED Log3G10/R3D NE and in-camera panorama remain unimplemented or unaccepted; see [TODO](docs/TODO.md). Native video N-Log is not a new project feature. Video recording emulation remains unverified on main.
 
+## November source experiments and usage
+
+The default branch also contains the archived Wave5/Live-audio overlay and patches, CFexpress hotplug model and harnesses, and EXMCU/host-wake experiments. Their original prepared source trees, private MAIN/EX inputs and laboratory helpers remain prerequisites. The [usage guide](docs/features-and-usage.zh-CN.md) maps every feature to its entry point, explains baseline builds and menu controls, and separates runnable baseline workflows from archived experiments. The firmware-side Live menu and v36 candidate are documented in [Fenestra Z8](https://github.com/YCX81/fenestra-z8/blob/z8-c311/docs/features-and-usage.zh-CN.md).
+
 ## Public branches
 
 The table above describes `main`. Topic branches hold unmerged experiments and checkpoints. Their results belong to those branches, are not part of main, and each keeps its own incomplete acceptance boundaries. Each branch's source regression result is listed in the [publication progress](docs/publication-progress-20261015.md).
 
 | Branch | Purpose |
 |---|---|
-| [`main`](https://github.com/YCX81/z8-qemu/tree/main) | Reviewed base: Z8 bring-up, menu and live-view runs, C32/C64 slots, ordinary NEF capture, per-photo audit and F0, plus the retained Z9 reference tools |
+| [`main`](https://github.com/YCX81/z8-qemu/tree/main) | Reviewed base: Z8 bring-up, menu and live-view runs, C32/C64 slots, ordinary NEF capture, per-photo audit and F0, plus the retained Z9 reference tools; November experiments archived separately under `experiments/20261111/` |
 | [`codex/z8-integration`](https://github.com/YCX81/z8-qemu/tree/codex/z8-integration) | Combined RAW, video and orientation integration experiment |
 | [`codex/raw-precapture-shared146`](https://github.com/YCX81/z8-qemu/tree/codex/raw-precapture-shared146) | RAW history transport for pre-release capture, with the dual 1540/153c encoders |
 | [`codex/z8-he-history-20261017`](https://github.com/YCX81/z8-qemu/tree/codex/z8-he-history-20261017) | Lifecycle tests for a third-party HE precapture hook, replay of a real HE sample, and the native model gaps found |

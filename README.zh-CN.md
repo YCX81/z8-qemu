@@ -1,12 +1,12 @@
 # Nikon Z8 固件仿真研究
 
-[English](README.md)
+[English](README.md) · [完整功能与使用指南](docs/features-and-usage.zh-CN.md)
 
-文档更新：**2026-10-19**。本工作区基于 [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu) 开展 Nikon Z8 C3.11 移植，上游起点为 `27498735e3ed202052dfc6306ded6b867af70a58`。共享 Z9 参考工具保留，Z8 的固件身份、MCU 绑定、资源和验收基线独立定义。
+文档更新：**2026-11-11**。本工作区基于 [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu) 开展 Nikon Z8 C3.11 移植，上游起点为 `27498735e3ed202052dfc6306ded6b867af70a58`。共享 Z9 参考工具保留，Z8 的固件身份、MCU 绑定、资源和验收基线独立定义。
 
 **辅助启动下的原厂菜单、模拟取景及普通触发后 NEF（packed14 与 F0 无损各一张）已有本地 QEMU 验收记录；RAW 预拍摄仍未完成。** 本项目是实验性模拟器，不是可安装到相机的固件，不会连接或刷写实体相机。
 
-以下状态于2026-10-19按 main `a140c42`（之后的提交只改文档）及其文档中已记录的结果统一核对。本次文档更新没有重跑固件、验证当前二进制或测试实体硬件；历史结果只适用于记录的输入、源码与二进制。详细研究文档多数为中文，完整进度见[功能 TODO](docs/TODO.md)与[实施记录](docs/z8-status.md)。
+以下基础运行证据于2026-10-19按 main `a140c42` 及其文档记录核对。11月进展现已合入 `experiments/20261111/`，保留 Wave5/Live-audio、CFexpress 热插拔与 EXMCU/host-wake 实验源码；没有替换默认 `qemu/` 构建模型，也没有据此扩大基础运行验收范围。本次文档更新没有重跑固件、验证当前二进制或测试实体硬件；历史结果只适用于记录的输入、源码与二进制。详细研究文档多数为中文，完整进度见[功能 TODO](docs/TODO.md)与[实施记录](docs/z8-status.md)。
 
 ## 当前成果与边界
 
@@ -26,13 +26,17 @@ RAW 预拍验收至少需要**两帧不同的触发前保留帧和一帧拍后�
 
 Open Gate 视频、AF 增强、尼康云创在线接入、完整胶片模拟、照片 Log、RED Log3G10/R3D NE 和机内全景仍未实现或未验收，详见 [TODO](docs/TODO.md)。原厂视频 N-Log 不计为项目新增功能，main 上的录像仿真仍未验收。
 
+## 新合入的源码与使用入口
+
+[完整功能与使用指南](docs/features-and-usage.zh-CN.md) 按功能列出入口、环境、私有输入、构建与测试命令、菜单/取景操作，以及独立的槽位、NEF、F0 配方。`experiments/20261111/` 保存 Wave5、热插拔及 EXMCU 研究材料；默认构建不会自动应用这些补丁，部分 runner 仍需未发布的原实验快照和 helper。Live 拍照、音频、REC 预览、图标和 C64 标签操作见[Fenestra Z8 指南](https://github.com/YCX81/fenestra-z8/blob/z8-c311/docs/features-and-usage.zh-CN.md)。已合并的临时进展分支已从本地和 GitHub 删除。
+
 ## 公开分支
 
 上表只描述 `main`。主题分支保存尚未合并的实验和检查点，其结果属于各自分支，不属于 main，各分支保留自己未完成的验收边界。各分支的源码回归结果见[发布进度](docs/publication-progress-20261015.md)。
 
 | 分支 | 用途 |
 |---|---|
-| [`main`](https://github.com/YCX81/z8-qemu/tree/main) | 已审核的基线：Z8 启动、菜单与取景运行、C32/C64 槽位、普通 NEF 拍摄、逐照片审计与 F0，以及保留的 Z9 参考工具 |
+| [`main`](https://github.com/YCX81/z8-qemu/tree/main) | 已审核的基线：Z8 启动、菜单与取景运行、C32/C64 槽位、普通 NEF 拍摄、逐照片审计与 F0，以及保留的 Z9 参考工具；11月实验另行归档于 `experiments/20261111/` |
 | [`codex/z8-integration`](https://github.com/YCX81/z8-qemu/tree/codex/z8-integration) | RAW、录像与方向的合并集成实验 |
 | [`codex/raw-precapture-shared146`](https://github.com/YCX81/z8-qemu/tree/codex/raw-precapture-shared146) | 预拍用的 RAW 历史帧传输，以及 1540/153c 双编码器 |
 | [`codex/z8-he-history-20261017`](https://github.com/YCX81/z8-qemu/tree/codex/z8-he-history-20261017) | 第三方 HE 预拍钩子的生命周期测试、真实 HE 样本回放，以及发现的原生模型缺口 |

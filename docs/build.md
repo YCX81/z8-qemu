@@ -1,5 +1,7 @@
 # Building
 
+For a feature-by-feature entry point, see the [Chinese usage guide](features-and-usage.zh-CN.md). The November Wave5 / CFexpress / EXMCU sources are archived under `experiments/20261111/`; this builder does not automatically apply them. Their original prepared trees and private laboratory inputs must be restored separately.
+
 Use Linux with Python 3.12+, GCC/Clang, Ninja, patch, pkg-config, GLib, Pixman,
 zlib, libfdt and libjpeg development headers. Install the Python dependencies from
 `requirements.txt` in a virtual environment. See the README for Ubuntu commands.
