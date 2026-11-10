@@ -1,0 +1,167 @@
+--- nikon-z9-lab.c.pre-hostwake	2026-11-07 08:32:29.105317609 +0800
++++ nikon-z9-lab.c	2026-11-07 08:48:30.017227758 +0800
+@@ -238,6 +238,12 @@
+     char *mcu_image, *mcu_pins, *mcu_contacts, *mcu_adc_inputs;
+     char *mcu_main_supply_pin;
+     struct Z8McuBridge *native_mcu;
++    /* Host-peer (no native EX) virtual MAIN supply; see main-supply. */
++    DeviceState *host_main_gic;
++    bool host_supply_off;
++    bool host_supply_return_pending;
++    QEMUTimer *host_supply_timer;
++    uint64_t main_powerdowns, host_supply_cuts, host_supply_resets;
+     bool mcu_capture_sync_wires;
+     NJournal producer_journal;
+     NBOwner output_owner;
+@@ -17044,6 +17050,11 @@
+     /* Power-down: copied service code (0x08201xxx) asserts every bank reset
+      * in one write each. These exact bulk words belong to the service
+      * controller, not to per-unit reset models that reject mixed masks. */
++    if (size == 4 && addr == 0x0d154340 && value == 0x01ffffff) {
++        s->main_powerdowns++;
++        error_report("Z8_MAIN_POWERDOWN %"PRIu64" ns=%"PRId64" (bulk reset assert)",
++                     s->main_powerdowns, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
++    }
+     if (s->service_controller_model && size == 4 &&
+         ((addr == 0x0d154340 && value == 0x01ffffff) ||
+          (addr == 0x0d154344 && value == 0xf0007fb6) ||
+@@ -19600,6 +19611,7 @@
+         sysbus_connect_irq(gicbus, i + 3 * cpus, qdev_get_gpio_in(cpu, ARM_CPU_VFIQ));
+     }
+     z8_mcu_init(s, gic);
++    s->host_main_gic = gic;
+     if (!machine->kernel_filename ||
+         load_image_targphys(machine->kernel_filename, 0x40160000,
+                             128 * MiB - 0x160000, &error_fatal) < 0) {
+@@ -19967,6 +19979,76 @@
+     s->pcie_link_diagnostic_mask = mask;
+ }
+ 
++/* Host-peer MAIN supply. Without the native EX nothing returns MAIN power
++ * after the stock standby power-down; a driver cuts (false) and returns (true)
++ * it here, mirroring z8_mcu_main_supply: MAIN CPUs off, then power-on reset of
++ * the modelled latches, GIC cold reset and CPU0 architectural reset.
++ * DRAM, card and peer state are retained. */
++static void z8_host_supply_return(void *opaque);
++static bool get_main_supply(Object *obj, Error **errp)
++{
++    return !NIKON_Z9_LAB(obj)->host_supply_off;
++}
++
++static void set_main_supply(Object *obj, bool value, Error **errp)
++{
++    NikonZ9State *s = NIKON_Z9_LAB(obj);
++    if (s->native_mcu) {
++        error_setg(errp, "main-supply: the native EX owns MAIN supply (mcu-main-supply-pin)");
++        return;
++    }
++    if (!s->host_main_gic) {
++        if (!value) { error_setg(errp, "main-supply: machine not realized"); }
++        return;
++    }
++    if (!value && !s->host_supply_off) {
++        CPUState *cs;
++        s->host_supply_off = true; s->host_supply_cuts++;
++        CPU_FOREACH(cs) {
++            ARMCPU *cpu = ARM_CPU(cs);
++            if (!arm_feature(&cpu->env, ARM_FEATURE_M)) {
++                arm_set_cpu_off(arm_cpu_mp_affinity(cpu));
++            }
++        }
++        error_report("Z8_HOST_SUPPLY cut ns=%"PRId64" powerdowns=%"PRIu64,
++                     qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL), s->main_powerdowns);
++    } else if (value && s->host_supply_off && !s->host_supply_return_pending) {
++        s->host_supply_return_pending = true;
++        z8_host_supply_return(s);
++    }
++}
++
++static void z8_host_supply_return(void *opaque)
++{
++    NikonZ9State *s = opaque;
++    ARMCPU *cpu0 = ARM_CPU(arm_get_cpu_by_id(0));
++    if (cpu0->power_state != PSCI_OFF) {
++        /* The asynchronous cut has not run yet (VM stopped or same QMP batch). */
++        if (!s->host_supply_timer) {
++            s->host_supply_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, z8_host_supply_return, s);
++        }
++        timer_mod(s->host_supply_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 1000000);
++        return;
++    }
++    {
++        s->host_supply_return_pending = false;
++        s->host_supply_off = false; s->host_supply_resets++;
++        z8_main_power_on_reset(s);
++        device_cold_reset(s->host_main_gic);
++        int rc = arm_set_cpu_on_and_reset(0);
++        error_report("Z8_HOST_SUPPLY return ns=%"PRId64" architectural reset rc=%d; card/RAM retained",
++                     qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL), rc);
++    }
++}
++
++static char *get_main_power_state(Object *obj, Error **errp)
++{
++    NikonZ9State *s = NIKON_Z9_LAB(obj);
++    return g_strdup_printf("{\"powerdowns\":%"PRIu64",\"supply_off\":%s,\"cuts\":%"PRIu64",\"resets\":%"PRIu64",\"native_mcu\":%s}",
++        s->main_powerdowns, s->host_supply_off ? "true" : "false",
++        s->host_supply_cuts, s->host_supply_resets, s->native_mcu ? "true" : "false");
++}
++
+ static void z9_cfexpress_set_present(NikonZ9State *s, bool present);
+ static bool get_cfexpress_card(Object *obj, Error **errp)
+ {
+@@ -20309,6 +20391,8 @@
+     object_class_property_add_bool(oc, "pcie-intx-model", get_pcie_intx_model, set_pcie_intx_model);
+     object_class_property_add_bool(oc, "pcie-empty-fixture", get_pcie_empty_fixture, set_pcie_empty_fixture);
+     object_class_property_add_bool(oc, "cfexpress-card", get_cfexpress_card, set_cfexpress_card);
++    object_class_property_add_bool(oc, "main-supply", get_main_supply, set_main_supply);
++    object_class_property_add_str(oc, "main-power-state", get_main_power_state, NULL);
+     object_class_property_add_bool(oc, "capture-gpio-model", get_capture_gpio_model, set_capture_gpio_model);
+     object_class_property_add_str(oc, "capture-gpio-input", NULL, set_capture_gpio_input);
+     object_class_property_add_str(oc, "capture-gpio-state", get_capture_gpio_state, NULL);
+--- run_pull.py.pre-hostwake	2026-11-07 08:32:59.581315159 +0800
++++ run_pull.py	2026-11-07 09:09:00.209109895 +0800
+@@ -251,6 +251,32 @@
+                 time.sleep(1)
+         threading.Thread(target=watchdog,daemon=True).start()
+         def command(name,**kw):
++            if name=='screendump' and os.environ.get('HOSTWAKE','1')!='0':
++                # Host-peer MAIN supply: cut after the stock standby power-down, return at a wake step.
++                try:
++                    st=json.loads(original('qom-get',path='/machine',property='main-power-state'))
++                    stem=Path(kw['filename']).stem
++                    if not st['native_mcu'] and not st['supply_off'] and st['powerdowns']>st['cuts']:
++                        original('qom-set',path='/machine',property='main-supply',value=False);print('HOSTWAKE cut',stem,json.dumps(st),flush=True)
++                        st['supply_off']=True
++                    if st['supply_off'] and 'wake' in stem and not stem.endswith('-release'):
++                        original('qom-set',path='/machine',property='main-supply',value=True);print('HOSTWAKE return',stem,json.dumps(st),flush=True)
++                        # The host peer's scripted MCU boot exchange ran once; repeat it for the rebooted MAIN.
++                        import z8_boot
++                        first=g.data.get('z8_boot')
++                        g.rsp('Z1,40160000,4')
++                        # Peer observer breakpoints would stop the scripted boot at foreign PCs; lift them meanwhile.
++                        held=[pc for pr in PEERS for pc in pr.points]
++                        for pc in held:g.rsp(f'z1,{pc:x},4')
++                        print('HOSTWAKE lifted',[hex(pc) for pc in held],flush=True)
++                        try:
++                            z8_boot.boot(g,progress=lambda m:print('HOSTWAKE',m,flush=True))
++                        finally:
++                            for pc in held:g.rsp(f'Z1,{pc:x},4')
++                            g.data.setdefault('z8_boot_wakes',[]).append(g.data.get('z8_boot'));g.data['z8_boot']=first
++                except Exception as e:
++                    print('HOSTWAKE-ERR',repr(e),flush=True)
++                    if 'z8_boot_wakes' in g.data:raise
+             result=original(name,**kw)
+             if name=='screendump' and 'cardpull' in Path(kw['filename']).stem and not Path(kw['filename']).stem.endswith('-release'):
+                 (None if os.environ.get('NOSWAP') else original('qom-set',path='/machine',property='cfexpress-card',value=False));print('CARDSWAP pulled',flush=True)
+@@ -283,8 +309,9 @@
+         g.qmp.command=command
+         return g
+ probe.PreparedGuest=Guest
++PEERS=[]
+ class Peer(probe.CapturePeer):
+-    def __init__(self,*args,**kw):super().__init__(*args,**kw);self.trace_points={}
++    def __init__(self,*args,**kw):super().__init__(*args,**kw);self.trace_points={};PEERS.append(self)
+ probe.CapturePeer=Peer
+ probe.MENU_CONTACTS['ok']=(0x2a,0x8000,0)
+ probe.MENU_CONTACTS['i']=(0x48,0,0x400)
