@@ -1,0 +1,100 @@
+--- a/hw/arm/nikon-z9-lab.c
++++ b/hw/arm/nikon-z9-lab.c
+@@ -988,6 +988,8 @@
+     uint64_t zr_orientation_monitors, zr_orientation_writes, zr_orientation_reads;
+     uint64_t zr_orientation_samples;
+     bool pcie_empty_fixture;
++    bool cfexpress_removed;      /* runtime card pull: port-2 status/link down */
++    uint64_t cfexpress_events;
+     uint8_t pcie_link_diagnostic_mask;
+     bool pcie_dbi_model;
+     bool pcie_ram_dma_input, pcie_image_ram_dma_input;
+@@ -16940,7 +16942,11 @@
+         addr >= 0x17a00034 && addr <= 0x17a0004c && (addr & 7) == 4) {
+         /* Explicit diagnostic link input only. Config/BAR/DMA remain
+          * strict until a real virtual endpoint has been implemented. */
+-        return (s->pcie_link_diagnostic_mask & (1u << ((addr - 0x17a00034) / 8))) ? 2 : 0;
++        unsigned port = (addr - 0x17a00034) / 8;
++        if (port == 2 && s->cfexpress_removed) {
++            return 0; /* card pulled: CFexpress slot presence/link bit clear */
++        }
++        return (s->pcie_link_diagnostic_mask & (1u << port)) ? 2 : 0;
+     }
+     if (s->bootstrap_fixtures && addr == 0x0d15000c && size == 4) {
+         fprintf(stderr, "Z9_FIXTURE unmeasured secondary SoC identification=0\n");
+@@ -19903,6 +19909,23 @@
+     s->pcie_link_diagnostic_mask = mask;
+ }
+ 
++static void z9_cfexpress_set_present(NikonZ9State *s, bool present);
++static bool get_cfexpress_card(Object *obj, Error **errp)
++{
++    return !NIKON_Z9_LAB(obj)->cfexpress_removed;
++}
++
++static void set_cfexpress_card(Object *obj, bool value, Error **errp)
++{
++    NikonZ9State *s = NIKON_Z9_LAB(obj);
++    if (!s->pcie_dbi_host) {
++        /* Before realization: only the initial state is recorded. */
++        s->cfexpress_removed = !value;
++        return;
++    }
++    z9_cfexpress_set_present(s, value);
++}
++
+ static bool get_pcie_empty_fixture(Object *obj, Error **errp)
+ {
+     return NIKON_Z9_LAB(obj)->pcie_empty_fixture;
+@@ -20214,6 +20237,7 @@
+     object_class_property_add_bool(oc, "pcie-image-ram-dma-input", get_pcie_image_ram_dma_input, set_pcie_image_ram_dma_input);
+     object_class_property_add_bool(oc, "pcie-intx-model", get_pcie_intx_model, set_pcie_intx_model);
+     object_class_property_add_bool(oc, "pcie-empty-fixture", get_pcie_empty_fixture, set_pcie_empty_fixture);
++    object_class_property_add_bool(oc, "cfexpress-card", get_cfexpress_card, set_cfexpress_card);
+     object_class_property_add_bool(oc, "capture-gpio-model", get_capture_gpio_model, set_capture_gpio_model);
+     object_class_property_add_str(oc, "capture-gpio-input", NULL, set_capture_gpio_input);
+     object_class_property_add_str(oc, "capture-gpio-state", get_capture_gpio_state, NULL);
+--- a/hw/arm/nikon-z9-pcie.h
++++ b/hw/arm/nikon-z9-pcie.h
+@@ -43,7 +43,8 @@
+      * query. This is not a PHY/LTSSM simulation or a measured Nikon value.
+      * Native4028cf50 selects wrapper+58 before4028d0e8 sets bit0 and polls
+      * +b4 for0x11. The separate+258 path corresponds to the other lane. */
+-    bool endpoint = pci_find_device(bus, pci_bus_num(bus), PCI_DEVFN(0, 0));
++    bool endpoint = !s->cfexpress_removed &&
++                    pci_find_device(bus, pci_bus_num(bus), PCI_DEVFN(0, 0));
+     uint32_t value = endpoint && s->pcie_wrapper[1][1] && !s->pcie_wrapper[1][0]
+                      ? 0x11 : 0;
+     if (s->pcie_link_status_reads++ < 16) {
+@@ -53,6 +54,31 @@
+     return value;
+ }
+ 
++/* Runtime CFexpress pull/insert. Removal clears the polled slot bit (17a00044
++ * bit1) and the wrapper link input, and cold-resets the endpoint: a pulled card
++ * loses power, so whatever the firmware finds on reinsertion is a fresh
++ * controller. No PHY/LTSSM or surprise-down AER is modelled. */
++static void z9_cfexpress_set_present(NikonZ9State *s, bool present)
++{
++    PCIBus *bus = &PCI_BRIDGE(z9_pcie_root(s))->sec_bus;
++    PCIDevice *ep = pci_find_device(bus, pci_bus_num(bus), PCI_DEVFN(0, 0));
++    if (present == !s->cfexpress_removed) {
++        return;
++    }
++    s->cfexpress_events++;
++    if (!present) {
++        s->cfexpress_removed = true;
++        if (ep) {
++            device_cold_reset(DEVICE(ep));
++        }
++    } else {
++        s->cfexpress_removed = false;
++    }
++    s->pcie_link_status_reads = 0; /* log the next link queries again */
++    fprintf(stderr, "Z8_CFEXPRESS %s endpoint=%u event=%lu\n", present ? "inserted" : "removed",
++            ep != NULL, (unsigned long)s->cfexpress_events);
++}
++
+ static uint64_t z9_pcie_dbi_read(void *opaque, hwaddr addr, unsigned size)
+ {
+     NikonZ9State *s = opaque;
