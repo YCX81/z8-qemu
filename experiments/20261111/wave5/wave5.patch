@@ -1,0 +1,1423 @@
+diff --git a/NOTICE b/NOTICE
+--- /dev/null
++++ b/NOTICE
+@@ -0,0 +1,35 @@
++Wave5 encoder port (emulation only, November 2026)
++
++Based on locally supplied WonderLantern/z8-qemu, z8-head snapshot 5374744:
++- qemu/nikon-z8-wave5.h -> hw/arm/nikon-z8-wave5-port.h
++- qemu/nikon-wave5-codec.h -> hw/arm/nikon-w5p-codec.h
++- qemu/nikon-z8-lab.c IRQ120/QOM/reset wiring -> hw/arm/nikon-z9-lab.c
++
++Relevant upstream changes:
++d40a275afdda949b594a801e2b549fff18c6caf4 (IRQ120 binding)
++4189ae8aa6d332b52de92273b467191d6f9ec65d (HEVC tier/level)
++34503f3e2cea4d39886c53e94f010c3b9fa94548 (native movie integration)
++a440750adca2dcc28eec74d1c451d374c7966590 (movie preparation)
++566d75a32a560cd0ede3208cf15f8814b1fb7305 (movie frame notification)
++
++Copyright (C) 2026 RdWing and original contributors.
++SPDX-License-Identifier: GPL-2.0-or-later
++Original source notices are retained. Namespaces and board types were adapted
++for NikonZ9State/QEMU 10.2.4, preserving the existing local audio+v2 backend.
++The checked WLYV source adapter is from that local baseline's
++hw/arm/nikon-z8-yuv-wave5.h; its GPL notice is retained.
++Local changes add a default-off selector, bounded handled MMIO errors, initial
++reset ownership, command/IRQ logging, joinable worker teardown, IRQ mask reset, native terminal-frame/drain handling,
++and NR reset ownership protection.
++
++The optional playback decoder added by 76235efc2db04972ccca2d5e51bf3ef4d10fd91a
++(nikon-wave5-decode.h) is NOT part of this encoder port. The upstream
++video_main compact surface producer is replaced by this base's checked WLYV
++RAM adapter. The existing local movie clock/reset/producer implementations
++remain in use; the commits above do not imply all their files were copied.
++
++QEMU, x264, x265, and GLib retain their respective licenses. No Nikon firmware
++or microcode is distributed by wave5.patch; microcode bytes supplied by the
++user are checked/hashed as DMA input, never interpreted or executed here.
++The 0x5210 device profile, host encoder, latency, and reference storage are
++explicit emulation conventions, not a measured implementation of Nikon silicon.
+diff --git a/docs/wave5-client.md b/docs/wave5-client.md
+--- /dev/null
++++ b/docs/wave5-client.md
+@@ -0,0 +1,73 @@
++# Wave5 emulation client contract
++
++This describes `wave5-upstream-model=on`, not a silicon specification. The
++property is immutable after machine realization and defaults off. It selects
++an independent upstream encoder backend at `0x16010000`, with IRQ INTID120;
++`wave5-upstream-state` exposes counters and register snapshots. The older
++`wave5-*` properties remain available for regression. Do not mix clients of
++the two backends in one run. No Nikon microcode is executed.
++
++All offsets below are 32-bit, aligned, relative to that MMIO base. For every
++command, write its arguments, `+100=command`, `+70=1`, then `+38=1` (host
++interrupt); INIT uses `+6c=1` (core start). Poll `+70` until zero, then inspect
++`+108` (accepted/success=1) and `+10c` (failure reason). Register argument and
++result windows overlap: save results before preparing the next command.
++Only one encode job is in flight globally. Four instance IDs 0..3 are accepted.
++For instance commands `+110=(codec_mode<<16)|instance`; HEVC=1, AVC=3.
++
++| Phase | Command / fields | Completion |
++|---|---|---|
++| Reset release | Release bank8 bits16..22 at `0x0d154248`; reset assert is `0x0d154348`. The model initially holds all seven. The existing board separately handles bits23/24 (native reset IDs0x4a/4b). | Any held bit blocks commands. Assert requires no job, pending reason or instance; the complete bundle clears core/FIO state. |
++| INIT | `1`, core-start. `+110=code_bus`, `+114=code_bytes` (nonzero, 4KiB multiple, ≤4MiB), `+11c=temp_bus`, `+120=temp_bytes`. Code/temp must map and not overlap; code cannot be all zero. | `CUR_PC +4=4` is a modeled service marker, not executed vendor code. Code bytes/CRC are recorded. No IRQ. |
++| CREATE | `8`; `+114=work_bus`, `+118=work_bytes` (0x110..4MiB). `+124 bit9` selects stream ring; then `+11c=ring_bus`, `+120=ring_bytes` (≤256MiB). Work cannot overlap code or ring. | reason bit3; native mask may leave it polling-only. |
++| SET_PARAM | `0x200`, `+104=0`; `+11c=(height<<16)|width`, `+124 bits14..17=depth` (8/10), HEVC level bits3..11, tier bit12; `+130 high16=HEVC GOP`; `+178=fps_n`, `+174=fps_d` or `+150=integer fps`. AVC VUI denominator is doubled. | reason bit9, instance bitmap `+1fc`; QUERY_RESULT gives minimum 2 source/reference buffers and two 4096-byte virtual management sizes. |
++| SET_FB | `0x80`, after successful SET_PARAM. | No IRQ. Upstream encoder model retains the command-register writes and marks buffers registered; it does **not** implement physical FBC/reference storage or validate every encoded reference descriptor. x264/x265 owns references. Real clients must use native allocation/registration. |
++| Headers | `0x100`; `+118=output_bus`, `+11c=capacity`, `+128 bit2=report`; `+164=0x3c` requests AUD/VPS/SPS/PPS (AVC omits VPS). | reason bit8, `+1e8` instance bit, `+1e0=1`. Exact four-byte Annex-B prefixes; header NAL lengths excluding prefixes at work+0x100. |
++| Picture | `0x100`; output as above; `+144=source_index`, `+148=Y`, `+14c=UV`, `+150=V` for planar; `+154=(Y_stride<<16)|C_stride`; `+158=2` is linear 8-bit NV12; `+164=0x23` is picture+AUD. | Real source RAM is copied, host codec runs on a worker, result bytes DMA to guest output. Timer checks every 1ms virtual time. IRQ bit8 only after success. |
++| QUERY_RESULT | `0x4000`, `+104=2`; acknowledge reason before reusing source/result. | `+1dc=1`; `+114/+118=start/end bus`, `+14c=byte_count`, `+154=consumed source`, `+12c=recon index` (header=-3, drain=-1), `+124=I/P`, `+1a8=work_bus` if report. Result lease is consumed. No new IRQ. |
++| Finish | Native final picture option `0xe3` appends EOS/EOB; then source `0xffffffff` drains once with zero output. Standalone no-source without a prior terminal picture emits EOS. `0x20` destroys; `0x10` closes host codec without destroying instance. | Requires prior result/IRQ consumption. No IRQ for destroy. Then assert reset bundle. |
++
++**IRQ:** mask `+48`; reason mirrored at `+30/+4c`, `+44=(pending!=0)`.
++IRQ120 and the shared video-controller bit0 assert only when `pending & mask`.
++Write `+34=reason` (W1C), then `+3c=1`. Native ISR also retires the per-instance
++bitmaps by read/modify/write. SET_PARAM uses `+1fc`; encode uses `+1e8`.
++Masked completions remain pending until acknowledged; queries do not silently
++clear the completion reason.
++
++**Addressing:** nonzero FIO `0xfec0` supplies the DMA high32 bits for code,
++source, work and stream. FIO data is `+24`; write `+20=0x10000|address`, or
++`+20=address` to read; bit31 signals completion. With no high word, virtual bus
++`0x40000000..0x5fffffff` maps to work RAM starting `0xa00000000`; other board
++mappings must pass the actual RAM range check. This aperture is model-defined.
++The local native movie producer additionally uses its checked WLYV compressed
++RAM packets and ownership records; those packets are not a hardware format.
++The model never reads a host preview image as a substitute for guest planes.
++
++**Formats:** the upstream direct snapshot accepts 4:2:0 planar layout0/1,
++interleaved layout2 (NV12) / layout3 (NV21), 8-bit byte samples, and 10-bit
++16-bit or 3-in-32 packing (LSB/MSB justified). Endian codes0/15 use little-endian
++storage; code12 reverses 32-bit lanes. Packing/layout/stride mismatch,
++unmapped spans, plane overlap, and source/output/work overlap fail. NV16 4:2:2,
++Nikon tiled/FBC input and arbitrary ISP layouts are not accepted as linear NV12.
++The inherited WLYV native-source adapter is limited to 8-bit NV12/endian0/15.
++
++**Gating and bounds:** FIO bus-stop registers `88f0,fe10,8e10,9e10` inhibit
++commands except SLEEP=4; WAKE=2 restores a sleeping core only after bus release.
++Synchronous reset `+50` acknowledges at `+54=0`, clears instances/IRQ state,
++and refuses outstanding jobs/results. This models the observed handshake;
++physical PLL/power sequencing and exact clock rates are not implemented by
++the encoder. The existing board handles native power/clock accesses.
++Widths/heights must be even and ≤8192; source copy ≤128MiB, each DMA span
++≤256MiB, output ≤64MiB in non-ring mode. Ring writes append only; no wrap or
++reader recycling is implemented. Source/work/output reservations must stay
++owned until completion. Input format is copied before the host worker starts.
++
++**Errors:** rejected aligned/unaligned/unknown MMIO in this aperture is handled,
++not passed to QEMU's fatal unknown-access path. Reads return zero on rejection;
++when idle, `+70=0,+108=0,+10c=0x100`. A rejected write during an active job
++preserves that job. Encoder failure/output overflow writes no partial bitstream,
++clears busy and sets failure status; it does not signal a successful IRQ.
++Clients must check status with a bounded wait, not wait indefinitely for IRQ.
++Reset cannot cancel a running worker. Teardown joins the worker before freeing
++its buffers/codec. Rates, quality, latency, minimum reference counts and error
++codes here are model conventions, not measured EXPEED/Wave5 behavior.
+diff --git a/qemu/nikon-w5p-codec.h b/qemu/nikon-w5p-codec.h
+--- /dev/null
++++ b/qemu/nikon-w5p-codec.h
+@@ -0,0 +1,234 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later
++ * Authored functional HEVC/AVC backend. Uses installed public x265/x264 APIs;
++ * no Nikon firmware, microcode or compression implementation is included.
++ * Input planes are immutable actual DMA snapshots, never preview upshifts.
++ */
++#include <x265.h>
++#include <x264.h>
++
++typedef struct W5pCodec {
++    const x265_api *api;
++    x265_param *param;
++    x265_encoder *encoder;
++    x264_param_t *avc_param;
++    x264_t *avc_encoder;
++    unsigned codec_mode; /* Explicit Wave5 convention: 1 HEVC, 3 AVC. */
++    unsigned width, height, depth;
++    uint64_t frames;
++} W5pCodec;
++
++static void w5p_hevc_close(W5pCodec *codec)
++{
++    if (!codec) { return; }
++    if (codec->avc_encoder) { x264_encoder_close(codec->avc_encoder); }
++    if (codec->avc_param) {
++        x264_param_cleanup(codec->avc_param);
++        g_free(codec->avc_param);
++    }
++    if (codec->encoder) { codec->api->encoder_close(codec->encoder); }
++    if (codec->param) { codec->api->param_free(codec->param); }
++    g_free(codec);
++}
++
++static W5pCodec *w5p_hevc_open(unsigned width, unsigned height, unsigned depth,
++                               unsigned fps_n, unsigned fps_d, bool lossless,
++                               unsigned keyframe_period, unsigned level, bool high_tier)
++{
++    if (!width || !height || (width | height) & 1 || width > 8192 || height > 8192 ||
++        (depth != 8 && depth != 10) || !fps_n || !fps_d ||
++        (level && level != 30 && level != 60 && level != 63 && level != 90 &&
++         level != 93 && level != 120 && level != 123 && level != 150 &&
++         level != 153 && level != 156 && level != 180 && level != 183 && level != 186) ||
++        (high_tier && level < 120)) { return NULL; }
++    const x265_api *api = x265_api_get(depth);
++    if (!api || (unsigned)api->bit_depth != depth || api->sizeof_param != sizeof(x265_param) ||
++        api->sizeof_picture != sizeof(x265_picture)) { return NULL; }
++    W5pCodec *codec = g_new0(W5pCodec, 1);
++    codec->api = api;
++    codec->param = api->param_alloc();
++    if (!codec->param || api->param_default_preset(codec->param, "ultrafast", "zerolatency") < 0) {
++        w5p_hevc_close(codec); return NULL;
++    }
++    x265_param *p = codec->param;
++    p->sourceWidth = width; p->sourceHeight = height;
++    p->internalCsp = X265_CSP_I420; p->internalBitDepth = depth;
++    p->fpsNum = fps_n; p->fpsDenom = fps_d;
++    /* Wave5/HEVC uses general_level_idc (three times level * 10).
++     * Preserve the requested tier in actual VPS/SPS and muxed hvcC. */
++    p->levelIdc = level / 3; p->bHighTier = high_tier;
++    p->frameNumThreads = 1;
++    p->bframes = 0; p->lookaheadDepth = 0;
++    p->bRepeatHeaders = 0; p->bAnnexB = 1;
++    /* Native movie packets retain the advertised AUD length on every
++     * access unit. Omitting it lets the mux overwrite VCL bytes at +7. */
++    p->bEnableAccessUnitDelimiters = 1;
++    if (keyframe_period) {
++        p->keyframeMax = keyframe_period; p->keyframeMin = 1;
++        p->scenecutThreshold = 0; p->bOpenGOP = 0;
++    }
++    p->bEnableWavefront = 0; p->bEnablePsnr = 0; p->bEnableSsim = 0;
++    p->logLevel = X265_LOG_ERROR;
++    p->bLossless = lossless;
++    p->rc.rfConstant = 18;
++    if (api->param_parse(p, "pools", "none") < 0 ||
++        api->param_apply_profile(p, depth == 10 ? "main10" : "main") < 0) {
++        w5p_hevc_close(codec); return NULL;
++    }
++    codec->encoder = api->encoder_open(p);
++    if (!codec->encoder) { w5p_hevc_close(codec); return NULL; }
++    codec->width = width; codec->height = height; codec->depth = depth; codec->codec_mode = 1;
++    return codec;
++}
++
++static W5pCodec *w5p_video_open(unsigned mode, unsigned width, unsigned height, unsigned depth,
++                                unsigned fps_n, unsigned fps_d, bool lossless,
++                                const unsigned crop[4], unsigned keyframe_period,
++                                unsigned level, bool high_tier)
++{
++    if (mode == 1) { return w5p_hevc_open(width, height, depth, fps_n, fps_d, lossless, keyframe_period, level, high_tier); }
++    if (mode != 3 || !width || !height || (width | height) & 1 ||
++        width > 8192 || height > 8192 || (depth != 8 && depth != 10) || !fps_n || !fps_d) {
++        return NULL;
++    }
++    W5pCodec *codec = g_new0(W5pCodec, 1);
++    codec->avc_param = g_new0(x264_param_t, 1);
++    x264_param_t *p = codec->avc_param;
++    if (x264_param_default_preset(p, "ultrafast", "zerolatency") < 0) {
++        w5p_hevc_close(codec); return NULL;
++    }
++    p->i_width = width; p->i_height = height; p->i_bitdepth = depth;
++    p->i_csp = X264_CSP_I420 | (depth > 8 ? X264_CSP_HIGH_DEPTH : 0);
++    /* Keep the complete coded DMA surface. SPS cropping controls the
++     * displayed rectangle, including each 4:2:0 chroma edge. */
++    p->crop_rect.i_left = crop[0]; p->crop_rect.i_top = crop[1];
++    p->crop_rect.i_right = crop[2]; p->crop_rect.i_bottom = crop[3];
++    p->i_fps_num = fps_n; p->i_fps_den = fps_d;
++    p->i_timebase_num = fps_d; p->i_timebase_den = fps_n;
++    p->i_threads = 1; p->i_lookahead_threads = 1;
++    p->i_bframe = 0; p->rc.i_lookahead = 0; p->b_vfr_input = 0;
++    p->b_repeat_headers = 0; p->b_annexb = 1; p->b_aud = 1;
++    p->i_log_level = X264_LOG_ERROR;
++    if (keyframe_period) {
++        p->i_keyint_max = keyframe_period; p->i_keyint_min = 1;
++        p->i_scenecut_threshold = 0; p->b_open_gop = 0;
++    }
++    if (lossless) { p->rc.i_rc_method = X264_RC_CQP; p->rc.i_qp_constant = 0; }
++    else { p->rc.i_rc_method = X264_RC_CRF; p->rc.f_rf_constant = 18; }
++    if (x264_param_apply_profile(p, lossless ? "high444" : depth == 10 ? "high10" : "high") < 0) {
++        w5p_hevc_close(codec); return NULL;
++    }
++    codec->avc_encoder = x264_encoder_open(p);
++    if (!codec->avc_encoder) { w5p_hevc_close(codec); return NULL; }
++    codec->width = width; codec->height = height; codec->depth = depth; codec->codec_mode = mode;
++    return codec;
++}
++
++static bool w5p_header_nal(GByteArray *output, const uint8_t *data,
++                          unsigned bytes, uint32_t *length)
++{
++    unsigned prefix = bytes >= 4 && !memcmp(data, "\0\0\0\1", 4) ? 4 :
++                      bytes >= 3 && !memcmp(data, "\0\0\1", 3) ? 3 : 0;
++    if (!prefix || bytes <= prefix) { return false; }
++    /* The native header report counts NAL bytes without the start code.
++     * Native consumers add exactly four bytes when walking the stream. */
++    *length = bytes - prefix;
++    g_byte_array_append(output, (const uint8_t *)"\0\0\0\1", 4);
++    g_byte_array_append(output, data + prefix, *length);
++    return true;
++}
++
++static bool w5p_hevc_headers(W5pCodec *codec, GByteArray *output,
++                            unsigned options, uint32_t lengths[4])
++{
++    if (!codec || !(options & 0x3c)) { return false; }
++    const uint8_t *data[4] = {0};
++    unsigned bytes[4] = {0};
++    /* Requested AUD is first, followed by VPS/SPS/PPS. The AUD describes
++     * the first intra picture. These are public Annex B syntax bytes;
++     * parameter sets themselves come from the selected host codec. */
++    static const uint8_t hevc_aud[] = {0, 0, 0, 1, 0x46, 1, 0x10};
++    static const uint8_t avc_aud[] = {0, 0, 0, 1, 9, 0x10};
++    data[0] = codec->codec_mode == 3 ? avc_aud : hevc_aud;
++    bytes[0] = codec->codec_mode == 3 ? sizeof(avc_aud) : sizeof(hevc_aud);
++    memset(lengths, 0, 4 * sizeof(*lengths));
++    if (codec->codec_mode == 3) {
++        x264_nal_t *nals = NULL; int count = 0;
++        if (x264_encoder_headers(codec->avc_encoder, &nals, &count) < 0 || count <= 0) { return false; }
++        for (int i = 0; i < count; i++) {
++            unsigned slot = nals[i].i_type == 7 ? 2 : nals[i].i_type == 8 ? 3 : 4;
++            if (slot < 4) { data[slot] = nals[i].p_payload; bytes[slot] = nals[i].i_payload; }
++        }
++    } else {
++        x265_nal *nals = NULL; uint32_t count = 0;
++        if (codec->api->encoder_headers(codec->encoder, &nals, &count) < 0 || !count) { return false; }
++        for (unsigned i = 0; i < count; i++) {
++            unsigned type = nals[i].type;
++            if (type >= 32 && type <= 34) {
++                data[type - 31] = nals[i].payload; bytes[type - 31] = nals[i].sizeBytes;
++            }
++        }
++    }
++    const unsigned masks[] = {0x20, 4, 8, 0x10};
++    for (unsigned slot = 0; slot < 4; slot++) {
++        if (!(options & masks[slot]) || (slot == 1 && codec->codec_mode == 3)) { continue; }
++        if (!data[slot] || !w5p_header_nal(output, data[slot], bytes[slot], &lengths[slot])) { return false; }
++    }
++    return output->len != 0;
++}
++
++static bool w5p_hevc_picture(W5pCodec *codec, uint8_t *planes[3], const unsigned strides[3],
++                            uint64_t pts, GByteArray *output, unsigned *nal_type)
++{
++    if (!codec || !planes[0] || !planes[1] || !planes[2]) { return false; }
++    if (codec->codec_mode == 3) {
++        x264_picture_t input, result;
++        x264_picture_init(&input); x264_picture_init(&result);
++        input.img.i_csp = X264_CSP_I420 | (codec->depth > 8 ? X264_CSP_HIGH_DEPTH : 0);
++        input.img.i_plane = 3; input.i_pts = pts;
++        for (unsigned i = 0; i < 3; i++) {
++            input.img.plane[i] = planes[i]; input.img.i_stride[i] = strides[i];
++        }
++        x264_nal_t *nals = NULL; int count = 0;
++        if (x264_encoder_encode(codec->avc_encoder, &nals, &count, &input, &result) <= 0 || count <= 0) {
++            return false;
++        }
++        *nal_type = nals[0].i_type;
++        for (int i = 0; i < count; i++) {
++            uint32_t length;
++            if (!w5p_header_nal(output, nals[i].p_payload, nals[i].i_payload, &length)) {
++                return false;
++            }
++            if (nals[i].i_type == NAL_SLICE || nals[i].i_type == NAL_SLICE_IDR) { *nal_type = nals[i].i_type; }
++        }
++        codec->frames++; return true;
++    }
++    x265_picture *input = codec->api->picture_alloc();
++    x265_picture *result = codec->api->picture_alloc();
++    if (!input || !result) {
++        if (input) { codec->api->picture_free(input); }
++        if (result) { codec->api->picture_free(result); }
++        return false;
++    }
++    codec->api->picture_init(codec->param, input);
++    codec->api->picture_init(codec->param, result);
++    input->bitDepth = codec->depth; input->pts = pts;
++    for (unsigned i = 0; i < 3; i++) {
++        input->planes[i] = planes[i]; input->stride[i] = strides[i];
++    }
++    x265_nal *nals = NULL; uint32_t count = 0;
++    int produced = codec->api->encoder_encode(codec->encoder, &nals, &count, input, result);
++    bool valid = produced == 1 && count != 0;
++    if (valid) {
++        *nal_type = nals[0].type;
++        for (unsigned i = 0; i < count; i++) {
++            uint32_t length;
++            if (!w5p_header_nal(output, nals[i].payload, nals[i].sizeBytes, &length)) {
++                valid = false; break;
++            }
++            if (nals[i].type < 32) { *nal_type = nals[i].type; }
++        }
++        if (valid) { codec->frames++; }
++    }
++    codec->api->picture_free(input); codec->api->picture_free(result);
++    return valid;
++}
+diff --git a/qemu/nikon-z8-video-nr-empty-reset.h b/qemu/nikon-z8-video-nr-empty-reset.h
+--- a/qemu/nikon-z8-video-nr-empty-reset.h
++++ b/qemu/nikon-z8-video-nr-empty-reset.h
+@@ -21,6 +21,8 @@
+     for (unsigned ch=0;ch<6;ch++) { if (s->dma[ch][0] || s->dma[ch][2]) { mask|=2; } }
+     if (s->wave5_busy || (s->wave5 && (s->wave5->busy || s->wave5->pending ||
+         s->wave5->job || s->wave5->instances))) { mask|=4; }
++    if (s->w5p_model && s->w5p && (s->w5p->busy || s->w5p->pending ||
++        s->w5p->job || s->w5p->instances)) { mask|=4; }
+     if ((s->engine151_pending[0]&8) || (s->engine1518[0].pending&0x08100000)) { mask|=8; }
+     for (unsigned i=0;i<NB_SLOT_COUNT;i++) { if (s->output_owner.slots[i].held) { mask|=16; } }
+     for (unsigned b=0;b<2;b++) {
+diff --git a/qemu/nikon-z8-wave5-port.h b/qemu/nikon-z8-wave5-port.h
+--- /dev/null
++++ b/qemu/nikon-z8-wave5-port.h
+@@ -0,0 +1,818 @@
++/* Copyright (C) 2026 RdWing: Z8 adaptation. */
++/* SPDX-License-Identifier: GPL-2.0-or-later
++ * Authored functional Wave5-compatible HEVC/AVC device. The compatible 5210
++ * identity is an explicit virtual profile, not measured Nikon silicon.
++ * Original microcode execution is required by default and is not available.
++ * Explicit diagnostic mode: actual input RAM -> x265 -> actual output RAM.
++ * Opaque code DMA checks never prove vendor ISA execution. No files or RTOS
++ * flags are injected. The host reference buffers belong to this backend.
++ */
++#include "qemu/thread.h"
++#include "nikon-w5p-codec.h"
++
++
++#define W5P_BASE UINT64_C(0x16010000)
++#define W5P_INSTANCES 4
++#define W5P_REG(off) ((off) / 4)
++
++typedef struct W5pInstance {
++    bool created, configured, buffers, result, sequence_result, ring;
++    bool native_end_written, native_drained;
++    unsigned width, height, depth, fps_n, fps_d;
++    unsigned keyframe_period;
++    unsigned hevc_level;
++    bool hevc_high_tier;
++    unsigned source_index, bytes, nal_type, output_bus;
++    unsigned main_surface;
++    unsigned codec_mode;
++    unsigned crop[4]; /* left, top, right, bottom: coded-surface pixels */
++    int recon_index;
++    uint32_t submit_tick, complete_tick;
++    uint64_t pictures, output;
++    uint64_t ring_physical;
++    unsigned ring_bus, ring_capacity, ring_written;
++    uint64_t work_physical;
++    unsigned work_bus, work_capacity;
++    bool report_requested;
++    uint32_t header_lengths[4]; /* AUD, VPS (HEVC only), SPS, PPS; no prefix */
++    W5pCodec *codec;
++} W5pInstance;
++
++typedef struct W5pJob {
++    struct W5pState *owner;
++    W5pInstance *instance;
++    uint8_t *input;
++    unsigned strides[3], source_index, nal_type;
++    unsigned main_surface;
++    uint64_t output, pts;
++    unsigned capacity, input_bytes, output_bus;
++    uint32_t input_crc;
++    GByteArray *encoded;
++    bool done, valid, native_end;
++} W5pJob;
++
++typedef struct W5pState {
++    NikonZ9State *board;
++    uint32_t regs[0x2000 / 4], pending, interrupt_mask;
++    bool booted, sleeping, busy, lossless;
++    unsigned last_command, instances, fio_address;
++    uint32_t fio_data, fio_words[18];
++    uint64_t writes, reads, commands, completions, rejections, resets;
++    uint32_t external_reset_held;
++    uint64_t external_resets;
++    uint64_t boot_bytes, input_bytes, output_bytes;
++    uint64_t boot_physical;
++    uint32_t boot_crc, input_crc, output_crc;
++    const char *boot_rejection, *source_rejection;
++    W5pInstance instance[W5P_INSTANCES];
++    W5pJob *job;
++    QemuThread worker;
++    bool worker_started;
++    QemuMutex lock;
++    QEMUTimer *timer;
++    qemu_irq irq;
++} W5pState;
++
++#ifndef W5P_UNIT_TEST
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++/* Optional Z8 YUV aperture endpoint. Decode actual WLYV packet RAM for an
++ * owned generation; never substitute the host source or a preview image. */
++static int w5p_yuv_snapshot(W5pState *w,W5pInstance *i,W5pJob *job)
++{
++    NikonZ9State *s=w->board;uint32_t *r=w->regs;Z8YuvData *d=s->z8_yuv_data;
++    if (!s->z8_yuv_data_model || w->fio_words[9]!=8 || r[0x148/4]>=0x40000000) { return -1; }
++    if (!d) { return 0; }
++    d->read_stage=1;
++    unsigned format=r[0x158/4],endian=(format>>6)&15;
++    if (i->depth!=8 || (format&~0x3ffu) || (format&31)!=2 || (endian!=0 && endian!=15) ||
++        (r[0x154/4]>>16)!=i->width || (r[0x154/4]&0xffff)!=i->width) { goto invalid; }
++    uint64_t logical[2]={UINT64_C(0x200000000)|r[0x148/4],UINT64_C(0x200000000)|r[0x14c/4]};
++    uint64_t physical[2]={0,0};
++    unsigned bases[2]={0,0};
++    /* Producer and consumer have separate virtual aliases. Original Z8
++     * maps consumer200000000 to the producer20c000000 backing reservation.
++     * Join them by both actual physical planes, never by the alias alone. */
++    const uint32_t *v=yuvcmp_domain_words(s, 1);
++    for (unsigned p=0;p<2;p++) {
++        for (unsigned bank=0;bank<2;bank++) { for (unsigned n=0;n<4;n++) {
++            unsigned base=0x1200+p*0x400+bank*0x100,off=(base+0x80+n*8)/4;
++            if ((v[off]|(uint64_t)v[off+1]<<32)==logical[p]) { physical[p]=v[off+8]|(uint64_t)v[off+9]<<32;bases[p]=base; }
++        } }
++    }
++    Z8YuvSlot *slot=NULL;
++    d->read_stage=2;
++    for (unsigned n=0;n<G_N_ELEMENTS(d->slots);n++) { if (d->slots[n].owned && d->slots[n].physical[0]==physical[0] && d->slots[n].physical[1]==physical[1]) { slot=&d->slots[n];break; } }
++    if (!slot || slot->width!=i->width || slot->height!=i->height) { goto invalid; }
++    uint8_t *planes[2]={NULL,NULL};bool ok=false;
++    for (unsigned p=0;p<2;p++) {
++        d->read_stage=3+p*10;
++        unsigned ch=0x1000+p*0x400,base=bases[p];
++        if (v[ch/4]!=1 || v[(ch+4)/4]!=1 || v[(base+0x1c)/4]!=i->width ||
++            v[(base+0x20)/4]!=slot->stride || v[(base+0x28)/4]<slot->capacity[p]) { goto done; }
++        bool matched=false;
++        d->read_stage=4+p*10;
++        for (unsigned n=0;n<4;n++) {
++            unsigned off=(base+0x80+n*8)/4;
++            uint64_t a=v[off]|(uint64_t)v[off+1]<<32,b=v[off+8]|(uint64_t)v[off+9]<<32;
++            if (a==logical[p] && b==slot->physical[p]) { matched=true; }
++        }
++        if (!matched || graphics_spans_overlap(slot->physical[p],slot->capacity[p],i->work_physical,i->work_capacity) ||
++            graphics_spans_overlap(slot->physical[p],slot->capacity[p],job->output,job->capacity)) {
++            fprintf(stderr,"Z8_YUV_MAP_REJECT matched=%d plane=%u logical=%"PRIx64" physical=%"PRIx64" capacity=%u work=%"PRIx64":%u output=%"PRIx64":%u\n",matched,p,logical[p],slot->physical[p],slot->capacity[p],i->work_physical,i->work_capacity,job->output,job->capacity);goto done;
++        }
++        uint8_t h[48];
++        d->read_stage=5+p*10;
++        if (address_space_read(&address_space_memory,slot->physical[p],MEMTXATTRS_UNSPECIFIED,h,sizeof(h))!=MEMTX_OK) { goto done; }
++        unsigned n=slot->stride*(slot->height>>p),amount=ldl_le_p(h+36);
++        if (z8_packet_kind(h, sizeof(h), true) != Z8_PACKET_WLYV || ldl_le_p(h+8)!=slot->width || ldl_le_p(h+12)!=(slot->height>>p) ||
++            ldl_le_p(h+16)!=slot->stride || ldl_le_p(h+20)!=p || ldq_le_p(h+24)!=slot->epoch ||
++            ldl_le_p(h+32)!=n || ldl_le_p(h+44) || !amount || amount>slot->capacity[p]-48) { goto done; }
++        g_autofree uint8_t *packet=g_malloc(amount);planes[p]=g_malloc(n);uLongf length=n;
++        d->read_stage=6+p*10;
++        MemTxResult read_result=address_space_read(&address_space_memory,slot->physical[p]+48,MEMTXATTRS_UNSPECIFIED,packet,amount);
++        int decoded=read_result==MEMTX_OK?uncompress(planes[p],&length,packet,amount):Z_DATA_ERROR;
++        uint32_t actual_crc=crc32(0,planes[p],n),expected_crc=ldl_le_p(h+40);
++        if (decoded!=Z_OK || length!=n || actual_crc!=expected_crc) {
++            fprintf(stderr,"Z8_YUV_PACKET_REJECT plane=%u physical=%"PRIx64" read=%d decoded=%d length=%lu expected=%u crc=%x expected_crc=%x\n",p,slot->physical[p],read_result,decoded,(unsigned long)length,n,actual_crc,expected_crc);goto done;
++        }
++    }
++    unsigned ybytes=i->width*i->height;
++    job->input_bytes=ybytes*3/2;job->input=g_malloc(job->input_bytes);memcpy(job->input,planes[0],ybytes);
++    for (unsigned n=0;n<ybytes/4;n++) { job->input[ybytes+n]=planes[1][n*2];job->input[ybytes+ybytes/4+n]=planes[1][n*2+1]; }
++    job->strides[0]=i->width;job->strides[1]=job->strides[2]=i->width/2;
++    job->input_crc=crc32(0,job->input,job->input_bytes);slot->owned=false;d->reads++;d->read_stage=0;ok=true;
++done:
++    g_free(planes[0]);g_free(planes[1]);if (ok) { return 1; }
++invalid:
++    d->rejects++;return 0;
++}
++
++#endif
++static const uint16_t w5p_fio_offsets[] = {
++    0x88f0,0x88f4,0xfe10,0xfe14,0x8e10,0x8e14,0x9e10,0x9e14,
++    0xfe0c,0xfec0,0xfee0,0xfea0,0xfea4,0xfea8,0xfeac,0xff00,
++    0xfe64,0xfe6c
++};
++
++static bool w5p_bus_stopped(W5pState *w)
++{
++    return w->fio_words[0] || w->fio_words[2] || w->fio_words[4] || w->fio_words[6];
++}
++
++static bool w5p_fio(W5pState *w,uint32_t control)
++{
++    if (control&~0x1ffffU) { return false; }
++    unsigned address=control&0xffff,index;
++    for (index=0;index<G_N_ELEMENTS(w5p_fio_offsets);index++) {
++        if (w5p_fio_offsets[index]==address) { break; }
++    }
++    if (index==G_N_ELEMENTS(w5p_fio_offsets)) { return false; }
++    uint32_t value=w->regs[W5P_REG(0x24)];
++    bool status=index==1 || index==3 || index==5 || index==7;
++    if (control&0x10000) {
++        /* Original INIT40e53eb8 posts both SRAM-side configuration words
++         * before the core-start request. These retain configuration only;
++         * they cannot release or complete any microcode work. */
++        if ((w->busy && index>=8) || ((index==16 || index==17) && value&~15U)) { return false; }
++        if (status || (index==0 && value!=0 && value!=0x100) ||
++            (index==2 && value!=0 && value!=7 && value!=255) ||
++            ((index==4 || index==6) && value!=0 && value!=7)) { return false; }
++        w->fio_words[index]=value;
++    } else if (status) {
++        bool held=w->fio_words[index-1]!=0;
++        /* Existing accepted DMA drains before the bus-stop status becomes
++         * idle. An unretired result/IRQ is still separately reset-protected. */
++        if (!held || w->busy) { value=0; }
++        else if (index==3 && w->fio_words[2]==255) { value=0; }
++        else { value=0x3f; } /* pinned Nikon VDI compares exactly 0x3f */
++        w->regs[W5P_REG(0x24)]=value;
++    } else { w->regs[W5P_REG(0x24)]=w->fio_words[index]; }
++    w->fio_address=address;w->regs[W5P_REG(0x20)]=control|0x80000000;
++    return true;
++}
++
++static bool w5p_address(NikonZ9State *s, uint64_t address, uint64_t bytes, uint64_t *physical)
++{
++    if (!bytes || bytes > 256 * MiB) { return false; }
++    /* Original VDI supplies the AXI address high word through FIO FEC0.
++     * Apply it consistently to code, source and bitstream reservations;
++     * otherwise a native low address can refer to an unrelated lab bank. */
++    if (s->w5p && s->w5p->fio_words[9]) {
++        uint64_t extended=((uint64_t)s->w5p->fio_words[9]<<32)|address;
++        if (!dma_ram_range(s,extended,bytes)) { return false; }
++        *physical=extended;return true;
++    }
++    if (address>=UINT64_C(0x40000000) && address<UINT64_C(0x60000000)) {
++        /* Declared virtual 32-bit AXI aperture, independently checked
++         * against actual work RAM. Physical EXPEED master16 is unmeasured. */
++        uint64_t mapped=UINT64_C(0xa00000000)+address-UINT64_C(0x40000000);
++        if (address+bytes>UINT64_C(0x60000000) || !dma_ram_range(s,mapped,bytes)) { return false; }
++        *physical=mapped;return true;
++    }
++    /* The explicit lab bus aperture overlaps low physical firmware RAM.
++     * Resolve encoded DMA addresses first, rather than silently reading or
++     * writing another RAM region at the same numerical 32-bit address. */
++    if (raw_pipeline_address(s,address,bytes,physical) && dma_ram_range(s,*physical,bytes)) { return true; }
++    if (address>=UINT64_C(0xa00000000) && dma_ram_range(s,address,bytes)) { *physical=address;return true; }
++    return false;
++}
++
++static bool w5p_code_address(W5pState *w,uint32_t address,uint64_t bytes,uint64_t *physical)
++{
++    uint32_t high=w->fio_words[9]; /* FEC0: original VDI program extension */
++    if (high) {
++        uint64_t extended=((uint64_t)high<<32)|address;
++        if (!bytes || bytes>4*MiB || !dma_ram_range(w->board,extended,bytes)) { return false; }
++        *physical=extended;return true;
++    }
++    return w5p_address(w->board,address,bytes,physical);
++}
++
++static void w5p_irq_update(W5pState *w)
++{
++    bool asserted=(w->pending&w->interrupt_mask)!=0;
++    w->regs[W5P_REG(0x30)]=w->pending;
++    w->regs[W5P_REG(0x44)]=w->pending != 0;
++    w->regs[W5P_REG(0x4c)]=w->pending;
++    /* Original ZR ISR reads the shared controller before the VPU reason.
++     * Only completed, enabled VPU work owns aggregate bit0. */
++    w->board->video_processing_global[3]=
++        (w->board->video_processing_global[3]&~1U)|asserted;
++    if (w->irq) { qemu_set_irq(w->irq,asserted); }
++}
++
++static void w5p_complete(W5pState *w, unsigned reason)
++{
++    w->busy=false;w->board->wave5_busy=false;
++    w->regs[W5P_REG(0x70)]=0;
++    w->regs[W5P_REG(0x108)]=1;w->regs[W5P_REG(0x10c)]=0;
++    unsigned instance=w->regs[W5P_REG(0x110)]&0xffff;
++    if (instance<W5P_INSTANCES) {
++        /* Native ISR retires per-instance bitmaps by read/modify/write.
++         * Do not advertise an instance before its command has completed. */
++        if (reason&((1U<<6)|(1U<<9))) { w->regs[W5P_REG(0x1fc)]|=1U<<instance; }
++        if (reason&(1U<<8)) { w->regs[W5P_REG(0x1e8)]|=1U<<instance; }
++        if (reason&(1U<<15)) { w->regs[W5P_REG(0x1e4)]|=1U<<instance; }
++    }
++    w->pending|=reason;w->completions++;w5p_irq_update(w);
++    fprintf(stderr,"Z8_W5P_COMPLETE reason=%x pending=%x mask=%x irq120=%u\n",reason,w->pending,w->interrupt_mask,!!(w->pending&w->interrupt_mask));
++}
++
++static uint32_t w5p_virtual_tick(void)
++{
++    /* Recorded command latency on the lab virtual clock. These are not
++     * vendor instruction counts or measured physical silicon timing. */
++    return qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL)/256;
++}
++
++static bool w5p_report(W5pState *w,W5pInstance *i)
++{
++    if (!i->report_requested) { return true; }
++    /* Original ZR40e3c810 reads RET1a8+100 into the four header lengths;
++     * 402ff918 adds a four-byte prefix to each before copying AUD/VPS/SPS/PPS.
++     * Zero-filled header reports formerly produced four-byte empty NALs.
++     * Report actual output lengths in the guest-owned CREATE reservation.
++     * Picture statistics remain unmodeled, not original ISP arithmetic. */
++    uint8_t report[16]={0};
++    for (unsigned n = 0; n < 4; n++) { stl_le_p(report + 4 * n, i->header_lengths[n]); }
++    return i->work_capacity>=0x110 &&
++        address_space_write(&address_space_memory,i->work_physical+0x100,
++            MEMTXATTRS_UNSPECIFIED,report,sizeof(report))==MEMTX_OK;
++}
++
++static void *w5p_encode_worker(void *opaque)
++{
++    W5pJob *job=opaque;W5pInstance *i=job->instance;
++    unsigned bpp=i->depth>8 ? 2 : 1;
++    uint8_t *planes[3]={job->input,job->input+(uint64_t)i->width*i->height*bpp,
++        job->input+(uint64_t)i->width*i->height*bpp*5/4};
++    bool valid=w5p_hevc_picture(i->codec,planes,job->strides,job->pts,job->encoded,&job->nal_type);
++    if (valid && job->native_end) {
++        /* Local C3.11 movie stop sends a final source with EOS/EOB bits.
++         * Append public Annex-B terminal NALs after its real picture. */
++        static const uint8_t hevc_end[]={0,0,0,1,0x48,1,0,0,0,1,0x4a,1};
++        static const uint8_t avc_end[]={0,0,0,1,0x0a,0,0,0,1,0x0b};
++        if (i->codec_mode==3) { g_byte_array_append(job->encoded,avc_end,sizeof(avc_end)); }
++        else { g_byte_array_append(job->encoded,hevc_end,sizeof(hevc_end)); }
++    }
++    qemu_mutex_lock(&job->owner->lock);
++    job->valid=valid;job->done=true;
++    qemu_mutex_unlock(&job->owner->lock);
++    return NULL;
++}
++
++static void w5p_tick(void *opaque)
++{
++    W5pState *w=opaque;W5pJob *job=w->job;
++    if (!job) { return; }
++    qemu_mutex_lock(&w->lock);bool done=job->done;qemu_mutex_unlock(&w->lock);
++    if (!done) { timer_mod(w->timer,qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL)+1000000);return; }
++    qemu_thread_join(&w->worker);w->worker_started=false;
++    W5pInstance *i=job->instance;
++    bool success=job->valid && job->encoded->len && job->encoded->len<=job->capacity &&
++        dma_ram_range(w->board,job->output,job->capacity) &&
++        address_space_write(&address_space_memory,job->output,MEMTXATTRS_UNSPECIFIED,
++                            job->encoded->data,job->encoded->len)==MEMTX_OK;
++    if (success && !w5p_report(w,i)) { success=false; }
++    if (success) {
++        i->bytes=job->encoded->len;i->output=job->output;i->nal_type=job->nal_type;
++        i->source_index=job->source_index;i->output_bus=job->output_bus;i->result=true;i->pictures++;
++        i->main_surface=job->main_surface;
++        if (job->native_end) { i->native_end_written=true; }
++        i->recon_index=(i->pictures-1)%2;i->complete_tick=w5p_virtual_tick();
++        if (i->ring) { i->ring_written+=i->bytes; }
++        w->input_bytes+=job->input_bytes;w->output_bytes+=i->bytes;w->input_crc=job->input_crc;
++        w->output_crc=crc32(0,job->encoded->data,job->encoded->len);
++        w->regs[W5P_REG(0x1e0)]=1;
++        w5p_complete(w,1U<<8);
++    } else {
++        /* An actual encoder error or overflow is a failed command, never a
++         * zero-byte successful picture. No partial guest output is written. */
++        w->regs[W5P_REG(0x108)]=0;w->regs[W5P_REG(0x10c)]=0x100;
++        w->regs[W5P_REG(0x70)]=0;w->busy=false;w->board->wave5_busy=false;
++        w->rejections++;
++    }
++    g_free(job->input);g_byte_array_unref(job->encoded);g_free(job);w->job=NULL;
++}
++
++static bool w5p_snapshot(W5pState *w,W5pInstance *i,W5pJob *job)
++{
++#ifndef W5P_UNIT_TEST
++    int source_result=w5p_yuv_snapshot(w,i,job);
++    if (source_result>=0) { return source_result!=0; }
++#endif
++    w->source_rejection="unsupported source format";
++    uint32_t format=w->regs[W5P_REG(0x158)];
++    unsigned packing=(format>>3)&3,justified=(format>>5)&1,layout=format&7;
++    unsigned endian=(format>>6)&15;
++    if (format&~0x3ffU || packing==3 || layout>3 || (endian!=0 && endian!=15 && endian!=12) ||
++        (i->depth==10 && packing==0) || (i->depth==8 && packing!=0)) { return false; }
++    unsigned sy=w->regs[W5P_REG(0x154)]>>16,sc=w->regs[W5P_REG(0x154)]&0xffff;
++    unsigned bpp=i->depth>8 ? 2 : 1;
++    bool interleaved=layout&2,nv21=layout&1;
++    uint64_t addresses[3],sizes[3];
++    unsigned rows[3]={i->height,i->height/2,i->height/2};
++    unsigned samples[3]={i->width,interleaved ? i->width : i->width/2,i->width/2};
++    unsigned strides[3]={sy,sc,sc};
++    bool main_mapping=false;
++    w->source_rejection="source stride, DMA span or output/work overlap";
++    for (unsigned p=0;p<(interleaved ? 2 : 3);p++) {
++        unsigned minrow=packing==2 ? (samples[p]+2)/3*4 : samples[p]*bpp;
++        sizes[p]=(uint64_t)strides[p]*rows[p];
++        uint64_t physical_size=sizes[p];
++        if (strides[p]<minrow || strides[p]>32768 || (endian==12 && (strides[p]&3)) ||
++            (!main_mapping && !w5p_address(w->board,w->regs[W5P_REG(0x148+p*4)],sizes[p],&addresses[p])) ||
++            !dma_ram_range(w->board,addresses[p],physical_size) ||
++            graphics_spans_overlap(addresses[p],physical_size,i->work_physical,i->work_capacity) ||
++            graphics_spans_overlap(addresses[p],physical_size,job->output,job->capacity)) { return false; }
++        for (unsigned q=0;q<p;q++) {
++            uint64_t other_size=sizes[q];
++            if (graphics_spans_overlap(addresses[p],physical_size,addresses[q],other_size)) {
++                w->source_rejection="source planes overlap";return false;
++            }
++        }
++    }
++    uint64_t total=(uint64_t)i->width*i->height*bpp*3/2;
++    if (total>128*MiB) { w->source_rejection="source exceeds copy bound";return false; }
++    job->input=g_malloc(total);job->input_bytes=total;
++    job->strides[0]=i->width*bpp;job->strides[1]=job->strides[2]=i->width/2*bpp;
++    uint64_t offsets[3]={0,(uint64_t)i->width*i->height*bpp,(uint64_t)i->width*i->height*bpp*5/4};
++    for (unsigned p=0;p<(interleaved ? 2 : 3);p++) {
++        g_autofree uint8_t *row=g_malloc(strides[p]);
++        g_autofree uint8_t *decoded=NULL;
++        w->source_rejection="compact source header, generation or payload integrity";
++        w->source_rejection="source RAM read failed";
++        for (unsigned y=0;y<rows[p];y++) {
++            if (decoded) { memcpy(row,decoded+(uint64_t)y*strides[p],strides[p]); }
++            else if (address_space_read(&address_space_memory,addresses[p]+(uint64_t)y*strides[p],
++                                  MEMTXATTRS_UNSPECIFIED,row,strides[p])!=MEMTX_OK) { return false; }
++            for (unsigned x=0;x<samples[p];x++) {
++                unsigned value;
++                /* Native SRC_FORMAT332 inverts VDI32-bit-big code3 to12.
++                 * Reverse byte lanes within each 32-bit storage word before
++                 * sample unpacking. Complete rows and padding remain intact;
++                 * another endian/layout still requires its own contract. */
++                if (!packing) { value=row[endian==12 ? (x^3u) : x]; }
++                else if (packing==1) {
++                    value=endian==12 ? lduw_be_p(row+((x*2)^2u)) : lduw_le_p(row+x*2);
++                    value=justified ? value>>6 : value&1023;
++                } else {
++                    uint32_t word=endian==12 ? ldl_be_p(row+(x/3)*4) : ldl_le_p(row+(x/3)*4);
++                    unsigned shift=justified ? 22-(x%3)*10 : (x%3)*10;
++                    value=(word>>shift)&1023;
++                }
++                unsigned dest=p,index=x;
++                if (interleaved && p==1) { dest=((x&1)^nv21) ? 2 : 1;index=x/2; }
++                uint8_t *out=job->input+offsets[dest]+(uint64_t)y*job->strides[dest]+index*bpp;
++                if (bpp==2) { stw_le_p(out,value); } else { *out=value; }
++            }
++        }
++    }
++    job->input_crc=crc32(0,job->input,total);
++    w->source_rejection=NULL;
++    return true;
++}
++
++static bool w5p_command(W5pState *w,unsigned command,bool core_start)
++{
++    uint32_t *r=w->regs;
++    fprintf(stderr,"Z8_W5P_COMMAND cmd=%x info=%x option=%x core=%u\n",command,r[0x110/4],r[0x104/4],core_start);
++    unsigned info=r[W5P_REG(0x110)],idx=info&0xffff;
++    if (w->external_reset_held) { return false; }
++    if (w->busy || (w->sleeping && command!=2)) { return false; }
++    if (w5p_bus_stopped(w) && command!=4) { return false; }
++    bool global=command==1 || command==2 || command==4 ||
++                (command==0x4000 && r[W5P_REG(0x104)]==0);
++    if (!global && idx>=W5P_INSTANCES) { return false; }
++    if (global) { idx=0; }
++    W5pInstance *i=&w->instance[idx];
++    if (!global && command!=8 && i->created && (info>>16)!=i->codec_mode) { return false; }
++    if (command==1) {
++        uint64_t code,temp;unsigned bytes=r[W5P_REG(0x114)],tmp=r[W5P_REG(0x120)];
++        w->boot_rejection=NULL;
++        if (!core_start || w->booted || !bytes || bytes>4*MiB || (bytes&4095)) {
++            w->boot_rejection="invalid core request or code size";return false;
++        }
++        if (!w5p_code_address(w,r[W5P_REG(0x110)],bytes,&code)) {
++            w->boot_rejection="unmapped original code address";return false;
++        }
++        if (!w5p_code_address(w,r[W5P_REG(0x11c)],tmp,&temp)) {
++            w->boot_rejection="unmapped original temporary address";return false;
++        }
++        if (graphics_spans_overlap(code,bytes,temp,tmp)) {
++            w->boot_rejection="code and temporary spans overlap";return false;
++        }
++        g_autofree uint8_t *program=g_malloc(bytes);
++        if (address_space_read(&address_space_memory,code,MEMTXATTRS_UNSPECIFIED,program,bytes)!=MEMTX_OK) { return false; }
++        bool nonzero=false;
++        for (unsigned n=0;n<bytes;n++) { nonzero|=program[n]!=0; }
++        if (!nonzero) { w->boot_rejection="supplied code is all zero";return false; }
++        w->boot_crc=crc32(0,program,bytes);w->boot_bytes=bytes;w->boot_physical=code;
++        if (!w->board->w5p_host_codec_diagnostic) {
++            /* The original driver has supplied code, but there is no vendor
++             * core decoder yet. Preserve its DMA evidence and refuse INIT;
++             * never substitute a host service PC or fabricate boot success. */
++            w->boot_rejection="original VPU instruction core unavailable";return false;
++        }
++        w->booted=true;
++        r[W5P_REG(4)]=4; /* functional service entry; not executed microcode PC */
++        w5p_complete(w,0);
++    } else if (!w->booted) { return false; }
++    else if (command==2) {
++        w->sleeping=false;w5p_complete(w,0);
++    }
++    else if (command==8) {
++        unsigned mode = info >> 16;
++        if (i->created || (mode != 1 && mode != 3)) { return false; }
++        bool ring=(r[W5P_REG(0x124)]&(1U<<9))!=0;
++        uint64_t physical=0,work=0;
++        unsigned ring_bus=r[W5P_REG(0x11c)],capacity=r[W5P_REG(0x120)];
++        unsigned work_bus=r[W5P_REG(0x114)],work_capacity=r[W5P_REG(0x118)];
++        if (work_capacity<0x110 || work_capacity>4*MiB ||
++            !w5p_address(w->board,work_bus,work_capacity,&work) ||
++            graphics_spans_overlap(work,work_capacity,w->boot_physical,w->boot_bytes)) { return false; }
++        /* Original ZR40e57cb8 supplies ring start/size during CREATE.
++         * Later SET_PARAM/SET_FB overwrite the command register window. */
++        if (ring && (!capacity || capacity>256*MiB ||
++            !w5p_address(w->board,ring_bus,capacity,&physical) ||
++            graphics_spans_overlap(physical,capacity,work,work_capacity))) { return false; }
++        i->work_physical=work;i->work_bus=work_bus;i->work_capacity=work_capacity;
++        i->ring=ring;i->ring_bus=ring_bus;i->ring_capacity=capacity;i->ring_physical=physical;
++        i->codec_mode=mode;i->created=true;w->instances++;w5p_complete(w,1U<<3);
++    } else if (command==0x200) {
++        if (!i->created || i->result || i->codec) { return false; }
++        if (r[W5P_REG(0x104)]==1) {
++            /* Counted custom GOP syntax retained. The functional profile
++             * uses low-delay IP references; reordering is not verified. */
++            if ((r[W5P_REG(0x11c)]&0xff)>8) { return false; }
++            w5p_complete(w,1U<<9);
++        } else if (r[W5P_REG(0x104)]==0) {
++            unsigned size=r[W5P_REG(0x11c)],depth=(r[W5P_REG(0x124)]>>14)&15;
++            unsigned width=size&0xffff,height=size>>16;
++            unsigned n=r[W5P_REG(0x178)],d=r[W5P_REG(0x174)];
++            unsigned crop[4]={r[W5P_REG(0x138)]&0xffff,r[W5P_REG(0x134)]&0xffff,
++                r[W5P_REG(0x138)]>>16,r[W5P_REG(0x134)]>>16};
++            if (!n || !d) { n=r[W5P_REG(0x150)];d=1; }
++            else if (i->codec_mode==3) {
++                if (d>500000) { return false; }
++                d*=2; /* AVC VUI: time_scale/(2*num_units_in_tick). */
++            }
++            if (!width || !height || width>8192 || height>8192 || (width|height)&1 || (depth!=8 && depth!=10) ||
++                !n || !d || n>1000000 || d>1000000 || r[W5P_REG(0x170)] ||
++                ((crop[0]|crop[1]|crop[2]|crop[3])&1) || crop[0]+crop[2]>=width ||
++                crop[1]+crop[3]>=height ||
++                (i->codec_mode!=3 && (r[W5P_REG(0x138)] || r[W5P_REG(0x134)]))) { return false; }
++            memcpy(i->crop,crop,sizeof(crop));
++            i->hevc_level=i->codec_mode==1 ? (r[W5P_REG(0x124)]>>3)&0x1ff : 0;
++            i->hevc_high_tier=i->codec_mode==1 && (r[W5P_REG(0x124)]&(1U<<12));
++            /* Public Wave5 INTRA_PARAM field layout. Native MOV indexing
++             * follows the configured intra period; a host default250 GOP
++             * cannot substitute for a requested15-frame GOP. */
++            unsigned intra=r[W5P_REG(0x130)];
++            i->keyframe_period=i->codec_mode==3 ? ((intra>>17)&0x7ff) : intra>>16;
++            if (i->codec_mode==3 && !i->keyframe_period) {
++                i->keyframe_period=(intra>>6)&0x7ff;
++            }
++            i->width=width;i->height=height;i->depth=depth;i->fps_n=n;i->fps_d=d;i->configured=true;
++            i->sequence_result=true;r[W5P_REG(0x1e0)]=1;
++            w5p_complete(w,1U<<9);
++        } else { return false; }
++    } else if (command==0x80) {
++        if (!i->configured || i->result) { return false; }
++        /* Retained framebuffer descriptors are management reservations;
++         * codec references live in x265, no fictitious FBC bytes are made. */
++        i->buffers=true;w5p_complete(w,0);
++    } else if (command==0x100) {
++        if (!i->configured || !i->buffers || i->result || w->pending) { return false; }
++        uint64_t output;unsigned output_bus=r[W5P_REG(0x118)];
++        unsigned capacity=r[W5P_REG(0x11c)];
++        if (i->ring) {
++            /* Until reader/wrap ownership is implemented, use only the
++             * remaining actual reservation; never overwrite unread bytes. */
++            if (i->ring_written>=i->ring_capacity) { return false; }
++            output_bus=i->ring_bus+i->ring_written;capacity=i->ring_capacity-i->ring_written;
++        }
++        if (!capacity || capacity>(i->ring ? 256 : 64)*MiB ||
++            !w5p_address(w->board,output_bus,capacity,&output) ||
++            graphics_spans_overlap(output,capacity,i->work_physical,i->work_capacity)) { return false; }
++        if (!i->codec) {
++            i->codec=w5p_video_open(i->codec_mode,i->width,i->height,i->depth,i->fps_n,i->fps_d,w->lossless,i->crop,i->keyframe_period,i->hevc_level,i->hevc_high_tier);
++            if (!i->codec) { return false; }
++        }
++        unsigned option=r[W5P_REG(0x164)],source=r[W5P_REG(0x144)];
++        /* Bit0 implicit headers, bit1 VCL; bit4 is PPS, not a picture.
++         * Native header-only40e59dac requests VPS/SPS/PPS/AUD with0x3c. */
++        bool headers=!(option&3);
++        bool drain=!headers && source==UINT32_MAX && i->native_end_written;
++        if (i->native_drained || (i->native_end_written && !drain)) { return false; }
++        i->submit_tick=w5p_virtual_tick();
++        i->report_requested=(r[W5P_REG(0x128)]&4)!=0;
++        memset(i->header_lengths, 0, sizeof(i->header_lengths));
++        if (headers || source==UINT32_MAX) {
++            GByteArray *payload=g_byte_array_new();
++            bool ok=true;
++            if (headers) { ok=w5p_hevc_headers(i->codec,payload,option,i->header_lengths); }
++            else if (!drain) {
++                static const uint8_t hevc_eos[]={0,0,0,1,0x48,1,0x80};
++                static const uint8_t avc_eos[]={0,0,0,1,0x0a,0x80};
++                if (i->codec_mode==3) { g_byte_array_append(payload,avc_eos,sizeof(avc_eos)); }
++                else { g_byte_array_append(payload,hevc_eos,sizeof(hevc_eos)); }
++            }
++            if (!ok || (!payload->len && !drain) || payload->len>capacity || !w5p_report(w,i) ||
++                (!drain && address_space_write(&address_space_memory,output,MEMTXATTRS_UNSPECIFIED,payload->data,payload->len)!=MEMTX_OK)) {
++                g_byte_array_unref(payload);return false;
++            }
++            if (drain) { i->native_drained=true; }
++            i->output=output;i->output_bus=output_bus;i->bytes=payload->len;i->source_index=UINT32_MAX;
++            i->nal_type=i->codec_mode==3 ? (headers ? 7 : 10) : (headers ? 32 : 36);i->result=true;
++            i->recon_index=headers ? -3 : -1;i->complete_tick=w5p_virtual_tick();
++            if (i->ring) { i->ring_written+=i->bytes; }
++            w->output_bytes+=payload->len;w->output_crc=crc32(0,payload->data,payload->len);
++            g_byte_array_unref(payload);r[W5P_REG(0x1e0)]=1;w5p_complete(w,1U<<8);
++        } else {
++            W5pJob *job=g_new0(W5pJob,1);job->owner=w;job->instance=i;
++            job->native_end=(option&0xc0)==0xc0;
++            job->source_index=source;job->pts=i->pictures;job->output=output;job->output_bus=output_bus;job->capacity=capacity;
++            job->encoded=g_byte_array_new();
++            if (!w5p_snapshot(w,i,job)) {
++                g_free(job->input);g_byte_array_unref(job->encoded);g_free(job);return false;
++            }
++            w->job=job;w->busy=true;w->board->wave5_busy=true;r[W5P_REG(0x70)]=1;
++            qemu_thread_create(&w->worker,"w5p-encode",w5p_encode_worker,job,QEMU_THREAD_JOINABLE);w->worker_started=true;
++            timer_mod(w->timer,qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL)+1000000);
++        }
++    } else if (command==0x4000) {
++        unsigned query=r[W5P_REG(0x104)];
++        if (query==0) {
++            r[W5P_REG(0x118)]=0x10000;r[W5P_REG(0x11c)]=0x574c3556;
++            r[W5P_REG(0x120)]=0x5210;r[W5P_REG(0x124)]=0;
++            r[W5P_REG(0x128)]=3; /* Public Wave5 convention: HEVC/AVC encoders. */
++            r[W5P_REG(0x12c)]=(1U<<3)|(1U<<11); /* Functional 10-bit HEVC/AVC. */
++            r[W5P_REG(0x130)]=0;r[W5P_REG(0x134)]=0;r[W5P_REG(0x140)]=0;
++        } else if (query==2) {
++            if (!i->created || (!i->sequence_result && !i->result)) { return false; }
++            /* Command acceptance (108) is independent of operation success
++             * (1dc). Native ZR40e5890c reads sequence requirements before
++             * allocating reference/task reservations. Never return stale
++             * SET_PARAM addresses as byte counts or a fake picture result. */
++            r[W5P_REG(0x1dc)]=1;
++            r[W5P_REG(0x1d4)]=0;r[W5P_REG(0x1d8)]=0;
++            r[W5P_REG(0x1e0)]=0;
++            if (i->sequence_result && !i->result) {
++                r[W5P_REG(0x11c)]=2;r[W5P_REG(0x120)]=2;
++                r[W5P_REG(0x16c)]=0;
++                /* Explicit virtual management reservations. The host codec
++                 * owns references; these are not measured VPU/FBC sizes. */
++                r[W5P_REG(0x1b0)]=4096;r[W5P_REG(0x1b4)]=4096;
++                i->sequence_result=false;
++                w5p_complete(w,0);
++                w->commands++;w->last_command=command;return true;
++            }
++            r[W5P_REG(0x114)]=i->output_bus;
++            r[W5P_REG(0x118)]=i->output_bus+i->bytes;
++            r[W5P_REG(0x11c)]=2;r[W5P_REG(0x120)]=2;
++            /* Key pictures can recur after the first frame. Report the
++             * actual encoded access unit, not the lifetime frame count. */
++            r[W5P_REG(0x124)]=i->codec_mode==3 ?
++                (i->nal_type==5 ? 0 : 1) :
++                (i->nal_type>=16 && i->nal_type<=23 ? 0 : 1);
++            r[W5P_REG(0x128)]=i->pictures ? i->pictures-1 : 0;
++            /* Native40e59c1c explicitly recognizes HEADER_ONLY=-3. A
++             * header has no reconstructed picture or consumed source. */
++            r[W5P_REG(0x12c)]=(uint32_t)i->recon_index;
++            r[W5P_REG(0x14c)]=i->result ? i->bytes : 0;
++            r[W5P_REG(0x154)]=i->result ? i->source_index : UINT32_MAX;
++            r[W5P_REG(0x158)]=i->pictures;
++            r[W5P_REG(0x130)]=1;r[W5P_REG(0x134)]=0;
++            r[W5P_REG(0x138)]=0;r[W5P_REG(0x13c)]=0;
++            r[W5P_REG(0x144)]=0;r[W5P_REG(0x148)]=0;
++            r[W5P_REG(0x150)]=i->pictures ? i->pictures-1 : 0;
++            r[W5P_REG(0x16c)]=0;r[W5P_REG(0x170)]=0;
++            r[W5P_REG(0x164)]=0;r[W5P_REG(0x168)]=0;
++            r[W5P_REG(0x18c)]=i->source_index<32 ? 1U<<i->source_index : 0;
++            r[W5P_REG(0x19c)]=0;
++            r[W5P_REG(0x1a8)]=i->report_requested ? i->work_bus : 0;
++            r[W5P_REG(0x1b8)]=i->submit_tick;
++            r[W5P_REG(0x1bc)]=r[W5P_REG(0x1c0)]=i->submit_tick;
++            r[W5P_REG(0x1c4)]=r[W5P_REG(0x1c8)]=i->submit_tick;
++            r[W5P_REG(0x1cc)]=i->submit_tick;r[W5P_REG(0x1d0)]=i->complete_tick;
++            r[W5P_REG(0x15c)]=i->nal_type;r[W5P_REG(0x1e0)]=0;
++            i->result=false;
++        } else if (query==6) { r[W5P_REG(0x114)]=i->ring ? i->ring_bus+i->ring_written : i->output_bus+i->bytes; }
++        else if (query==7) { r[W5P_REG(0x114)]=0; }
++        else { return false; }
++        w5p_complete(w,0);
++    } else if (command==0x20 || command==0x10) {
++        if (!i->created || i->result || w->pending) { return false; }
++        w5p_hevc_close(i->codec);i->codec=NULL;
++        if (command==0x20) { memset(i,0,sizeof(*i));w->instances--; }
++        w5p_complete(w,0);
++    } else if (command==4) {
++        if (w->pending) { return false; }
++        w->sleeping=true;w5p_complete(w,0);
++    } else { return false; }
++    w->commands++;w->last_command=command;return true;
++}
++
++/* The native movie power sequence asserts all seven bank8 bits16..22
++ * after destroying its codec, and releases them before the next INIT.
++ * Previously these writes only changed the bootstrap latch: CUR_PC stayed
++ * nonzero and the original VDI returned CALLED_BEFORE on a fresh session.
++ * Model the observed complete reset bundle, not an invented mapping of an
++ * individual bit to a physical subcore. Active DMA/results remain protected.
++ */
++static bool w5p_external_reset(NikonZ9State *s,hwaddr address,uint32_t value)
++{
++    const uint32_t bundle=0x007f0000;
++    W5pState *w=s->w5p;
++    if (!s->w5p_model || !(value&bundle)) { return true; }
++    bool release=address==0x0d154248;
++    if (!release && (w->busy || w->job || w->pending || w->instances)) {
++        w->rejections++;return false;
++    }
++    uint32_t held=release ? w->external_reset_held&~value :
++                           w->external_reset_held|(value&bundle);
++    if (held==bundle && w->external_reset_held!=bundle) {
++        memset(w->regs,0,sizeof(w->regs));
++        memset(w->fio_words,0,sizeof(w->fio_words));
++        w->fio_address=0;w->fio_data=0;
++        w->booted=false;w->sleeping=false;w->interrupt_mask=0;
++        w->boot_physical=0;w->boot_bytes=0;w->boot_crc=0;
++        w->external_resets++;w5p_irq_update(w);
++    }
++    fprintf(stderr,"Z8_W5P_RESET release=%u value=%x held=%x\n",release,value,held);
++    w->external_reset_held=held;
++    return true;
++}
++
++static bool w5p_access(NikonZ9State *s,hwaddr address,uint64_t *value,unsigned size,bool write)
++{
++    if (!s->w5p_model || address<W5P_BASE || address>=W5P_BASE+0x2000) { return false; }
++    W5pState *w=s->w5p;unsigned off=address-W5P_BASE;
++    if (size!=4 || (off&3) || (off>=0x200 && off!=0x1040 && off!=0x1044)) { goto rejected; }
++    unsigned word=off/4;
++    if (!write) {
++        *value=off==0x1044 ? 0x5210 : off==0x1040 ? 0x574c3556 : w->regs[word];w->reads++;return true;
++    }
++    if (off==0x1044 || off==0x1040 || off==4 || off==8) { goto rejected; }
++    if (w->busy && off!=0x34 && off!=0x3c && off!=0x48 && off!=0x20 && off!=0x24) { goto rejected; }
++    uint32_t v=*value;
++    if (off==0x34) { w->pending&=~v;w5p_irq_update(w); }
++    else if (off==0x3c) { if (v!=1) { goto rejected; }w5p_irq_update(w); }
++    else if (off==0x48) { w->interrupt_mask=v;w->regs[word]=v;w5p_irq_update(w); }
++    else if (off==0x50) {
++        if (w->pending || (v&~0x3fffffffU)) { goto rejected; }
++        for (unsigned i=0;i<W5P_INSTANCES;i++) {
++            if (w->instance[i].result) { goto rejected; }
++        }
++        if (v) {
++            for (unsigned i=0;i<W5P_INSTANCES;i++) { w5p_hevc_close(w->instance[i].codec);memset(&w->instance[i],0,sizeof(w->instance[i])); }
++            memset(w->regs,0,sizeof(w->regs));w->booted=false;w->sleeping=false;w->instances=0;w->resets++;
++            w->interrupt_mask=0;w->pending=0;w5p_irq_update(w);
++        }
++        w->regs[word]=v;w->regs[W5P_REG(0x54)]=0;
++    } else if (off==0x100) { w->regs[word]=v; }
++    else if (off==0x6c || off==0x38) {
++        if (v!=1 || !w->regs[W5P_REG(0x70)] ||
++            !w5p_command(w,w->regs[W5P_REG(0x100)],off==0x6c)) { goto rejected; }
++    } else if (off==0x20) {
++        if (!w5p_fio(w,v)) { goto rejected; }
++    } else if (off==0x70) { if (v>1) { goto rejected; }w->regs[word]=v; }
++    else if (off==0 || off==0x58 || off==0x5c || off==0x60 || off==0x64 || off==0x68 || off==0x24 || (off>=0x104 && off<0x200)) { w->regs[word]=v; }
++    else { goto rejected; }
++    w->writes++;return true;
++rejected:
++    w->rejections++;
++    fprintf(stderr,"Z8_W5P_REJECT off=%x write=%u value=%" PRIx64 " busy=%u boot=%u; no completion\n",off,write,*value,w->busy,w->booted);
++    if (!write) { *value=0; }
++    if (!w->busy) {
++        w->regs[W5P_REG(0x70)]=0;
++        w->regs[W5P_REG(0x108)]=0;
++        w->regs[W5P_REG(0x10c)]=0x100;
++    }
++    return true;
++}
++
++#ifndef W5P_UNIT_TEST
++static bool get_w5p_model(Object *obj,Error **errp) { return NIKON_Z9_LAB(obj)->w5p_model; }
++static void set_w5p_model(Object *obj,bool value,Error **errp)
++{
++    NikonZ9State *s=NIKON_Z9_LAB(obj);
++    if (s->wave5_realized) { error_setg(errp,"Choose Wave5 upstream model before realization");return; }
++    if (value && !s->w5p) {
++        s->w5p=g_new0(W5pState,1);s->w5p->board=s;
++        s->w5p->external_reset_held=0x7f0000;
++        qemu_mutex_init(&s->w5p->lock);
++        s->w5p->timer=timer_new_ns(QEMU_CLOCK_VIRTUAL,w5p_tick,s->w5p);
++    }
++    s->w5p_model=value;
++    s->w5p_host_codec_diagnostic=value;
++    s->w5p_irq_number=120;
++}
++static char *get_w5p_state(Object *obj,Error **errp)
++{
++    NikonZ9State *s=NIKON_Z9_LAB(obj);W5pState *w=s->w5p;
++    if (!w) { return g_strdup("{\"enabled\":false}"); }
++    GString *j=g_string_new(NULL);
++    g_string_append_printf(j,"{\"external_reset_held\":%u,\"external_resets\":%" PRIu64 ",",
++        w->external_reset_held,w->external_resets);
++    g_string_append_printf(j,"\"enabled\":%s,\"virtual_product\":%u,\"booted\":%s,\"busy\":%s,\"pending\":%u,"
++        "\"writes\":%" PRIu64 ",\"reads\":%" PRIu64 ",\"commands\":%" PRIu64 ",\"completions\":%" PRIu64 ","
++        "\"rejects\":%" PRIu64 ",\"boot_bytes\":%" PRIu64 ",\"boot_crc\":%u,\"input_bytes\":%" PRIu64 ","
++        "\"output_bytes\":%" PRIu64 ",\"input_crc\":%u,\"output_crc\":%u,"
++        "\"irq_number\":%u,\"interrupt_mask\":%u,\"irq_asserted\":%s,\"last_command\":%u,\"instances\":[",
++        s->w5p_model ? "true" : "false",0x5210,w->booted ? "true" : "false",w->busy ? "true" : "false",w->pending,
++        w->writes,w->reads,w->commands,w->completions,w->rejections,w->boot_bytes,w->boot_crc,w->input_bytes,w->output_bytes,w->input_crc,w->output_crc,
++        s->w5p_irq_number,w->interrupt_mask,(w->pending&w->interrupt_mask) ? "true" : "false",w->last_command);
++    for (unsigned n=0;n<W5P_INSTANCES;n++) {
++        W5pInstance *i=&w->instance[n];
++        g_string_append_printf(j,"%s{\"created\":%s,\"configured\":%s,\"width\":%u,\"height\":%u,\"depth\":%u,\"pictures\":%" PRIu64 ",\"result\":%s,\"bytes\":%u,"
++            "\"ring\":%s,\"ring_bus\":%u,\"ring_capacity\":%u,\"ring_written\":%u,"
++            "\"codec_mode\":%u,\"display_width\":%u,\"display_height\":%u,\"crop\":[%u,%u,%u,%u],\"fps_n\":%u,\"fps_d\":%u,\"keyframe_period\":%u,\"hevc_level\":%u,\"hevc_high_tier\":%s}",
++            n ? "," : "",i->created ? "true" : "false",i->configured ? "true" : "false",i->width,i->height,i->depth,i->pictures,i->result ? "true" : "false",i->bytes,
++            i->ring ? "true" : "false",i->ring_bus,i->ring_capacity,i->ring_written,
++            i->codec_mode,i->width-i->crop[0]-i->crop[2],i->height-i->crop[1]-i->crop[3],
++            i->crop[0],i->crop[1],i->crop[2],i->crop[3],i->fps_n,i->fps_d,i->keyframe_period,i->hevc_level,i->hevc_high_tier ? "true" : "false");
++    }
++    g_string_append(j,"],\"fio_configuration\":{");
++    for (unsigned n=0;n<G_N_ELEMENTS(w5p_fio_offsets);n++) {
++        g_string_append_printf(j,"%s\"0x%x\":%u",n ? "," : "",w5p_fio_offsets[n],w->fio_words[n]);
++    }
++    g_string_append(j,"},\"command_registers\":{");
++    for (unsigned n=0x100;n<0x200;n+=4) {
++        g_string_append_printf(j,"%s\"0x%x\":%u",n==0x100 ? "" : ",",n,w->regs[n/4]);
++    }
++    g_string_append_printf(j,"},\"source_rejection\":\"%s\",\"boot_rejection\":\"%s\",\"original_execution_required\":%s,\"diagnostic_host_codec\":%s,\"boot_physical\":%" PRIu64 ","
++        "\"physical_identity_verified\":false,\"vendor_microcode_executed\":false,"
++        "\"scope\":\"virtual VDI control; original code DMA evidence; explicitly optional diagnostic host codec\"}",
++        w->source_rejection ? w->source_rejection : "",w->boot_rejection ? w->boot_rejection : "",s->w5p_host_codec_diagnostic ? "false" : "true",
++        s->w5p_host_codec_diagnostic ? "true" : "false",w->boot_physical);
++    return g_string_free(j,false);
++}
++
++
++#endif
++
++#ifndef W5P_UNIT_TEST
++static bool w5p_reset_access(NikonZ9State *s,hwaddr addr,uint64_t value,unsigned size)
++{
++    if (!s->w5p_model || (addr!=0x0d154348 && addr!=0x0d154248) || !(value&0x7f0000)) { return false; }
++    if (size!=4 || value&~UINT64_C(0x7f0000) || !w5p_external_reset(s,addr,value)) {
++        s->w5p->rejections++;
++        s->w5p->regs[0x108/4]=0;s->w5p->regs[0x10c/4]=0x100;
++        return true;
++    }
++    if (addr==0x0d154248) { s->peripheral_release8|=value; }
++    else { s->peripheral_release8&=~value; }
++    return true;
++}
++static void w5p_finalize(NikonZ9State *s)
++{
++    W5pState *w=s->w5p;if (!w) { return; }
++    timer_del(w->timer);
++    if (w->worker_started) { qemu_thread_join(&w->worker); }
++    if (w->job) { g_free(w->job->input);g_byte_array_unref(w->job->encoded);g_free(w->job); }
++    for (unsigned n=0;n<W5P_INSTANCES;n++) { w5p_hevc_close(w->instance[n].codec); }
++    timer_free(w->timer);qemu_mutex_destroy(&w->lock);g_free(w);s->w5p=NULL;
++}
++#endif
+diff --git a/qemu/nikon-z9-lab.c b/qemu/nikon-z9-lab.c
+--- a/qemu/nikon-z9-lab.c
++++ b/qemu/nikon-z9-lab.c
+@@ -369,6 +369,9 @@
+     bool primary_video_aggregate; /* A strictly admitted150c ff00 video job. */
+     bool z8_video_data_model;
+     struct Z8VideoData *z8_video_data;
++    struct W5pState *w5p;
++    bool w5p_model, w5p_host_codec_diagnostic;
++    uint32_t w5p_irq_number;
+     struct WlWave5State *wave5;
+     bool wave5_z8_session_reset_model;
+     bool wave5_model, wave5_busy, wave5_lossless_requested, wave5_realized, wave5_host_codec_diagnostic;
+@@ -13594,6 +13597,7 @@
+ }
+ #include "nikon-z8-video-processing.h"
+ #include "nikon-z8-wave5.h"
++#include "nikon-z8-wave5-port.h"
+ #include "nikon-z8-video-nr-empty-reset.h"
+ #include "nikon-z8-video-ring.h"
+ 
+@@ -15989,6 +15993,7 @@
+     NikonZ9State *s = opaque;
+     uint64_t video_value=0;
+     if (video_processing_config_access(s,addr,&video_value,size,false)) { return video_value; }
++    if (w5p_access(s,addr,&video_value,size,false)) { return video_value; }
+     if (wave5_access(s,addr,&video_value,size,false)) { return video_value; }
+     if (s->bootstrap_fixtures && s->z8_video_interface_model &&
+         s->z8_video_serial_input_valid && size == 4 && !(addr & 3) &&
+@@ -16613,6 +16618,7 @@
+     if (engine153_config_write(s, addr, value, size)) { return; }
+     if (video_reset15_access(s,addr,value,size) || video_nr_reset_access(s,addr,value,size)) { return; }
+     if (video_processing_config_access(s,addr,&value,size,true)) { return; }
++    if (w5p_access(s,addr,&value,size,true)) { return; }
+     if (wave5_access(s,addr,&value,size,true)) { return; }
+     if (s->bootstrap_fixtures && s->z8_video_interface_model && size == 4 &&
+         addr >= 0x15002100 && addr <= 0x15002108 && !(addr & 3)) {
+@@ -17746,6 +17752,7 @@
+         fprintf(stderr, "Z9_FIXTURE peripheral unit0 reset addr=0x%" HWADDR_PRIx "\n", addr);
+         return; /* exact 40cbd698 -> 40c2d790/7d8 unit-0 initialization */
+     }
++    if (w5p_reset_access(s,addr,value,size)) { return; }
+     if (wave5_z8_session_reset_access(s,addr,value,size)) { return; }
+     if (s->bootstrap_fixtures && size == 4 && value &&
+         !(value & ~UINT32_C(0xfe7ff000)) &&
+@@ -18904,6 +18911,7 @@
+     /* 40c1f644 registers 106 through the same original OS path as ADC. */
+     s->engine150c_irq = qdev_get_gpio_in(gic, 0x106 - 32);
+     z8_wave5_realize(s,gic);
++    if (s->w5p_model) { s->w5p->irq=qdev_get_gpio_in(gic,120-32); }
+     if (s->z8_video_data_model || s->z8_hsfc152c_pixels_model || s->z8_hsfc1530_decode_model) {
+         s->z8_front_irq[0]=qdev_get_gpio_in(gic,0x10b-32);
+         s->z8_front_irq[1]=qdev_get_gpio_in(gic,0x10c-32);
+@@ -19758,6 +19766,8 @@
+     object_class_property_add_bool(oc,"z8-video-data-model",get_z8_video_data_model,set_z8_video_data_model);
+     object_class_property_add_str(oc,"z8-video-data-state",get_z8_video_data_state,NULL);
+     z8_wave5_properties(oc);
++    object_class_property_add_bool(oc,"wave5-upstream-model",get_w5p_model,set_w5p_model);
++    object_class_property_add_str(oc,"wave5-upstream-state",get_w5p_state,NULL);
+     object_class_property_add_bool(oc,"video-processing-config-model",get_video_processing_config_model,set_video_processing_config_model);
+     object_class_property_add_str(oc,"video-processing-config-state",get_video_processing_config_state,NULL);
+     object_class_property_add_bool(oc,"video-initial-reset-model",get_video_initial_reset_model,set_video_initial_reset_model);
+@@ -20073,6 +20083,7 @@
+ static void nikon_z9_finalize(Object *obj)
+ {
+     NikonZ9State *s = NIKON_Z9_LAB(obj);
++    w5p_finalize(s);
+     g_clear_pointer(&s->producer_journal_checksum, g_checksum_free);
+     g_free(s->producer_journal_scratch);
+     nikon_nand_image_close(&s->nand_image);
+diff --git a/tests/qemu-wave5/include/qemu/thread.h b/tests/qemu-wave5/include/qemu/thread.h
+--- /dev/null
++++ b/tests/qemu-wave5/include/qemu/thread.h
+@@ -0,0 +1 @@
++/* Test shim: real host pthreads, deterministic guest timer polling. */
+diff --git a/tests/qemu-wave5/run.py b/tests/qemu-wave5/run.py
+--- /dev/null
++++ b/tests/qemu-wave5/run.py
+@@ -0,0 +1,20 @@
++from pathlib import Path
++import subprocess,json,os
++D=Path(__file__).resolve().parent;E=D.parent/'evidence';S=Path(os.environ.get('NIKON_QEMU_SOURCE','/path/to/user/.local/share/nikon-z8-qemu/qemu-wave5/src'));R=S.parent
++E.mkdir(parents=True,exist_ok=True)
++E.mkdir(parents=True,exist_ok=True)
++flags=subprocess.check_output(['pkg-config','--cflags','--libs','glib-2.0','x265','x264'],text=True).split()
++subprocess.run(['cc','-std=gnu11','-g','-fsanitize=address,undefined','-I'+str(D/'include'),'-I'+str(S/'hw/arm'),str(D/'wave5.c'),'-o',str(R/'test-wave5'),*flags,'-pthread','-lz'],check=True)
++env=os.environ.copy();env['ASAN_OPTIONS']='detect_leaks=0'
++subprocess.run([str(R/'test-wave5'),str(E/'30.hevc'),str(E/'30.h264')],check=True,env=env)
++results=[]
++for name in ['30.hevc','30.h264']:
++    p=E/name
++    subprocess.run(['ffmpeg','-v','error','-xerror','-i',str(p),'-f','null','-'],check=True)
++    d=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_streams','-show_frames','-of','json',str(p)]))
++    assert len(d['frames'])==30
++    assert [i for i,f in enumerate(d['frames']) if f['key_frame']]==[0,15]
++    subprocess.run(['ffmpeg','-v','error','-xerror','-i',str(p),'-frames:v','1','-f','null','-'],check=True)
++    results.append(dict(file=name,streams=d['streams'],frames=len(d['frames']),key_frames=[0,15],decode_exit=0))
++(E/'unit-media.json').write_text(json.dumps(results,indent=2)+'\n')
++print('PASS ffmpeg HEVC/AVC first AU + 30-frame decode and GOP15')
+diff --git a/tests/qemu-wave5/wave5.c b/tests/qemu-wave5/wave5.c
+--- /dev/null
++++ b/tests/qemu-wave5/wave5.c
+@@ -0,0 +1,132 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++#include <glib.h>
++#include <stdint.h>
++#include <stdbool.h>
++#include <stdio.h>
++#include <inttypes.h>
++#include <assert.h>
++#include <string.h>
++#include <pthread.h>
++#include <unistd.h>
++#include <zlib.h>
++#define MiB (1024ULL*1024)
++#define QEMU_CLOCK_VIRTUAL 0
++#define QEMU_THREAD_JOINABLE 0
++#define MEMTX_OK 0
++#define MEMTXATTRS_UNSPECIFIED 0
++#define W5P_UNIT_TEST 1
++typedef uint64_t hwaddr;
++typedef pthread_mutex_t QemuMutex;
++typedef pthread_t QemuThread;
++typedef struct { int pending; } QEMUTimer;
++typedef int *qemu_irq;
++static uint64_t clock_ns;
++static int address_space_memory;
++static uint8_t ram[32*MiB];
++static const uint64_t ram_base=0xa00000000ULL;
++typedef struct NikonZ9State {
++    struct W5pState *w5p;
++    bool w5p_model,wave5_busy,w5p_host_codec_diagnostic;
++    uint32_t video_processing_global[4];
++} NikonZ9State;
++static bool dma_ram_range(NikonZ9State *s,uint64_t a,uint64_t n) { return n && a>=ram_base && a-ram_base<sizeof(ram) && n<=sizeof(ram)-(a-ram_base); }
++static bool raw_pipeline_address(NikonZ9State *s,uint64_t a,uint64_t n,uint64_t *p) { return false; }
++static bool graphics_spans_overlap(uint64_t a,uint64_t n,uint64_t b,uint64_t m) { return n && m && a<b+m && b<a+n; }
++static int address_space_read(void *s,uint64_t a,int attr,void *buf,size_t n) { if(!dma_ram_range(NULL,a,n))return 1;memcpy(buf,ram+a-ram_base,n);return 0; }
++static int address_space_write(void *s,uint64_t a,int attr,const void *buf,size_t n) { if(!dma_ram_range(NULL,a,n))return 1;memcpy(ram+a-ram_base,buf,n);return 0; }
++static void stl_le_p(void *p,uint32_t v) { v=GUINT32_TO_LE(v);memcpy(p,&v,4); }
++static void stw_le_p(void *p,uint16_t v) { v=GUINT16_TO_LE(v);memcpy(p,&v,2); }
++static uint16_t lduw_le_p(const void *p) { uint16_t v;memcpy(&v,p,2);return GUINT16_FROM_LE(v); }
++static uint16_t lduw_be_p(const void *p) { uint16_t v;memcpy(&v,p,2);return GUINT16_FROM_BE(v); }
++static uint32_t ldl_le_p(const void *p) { uint32_t v;memcpy(&v,p,4);return GUINT32_FROM_LE(v); }
++static uint32_t ldl_be_p(const void *p) { uint32_t v;memcpy(&v,p,4);return GUINT32_FROM_BE(v); }
++static void qemu_set_irq(qemu_irq irq,int level) { *irq=level; }
++static uint64_t qemu_clock_get_ns(int c) { return clock_ns; }
++static void timer_mod(QEMUTimer *t,uint64_t n) { t->pending=1; }
++static void qemu_mutex_lock(QemuMutex *m) { pthread_mutex_lock(m); }
++static void qemu_mutex_unlock(QemuMutex *m) { pthread_mutex_unlock(m); }
++static void qemu_thread_create(QemuThread *t,const char *name,void *(*fn)(void *),void *p,int mode) { assert(!pthread_create(t,NULL,fn,p)); }
++static void qemu_thread_join(QemuThread *t) { assert(!pthread_join(*t,NULL)); }
++#include "nikon-z8-wave5-port.h"
++static NikonZ9State s;
++static W5pState w;
++static QEMUTimer timer;
++static int irq;
++static unsigned mode;
++static void wr(unsigned o,uint32_t v) { uint64_t x=v;assert(w5p_access(&s,W5P_BASE+o,&x,4,true)); }
++static uint32_t rd(unsigned o) { uint64_t x=0;assert(w5p_access(&s,W5P_BASE+o,&x,4,false));return x; }
++static bool cmd(unsigned c,bool boot) { wr(0x100,c);wr(0x70,1);wr(boot?0x6c:0x38,1);return rd(0x108)!=0; }
++static void ack(void) { wr(0x34,rd(0x4c));wr(0x3c,1);assert(!irq && !w.pending && !(s.video_processing_global[3]&1)); }
++static void query(void) { wr(0x104,2);assert(cmd(0x4000,false));assert(rd(0x1dc)==1); }
++static void wait_job(void) {
++    for(int n=0;n<10000 && w.job;n++) { usleep(1000);clock_ns+=1000000;w5p_tick(&w); }
++    assert(!w.job && !w.busy && !s.wave5_busy);
++}
++static void source(unsigned frame) {
++    for(unsigned y=0;y<64;y++)for(unsigned x=0;x<96;x++)ram[0x40000+y*96+x]=(x*2+y+frame*3)%220+16;
++    memset(ram+0x42000,100+frame,96*32);
++    wr(0x118,0x40100000);wr(0x11c,1*MiB);wr(0x128,4);
++    wr(0x144,frame);wr(0x148,0x40040000);wr(0x14c,0x40042000);wr(0x150,0);
++    wr(0x154,(96<<16)|96);wr(0x158,2);wr(0x164,0x23);
++}
++static void setup(unsigned m) {
++    mode=m;memset(&s,0,sizeof(s));memset(&w,0,sizeof(w));memset(ram,0,sizeof(ram));
++    s.w5p=&w;s.w5p_model=true;s.w5p_host_codec_diagnostic=true;w.board=&s;w.irq=&irq;w.timer=&timer;
++    pthread_mutex_init(&w.lock,NULL);w.external_reset_held=0x7f0000;
++    assert(!cmd(8,false) && rd(0x10c)==0x100); /* held reset */
++    for(unsigned n=16;n<=22;n++)assert(w5p_external_reset(&s,0x0d154248,1u<<n));
++    wr(0x110,0x40000000);wr(0x114,4096);wr(0x11c,0x40010000);wr(0x120,4096);
++    assert(!cmd(1,true)); /* zero microcode */
++    ram[0]=0xa5;assert(cmd(1,true));assert(w.booted && rd(4)==4);
++    wr(0x48,0);wr(0x110,mode<<16);wr(0x114,0x40020000);wr(0x118,4096);wr(0x124,0);
++    assert(cmd(8,false));assert(!irq && rd(0x4c)==8);wr(0x48,0xffffffff);assert(irq);ack();
++    assert(!cmd(8,false)); /* duplicate */
++    wr(0x104,0);wr(0x11c,(64<<16)|95);wr(0x124,(8<<14)|(mode==1?((153<<3)|(1<<12)):0));wr(0x150,30);wr(0x174,0);wr(0x178,0);
++    assert(!cmd(0x200,false)); /* odd width */
++    wr(0x11c,(64<<16)|96);wr(0x130,15<<(mode==3?17:16));
++    assert(cmd(0x200,false));assert(irq && rd(0x1fc)==1);ack();query();
++    wr(0x118,0x40100000);wr(0x11c,1*MiB);wr(0x164,0x3c);
++    assert(!cmd(0x100,false)); /* no frame registration */
++    assert(cmd(0x80,false));assert(w.instance[0].buffers);
++}
++static void run(unsigned m,const char *path) {
++    setup(m);FILE *f=fopen(path,"wb");assert(f);
++    wr(0x118,0x40100000);wr(0x11c,1*MiB);wr(0x128,4);wr(0x164,0x3c);
++    assert(cmd(0x100,false));assert(irq);ack();query();
++    unsigned bytes=rd(0x14c);assert(bytes>20);assert(fwrite(ram+0x100000,1,bytes,f)==bytes);
++    assert(ldl_le_p(ram+0x20100)>0); /* AUD report */
++    source(0);wr(0x154,1);assert(!cmd(0x100,false)); /* bad stride */
++    source(0);wr(0x14c,0x40040000);assert(!cmd(0x100,false)); /* overlapping source */
++    source(0);wr(0x118,0x40020000);assert(!cmd(0x100,false)); /* work overlap */
++    source(0);wr(0x158,7);assert(!cmd(0x100,false)); /* bad format */
++    source(0);wr(0x148,0x5fffffff);assert(!cmd(0x100,false)); /* invalid span */
++    for(unsigned n=0;n<30;n++) {
++        source(n);cmd(0x100,false);assert(w.busy);
++        wr(0x50,1);assert(w.busy && w.job); /* in-flight reset must not free worker */
++        assert(!w5p_external_reset(&s,0x0d154348,0x7f0000));
++        wait_job();assert(rd(0x108)==1 && irq && rd(0x1e8)==1);
++        assert(!cmd(0x20,false)); /* unconsumed result */
++        ack();query();bytes=rd(0x14c);assert(bytes>0);
++        assert(rd(0x154)==n);assert(rd(0x124)==((n%15)==0?0:1));
++        assert(fwrite(ram+0x100000,1,bytes,f)==bytes);
++    }
++    fclose(f);
++    /* Output overflow is an error with no partial RAM write. */
++    source(31);wr(0x11c,1);ram[0x100000]=0x5a;cmd(0x100,false);wait_job();
++    assert(rd(0x108)==0 && rd(0x10c)==0x100 && ram[0x100000]==0x5a && !irq);
++    source(32);wr(0x164,0xe3);cmd(0x100,false);wait_job();assert(w.instance[0].native_end_written);
++    ack();query();assert(rd(0x14c)>0);
++    source(33);wr(0x144,UINT32_MAX);assert(cmd(0x100,false));ack();query();
++    assert(rd(0x14c)==0 && rd(0x12c)==UINT32_MAX && w.instance[0].native_drained);
++    source(34);assert(!cmd(0x100,false));
++    assert(cmd(0x20,false));assert(!w.instances);
++    assert(cmd(4,false));assert(w.sleeping);assert(!cmd(8,false));assert(cmd(2,false));
++    wr(0x24,0x100);wr(0x20,0x188f0);assert(w5p_bus_stopped(&w));assert(!cmd(2,false)); /* FIO bus stopped */
++    wr(0x24,0);wr(0x20,0x188f0);assert(!w5p_bus_stopped(&w));assert(cmd(2,false));
++    wr(0x50,1);assert(!w.booted && !rd(0x54));
++    assert(w5p_external_reset(&s,0x0d154348,0x7f0000));assert(w.external_reset_held==0x7f0000 && !irq);
++    uint64_t v=0;s.w5p_model=false;assert(!w5p_access(&s,W5P_BASE,&v,4,false));
++    pthread_mutex_destroy(&w.lock);
++    printf("PASS codec=%u 30 frames GOP15, IRQ, DMA, lifecycle and error paths\n",m);
++}
++int main(int argc,char **argv) { assert(argc==3);run(1,argv[1]);run(3,argv[2]);return 0; }

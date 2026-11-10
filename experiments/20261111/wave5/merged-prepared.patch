@@ -1,0 +1,3171 @@
+diff --git a/hw/arm/nikon-dma-observe.h b/hw/arm/nikon-dma-observe.h
+--- /dev/null
++++ b/hw/arm/nikon-dma-observe.h
+@@ -0,0 +1,119 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++/* Optional board-write provenance, adapted from WonderLantern z9-qemu shared441.
++ * No address translation, write replacement, completion, interrupt or
++ * guest-state repair. Input is an explicit interval inside one RAM-backed
++ * window of this machine: work RAM, or the allocated image-bank span that
++ * holds the Z8 C30 history block pool. No firmware addresses are compiled in.
++ * Only writes issued by this board through address_space_write() or
++ * cpu_physical_memory_write() are observed; guest CPU stores are not. */
++#define WL_DMA_OBSERVER_LIMIT 4096
++#define WL_DMA_WORK_RAM UINT64_C(0xa00000000)
++static uint64_t wl_dma_observer_low, wl_dma_observer_high;
++static uint64_t wl_dma_observer_work_end;
++static bool wl_dma_observer_banks;
++static gint wl_dma_observer_records;
++
++/* Image banks leave a small unbacked gap; sampling must not read it as MMIO. */
++static bool wl_dma_observer_backed(uint64_t start, uint64_t bytes)
++{
++    if (start >= WL_DMA_WORK_RAM && start + bytes <= wl_dma_observer_work_end) {
++        return true;
++    }
++    for (unsigned i = 0; wl_dma_observer_banks && i < ARRAY_SIZE(image_bank_ranges); i++) {
++        if (start >= image_bank_ranges[i].base &&
++            start + bytes <= image_bank_ranges[i].end) {
++            return true;
++        }
++    }
++    return false;
++}
++
++/* Called once at machine creation, so a bad interval fails before any run. */
++static void wl_dma_observer_configure(uint64_t work_ram_bytes, bool image_banks)
++{
++    const char *text = g_getenv("WL_DMA_WRITE_OBSERVE");
++    uint64_t low = 0, high = 0;
++    char tail;
++    if (!text) {
++        return;
++    }
++    uint64_t bank_low = image_bank_ranges[0].base;
++    uint64_t bank_high = image_bank_ranges[ARRAY_SIZE(image_bank_ranges) - 1].end;
++    uint64_t work_end = WL_DMA_WORK_RAM + work_ram_bytes;
++    bool parsed = sscanf(text, "%"SCNx64":%"SCNx64"%c", &low, &high, &tail) == 2 &&
++                  low < high;
++    bool work = parsed && low >= WL_DMA_WORK_RAM && high <= work_end;
++    bool banks = parsed && image_banks && low >= bank_low && high <= bank_high;
++    if (!work && !banks) {
++        error_report("WL_DMA_WRITE_OBSERVE requires low:high inside work RAM "
++                     "0x%"PRIx64"..0x%"PRIx64" or, with image-bank-model=on, "
++                     "image banks 0x%"PRIx64"..0x%"PRIx64,
++                     WL_DMA_WORK_RAM, work_end, bank_low, bank_high);
++        exit(1);
++    }
++    wl_dma_observer_low = low;
++    wl_dma_observer_high = high;
++    wl_dma_observer_work_end = work_end;
++    wl_dma_observer_banks = image_banks;
++}
++
++static void wl_dma_observer_record(AddressSpace *as, hwaddr address,
++    MemTxAttrs attrs, const void *buffer, hwaddr bytes, int result,
++    const char *producer, unsigned line)
++{
++    uint64_t low = wl_dma_observer_low, high = wl_dma_observer_high;
++    if (!high || as != &address_space_memory || !bytes || address >= high ||
++        bytes > UINT64_MAX - address || address + bytes <= low) {
++        return;
++    }
++    gint index = g_atomic_int_add(&wl_dma_observer_records, 1);
++    if (index > WL_DMA_OBSERVER_LIMIT) { return; }
++    if (index == WL_DMA_OBSERVER_LIMIT) {
++        fprintf(stderr, "WL_DMA_OBSERVE {\"limit_reached\":true,\"limit\":%d}\n",
++                WL_DMA_OBSERVER_LIMIT);
++        return;
++    }
++    uint64_t start = MAX(address, low), end = MIN(address + bytes, high);
++    unsigned n = MIN(end - start, 64);
++    const uint8_t *expected = (const uint8_t *)buffer + (start - address);
++    uint8_t actual[64];
++    bool backed = wl_dma_observer_backed(start, n);
++    bool matches = backed &&
++                   address_space_read(as, start, attrs, actual, n) == MEMTX_OK &&
++                   !memcmp(actual, expected, n);
++    GString *out = g_string_new(NULL);
++    g_string_append_printf(out, "WL_DMA_OBSERVE {\"index\":%d,\"producer\":\"%s\","
++        "\"line\":%u,\"virtual_ns\":%"PRId64",\"address\":\"0x%"PRIx64"\","
++        "\"bytes\":%"PRIu64",\"api_result\":%d,\"sample_address\":\"0x%"PRIx64"\","
++        "\"sample_ram_backed\":%s,\"sample_matches_RAM\":%s,\"sample_hex\":\"",
++        index, producer, line, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL),
++        (uint64_t)address, (uint64_t)bytes, result, start,
++        backed ? "true" : "false", matches ? "true" : "false");
++    for (unsigned i = 0; i < n; i++) { g_string_append_printf(out, "%02x", expected[i]); }
++    g_string_append(out, "\"}\n");
++    fputs(out->str, stderr);
++    g_string_free(out, true);
++}
++
++static MemTxResult wl_observed_address_space_write(AddressSpace *as, hwaddr address,
++    MemTxAttrs attrs, const void *buffer, hwaddr bytes, const char *producer, unsigned line)
++{
++    MemTxResult result = address_space_write(as, address, attrs, buffer, bytes);
++    wl_dma_observer_record(as, address, attrs, buffer, bytes, result, producer, line);
++    return result;
++}
++
++static void wl_observed_cpu_physical_write(hwaddr address, const void *buffer,
++    hwaddr bytes, const char *producer, unsigned line)
++{
++    cpu_physical_memory_write(address, buffer, bytes);
++    /* The void API has no completion result. Its sampled RAM check is explicit;
++     * -1 must not be interpreted as either a successful or failed transaction. */
++    wl_dma_observer_record(&address_space_memory, address, MEMTXATTRS_UNSPECIFIED,
++                           buffer, bytes, -1, producer, line);
++}
++
++#define address_space_write(as, address, attrs, buffer, bytes) \
++    wl_observed_address_space_write(as, address, attrs, buffer, bytes, __func__, __LINE__)
++#define cpu_physical_memory_write(address, buffer, bytes) \
++    wl_observed_cpu_physical_write(address, buffer, bytes, __func__, __LINE__)
+diff --git a/hw/arm/nikon-w5p-codec.h b/hw/arm/nikon-w5p-codec.h
+--- /dev/null
++++ b/hw/arm/nikon-w5p-codec.h
+@@ -0,0 +1,234 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later
++ * Authored functional HEVC/AVC backend. Uses installed public x265/x264 APIs;
++ * no Nikon firmware, microcode or compression implementation is included.
++ * Input planes are immutable actual DMA snapshots, never preview upshifts.
++ */
++#include <x265.h>
++#include <x264.h>
++
++typedef struct W5pCodec {
++    const x265_api *api;
++    x265_param *param;
++    x265_encoder *encoder;
++    x264_param_t *avc_param;
++    x264_t *avc_encoder;
++    unsigned codec_mode; /* Explicit Wave5 convention: 1 HEVC, 3 AVC. */
++    unsigned width, height, depth;
++    uint64_t frames;
++} W5pCodec;
++
++static void w5p_hevc_close(W5pCodec *codec)
++{
++    if (!codec) { return; }
++    if (codec->avc_encoder) { x264_encoder_close(codec->avc_encoder); }
++    if (codec->avc_param) {
++        x264_param_cleanup(codec->avc_param);
++        g_free(codec->avc_param);
++    }
++    if (codec->encoder) { codec->api->encoder_close(codec->encoder); }
++    if (codec->param) { codec->api->param_free(codec->param); }
++    g_free(codec);
++}
++
++static W5pCodec *w5p_hevc_open(unsigned width, unsigned height, unsigned depth,
++                               unsigned fps_n, unsigned fps_d, bool lossless,
++                               unsigned keyframe_period, unsigned level, bool high_tier)
++{
++    if (!width || !height || (width | height) & 1 || width > 8192 || height > 8192 ||
++        (depth != 8 && depth != 10) || !fps_n || !fps_d ||
++        (level && level != 30 && level != 60 && level != 63 && level != 90 &&
++         level != 93 && level != 120 && level != 123 && level != 150 &&
++         level != 153 && level != 156 && level != 180 && level != 183 && level != 186) ||
++        (high_tier && level < 120)) { return NULL; }
++    const x265_api *api = x265_api_get(depth);
++    if (!api || (unsigned)api->bit_depth != depth || api->sizeof_param != sizeof(x265_param) ||
++        api->sizeof_picture != sizeof(x265_picture)) { return NULL; }
++    W5pCodec *codec = g_new0(W5pCodec, 1);
++    codec->api = api;
++    codec->param = api->param_alloc();
++    if (!codec->param || api->param_default_preset(codec->param, "ultrafast", "zerolatency") < 0) {
++        w5p_hevc_close(codec); return NULL;
++    }
++    x265_param *p = codec->param;
++    p->sourceWidth = width; p->sourceHeight = height;
++    p->internalCsp = X265_CSP_I420; p->internalBitDepth = depth;
++    p->fpsNum = fps_n; p->fpsDenom = fps_d;
++    /* Wave5/HEVC uses general_level_idc (three times level * 10).
++     * Preserve the requested tier in actual VPS/SPS and muxed hvcC. */
++    p->levelIdc = level / 3; p->bHighTier = high_tier;
++    p->frameNumThreads = 1;
++    p->bframes = 0; p->lookaheadDepth = 0;
++    p->bRepeatHeaders = 0; p->bAnnexB = 1;
++    /* Native movie packets retain the advertised AUD length on every
++     * access unit. Omitting it lets the mux overwrite VCL bytes at +7. */
++    p->bEnableAccessUnitDelimiters = 1;
++    if (keyframe_period) {
++        p->keyframeMax = keyframe_period; p->keyframeMin = 1;
++        p->scenecutThreshold = 0; p->bOpenGOP = 0;
++    }
++    p->bEnableWavefront = 0; p->bEnablePsnr = 0; p->bEnableSsim = 0;
++    p->logLevel = X265_LOG_ERROR;
++    p->bLossless = lossless;
++    p->rc.rfConstant = 18;
++    if (api->param_parse(p, "pools", "none") < 0 ||
++        api->param_apply_profile(p, depth == 10 ? "main10" : "main") < 0) {
++        w5p_hevc_close(codec); return NULL;
++    }
++    codec->encoder = api->encoder_open(p);
++    if (!codec->encoder) { w5p_hevc_close(codec); return NULL; }
++    codec->width = width; codec->height = height; codec->depth = depth; codec->codec_mode = 1;
++    return codec;
++}
++
++static W5pCodec *w5p_video_open(unsigned mode, unsigned width, unsigned height, unsigned depth,
++                                unsigned fps_n, unsigned fps_d, bool lossless,
++                                const unsigned crop[4], unsigned keyframe_period,
++                                unsigned level, bool high_tier)
++{
++    if (mode == 1) { return w5p_hevc_open(width, height, depth, fps_n, fps_d, lossless, keyframe_period, level, high_tier); }
++    if (mode != 3 || !width || !height || (width | height) & 1 ||
++        width > 8192 || height > 8192 || (depth != 8 && depth != 10) || !fps_n || !fps_d) {
++        return NULL;
++    }
++    W5pCodec *codec = g_new0(W5pCodec, 1);
++    codec->avc_param = g_new0(x264_param_t, 1);
++    x264_param_t *p = codec->avc_param;
++    if (x264_param_default_preset(p, "ultrafast", "zerolatency") < 0) {
++        w5p_hevc_close(codec); return NULL;
++    }
++    p->i_width = width; p->i_height = height; p->i_bitdepth = depth;
++    p->i_csp = X264_CSP_I420 | (depth > 8 ? X264_CSP_HIGH_DEPTH : 0);
++    /* Keep the complete coded DMA surface. SPS cropping controls the
++     * displayed rectangle, including each 4:2:0 chroma edge. */
++    p->crop_rect.i_left = crop[0]; p->crop_rect.i_top = crop[1];
++    p->crop_rect.i_right = crop[2]; p->crop_rect.i_bottom = crop[3];
++    p->i_fps_num = fps_n; p->i_fps_den = fps_d;
++    p->i_timebase_num = fps_d; p->i_timebase_den = fps_n;
++    p->i_threads = 1; p->i_lookahead_threads = 1;
++    p->i_bframe = 0; p->rc.i_lookahead = 0; p->b_vfr_input = 0;
++    p->b_repeat_headers = 0; p->b_annexb = 1; p->b_aud = 1;
++    p->i_log_level = X264_LOG_ERROR;
++    if (keyframe_period) {
++        p->i_keyint_max = keyframe_period; p->i_keyint_min = 1;
++        p->i_scenecut_threshold = 0; p->b_open_gop = 0;
++    }
++    if (lossless) { p->rc.i_rc_method = X264_RC_CQP; p->rc.i_qp_constant = 0; }
++    else { p->rc.i_rc_method = X264_RC_CRF; p->rc.f_rf_constant = 18; }
++    if (x264_param_apply_profile(p, lossless ? "high444" : depth == 10 ? "high10" : "high") < 0) {
++        w5p_hevc_close(codec); return NULL;
++    }
++    codec->avc_encoder = x264_encoder_open(p);
++    if (!codec->avc_encoder) { w5p_hevc_close(codec); return NULL; }
++    codec->width = width; codec->height = height; codec->depth = depth; codec->codec_mode = mode;
++    return codec;
++}
++
++static bool w5p_header_nal(GByteArray *output, const uint8_t *data,
++                          unsigned bytes, uint32_t *length)
++{
++    unsigned prefix = bytes >= 4 && !memcmp(data, "\0\0\0\1", 4) ? 4 :
++                      bytes >= 3 && !memcmp(data, "\0\0\1", 3) ? 3 : 0;
++    if (!prefix || bytes <= prefix) { return false; }
++    /* The native header report counts NAL bytes without the start code.
++     * Native consumers add exactly four bytes when walking the stream. */
++    *length = bytes - prefix;
++    g_byte_array_append(output, (const uint8_t *)"\0\0\0\1", 4);
++    g_byte_array_append(output, data + prefix, *length);
++    return true;
++}
++
++static bool w5p_hevc_headers(W5pCodec *codec, GByteArray *output,
++                            unsigned options, uint32_t lengths[4])
++{
++    if (!codec || !(options & 0x3c)) { return false; }
++    const uint8_t *data[4] = {0};
++    unsigned bytes[4] = {0};
++    /* Requested AUD is first, followed by VPS/SPS/PPS. The AUD describes
++     * the first intra picture. These are public Annex B syntax bytes;
++     * parameter sets themselves come from the selected host codec. */
++    static const uint8_t hevc_aud[] = {0, 0, 0, 1, 0x46, 1, 0x10};
++    static const uint8_t avc_aud[] = {0, 0, 0, 1, 9, 0x10};
++    data[0] = codec->codec_mode == 3 ? avc_aud : hevc_aud;
++    bytes[0] = codec->codec_mode == 3 ? sizeof(avc_aud) : sizeof(hevc_aud);
++    memset(lengths, 0, 4 * sizeof(*lengths));
++    if (codec->codec_mode == 3) {
++        x264_nal_t *nals = NULL; int count = 0;
++        if (x264_encoder_headers(codec->avc_encoder, &nals, &count) < 0 || count <= 0) { return false; }
++        for (int i = 0; i < count; i++) {
++            unsigned slot = nals[i].i_type == 7 ? 2 : nals[i].i_type == 8 ? 3 : 4;
++            if (slot < 4) { data[slot] = nals[i].p_payload; bytes[slot] = nals[i].i_payload; }
++        }
++    } else {
++        x265_nal *nals = NULL; uint32_t count = 0;
++        if (codec->api->encoder_headers(codec->encoder, &nals, &count) < 0 || !count) { return false; }
++        for (unsigned i = 0; i < count; i++) {
++            unsigned type = nals[i].type;
++            if (type >= 32 && type <= 34) {
++                data[type - 31] = nals[i].payload; bytes[type - 31] = nals[i].sizeBytes;
++            }
++        }
++    }
++    const unsigned masks[] = {0x20, 4, 8, 0x10};
++    for (unsigned slot = 0; slot < 4; slot++) {
++        if (!(options & masks[slot]) || (slot == 1 && codec->codec_mode == 3)) { continue; }
++        if (!data[slot] || !w5p_header_nal(output, data[slot], bytes[slot], &lengths[slot])) { return false; }
++    }
++    return output->len != 0;
++}
++
++static bool w5p_hevc_picture(W5pCodec *codec, uint8_t *planes[3], const unsigned strides[3],
++                            uint64_t pts, GByteArray *output, unsigned *nal_type)
++{
++    if (!codec || !planes[0] || !planes[1] || !planes[2]) { return false; }
++    if (codec->codec_mode == 3) {
++        x264_picture_t input, result;
++        x264_picture_init(&input); x264_picture_init(&result);
++        input.img.i_csp = X264_CSP_I420 | (codec->depth > 8 ? X264_CSP_HIGH_DEPTH : 0);
++        input.img.i_plane = 3; input.i_pts = pts;
++        for (unsigned i = 0; i < 3; i++) {
++            input.img.plane[i] = planes[i]; input.img.i_stride[i] = strides[i];
++        }
++        x264_nal_t *nals = NULL; int count = 0;
++        if (x264_encoder_encode(codec->avc_encoder, &nals, &count, &input, &result) <= 0 || count <= 0) {
++            return false;
++        }
++        *nal_type = nals[0].i_type;
++        for (int i = 0; i < count; i++) {
++            uint32_t length;
++            if (!w5p_header_nal(output, nals[i].p_payload, nals[i].i_payload, &length)) {
++                return false;
++            }
++            if (nals[i].i_type == NAL_SLICE || nals[i].i_type == NAL_SLICE_IDR) { *nal_type = nals[i].i_type; }
++        }
++        codec->frames++; return true;
++    }
++    x265_picture *input = codec->api->picture_alloc();
++    x265_picture *result = codec->api->picture_alloc();
++    if (!input || !result) {
++        if (input) { codec->api->picture_free(input); }
++        if (result) { codec->api->picture_free(result); }
++        return false;
++    }
++    codec->api->picture_init(codec->param, input);
++    codec->api->picture_init(codec->param, result);
++    input->bitDepth = codec->depth; input->pts = pts;
++    for (unsigned i = 0; i < 3; i++) {
++        input->planes[i] = planes[i]; input->stride[i] = strides[i];
++    }
++    x265_nal *nals = NULL; uint32_t count = 0;
++    int produced = codec->api->encoder_encode(codec->encoder, &nals, &count, input, result);
++    bool valid = produced == 1 && count != 0;
++    if (valid) {
++        *nal_type = nals[0].type;
++        for (unsigned i = 0; i < count; i++) {
++            uint32_t length;
++            if (!w5p_header_nal(output, nals[i].payload, nals[i].sizeBytes, &length)) {
++                valid = false; break;
++            }
++            if (nals[i].type < 32) { *nal_type = nals[i].type; }
++        }
++        if (valid) { codec->frames++; }
++    }
++    codec->api->picture_free(input); codec->api->picture_free(result);
++    return valid;
++}
+diff --git a/hw/arm/nikon-z8-jpeg-decode-mmio.h b/hw/arm/nikon-z8-jpeg-decode-mmio.h
+--- /dev/null
++++ b/hw/arm/nikon-z8-jpeg-decode-mmio.h
+@@ -0,0 +1,274 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++/* WonderLantern z8-qemu 09aacd2: finite JPEG decode; adapted to local per-core encoder state. */
++#include "nikon-z8-jpegdec.h"
++
++static void z8_jdec_irq_update(NikonZ9State *s, unsigned b)
++{
++    qemu_irq line = s->engine15e2_jpeg_irq[b];
++    uint32_t pending = s->z8_jdec_pending[b];
++
++    pending |= s->engine15e2_jpeg_pending[b];
++    if (line) {
++        qemu_set_irq(line, !!(pending & s->engine15e2_config[b][0x484 / 4]));
++    }
++}
++
++static void z8_jdec_fail(NikonZ9State *s, unsigned b, const char *why)
++{
++    s->z8_jdec_phase[b] = 0;
++    s->z8_jdec_output_valid[b] = false;
++    s->z8_jdec_hold[b] = 0;
++    s->z8_jdec_core[b] = 0;
++    s->z8_jdec_pending[b] |= 0x20400000;
++    s->z8_jdec_errors++;
++    fprintf(stderr, "Z8_JPEG_DECODE core=%u: %s; error status\n", b, why);
++    z8_jdec_irq_update(s, b);
++}
++
++/* The input, read as it is: the blocks +0x458 counts and one more, for the
++ * tail a whole-block count leaves out. The playback job leaves +0x458 at 0
++ * (sub_40C0D4B8 writes 0 for a zero length: the core reads to the EOI);
++ * then up to 32 MiB of RAM from the start. Either way libjpeg stops at the
++ * EOI and the rest is unread. */
++static uint8_t *z8_jdec_input(NikonZ9State *s, unsigned b, size_t *len)
++{
++    const uint32_t *c = s->engine15e2_config[b];
++    uint64_t in = (uint64_t)c[0x440 / 4] << 4;
++    size_t n = c[0x458 / 4] ? ((size_t)c[0x458 / 4] + 1) * 512 : 32 * MiB;
++    size_t least = c[0x458 / 4] ? (size_t)c[0x458 / 4] * 512 : 64 * KiB;
++    uint8_t *buf;
++
++    if (n > 128 * MiB) {
++        return NULL;
++    }
++    while (!dma_ram_range(s, in, n)) {
++        n = c[0x458 / 4] ? n - 512 : n / 2;
++        if (n < least) {
++            return NULL;
++        }
++    }
++    buf = g_malloc(n);
++    if (address_space_read(&address_space_memory, in, MEMTXATTRS_UNSPECIFIED,
++                           buf, n) != MEMTX_OK) {
++        g_free(buf);
++        return NULL;
++    }
++    *len = n;
++    return buf;
++}
++
++static void z8_jdec_header(NikonZ9State *s, unsigned b)
++{
++    uint32_t *c = s->engine15e2_config[b];
++    unsigned hs = (c[0x400 / 4] >> 2) & 3, vs = (c[0x404 / 4] >> 2) & 3;
++    unsigned w, h, format;
++    size_t len;
++    uint8_t *in;
++    bool ok;
++
++    s->z8_jdec_start[b] = false;
++    in = z8_jdec_input(s, b, &len);
++    if (!in) {
++        fprintf(stderr, "Z8_JPEG_DECODE core=%u input %" PRIx64 ", %u blocks\n",
++                b, (uint64_t)c[0x440 / 4] << 4, c[0x458 / 4]);
++        z8_jdec_fail(s, b, "input outside RAM");
++        return;
++    }
++    ok = z8_jpegdec_info(in, len, &w, &h, &format);
++    g_free(in);
++    if (!ok) {
++        z8_jdec_fail(s, b, "not a baseline 4:2:2/4:2:0 JPEG");
++        return;
++    }
++    c[0] = (c[0] & ~7u) | format;
++    c[0x1c / 4] = (w + (1u << hs) - 1) >> hs;
++    c[0x18 / 4] = (h + (1u << vs) - 1) >> vs;
++    c[0x3c / 4] = 0;
++    s->z8_jdec_core[b] = 0;
++    s->z8_jdec_hold[b] = 1;
++    s->z8_jdec_phase[b] = 1;
++    s->z8_jdec_pending[b] |= 0x0a001000;
++    fprintf(stderr, "Z8_JPEG_DECODE core=%u header %ux%u format %u scale 1/%u x 1/%u"
++            " -> %ux%u\n", b, w, h, format, 1u << hs, 1u << vs,
++            c[0x1c / 4], c[0x18 / 4]);
++    z8_jdec_irq_update(s, b);
++}
++
++static void z8_jdec_run(NikonZ9State *s, unsigned b)
++{
++    uint32_t *c = s->engine15e2_config[b];
++    unsigned hs = (c[0x400 / 4] >> 2) & 3, vs = (c[0x404 / 4] >> 2) & 3;
++    unsigned yp = c[0x410 / 4], cp = c[0x414 / 4];
++    unsigned ow = c[0x418 / 4], oh = c[0x41c / 4];
++    unsigned x0 = c[0x420 / 4] ? c[0x424 / 4] : 0;
++    unsigned y0 = c[0x420 / 4] ? c[0x428 / 4] : 0;
++    unsigned format = c[0] & 7, dw, dh, crows;
++    uint64_t ya = (uint64_t)c[0x430 / 4] << 4, ca = (uint64_t)c[0x434 / 4] << 4;
++    uint8_t *in, *img, *yrow, *crow;
++    size_t len;
++
++    s->z8_jdec_go[b] = false;
++    s->z8_jdec_hold[b] = 0;
++    s->z8_jdec_output_valid[b] = false;
++    crows = format == 2 ? (oh + 1) / 2 : oh;
++    if (!ow || !oh || ow > 16384 || oh > 16384 || yp < ow || cp < ((ow + 1) & ~1u) ||
++        yp > 32768 || cp > 32768 || (format != 1 && format != 2) ||
++        !dma_ram_range(s, ya, (uint64_t)yp * (oh - 1) + ow) ||
++        !dma_ram_range(s, ca, (uint64_t)cp * (crows - 1) + ((ow + 1) & ~1u))) {
++        z8_jdec_fail(s, b, "output geometry outside RAM");
++        return;
++    }
++    uint64_t yn = (uint64_t)yp * (oh - 1) + ow;
++    uint64_t cn = (uint64_t)cp * (crows - 1) + ((ow + 1) & ~1u);
++    if (graphics_spans_overlap(ya, yn, ca, cn) ||
++        !nb_writable(&s->output_owner, (NBSpan){ya, yn}) ||
++        !nb_writable(&s->output_owner, (NBSpan){ca, cn})) {
++        z8_jdec_fail(s, b, "output overlaps owned RAM"); return;
++    }
++    in = z8_jdec_input(s, b, &len);
++    if (!in) {
++        z8_jdec_fail(s, b, "input outside RAM");
++        return;
++    }
++    img = z8_jpegdec_ycc(in, len, hs, vs, &dw, &dh);
++    g_free(in);
++    if (!img) {
++        z8_jdec_fail(s, b, "libjpeg refused the stream");
++        return;
++    }
++    yrow = g_malloc(ow);
++    crow = g_malloc((ow + 1) & ~1u);
++    bool written = true;
++    for (unsigned r = 0; written && r < oh; r++) {
++        const uint8_t *src = img + (size_t)MIN(y0 + r, dh - 1) * dw * 3;
++
++        for (unsigned x = 0; x < ow; x++) {
++            yrow[x] = src[(size_t)MIN(x0 + x, dw - 1) * 3];
++        }
++        written = address_space_write(&address_space_memory, ya + (uint64_t)r * yp,
++                            MEMTXATTRS_UNSPECIFIED, yrow, ow) == MEMTX_OK;
++        if (!written) { break; }
++        if (format == 2 && (r & 1)) {
++            continue;
++        }
++        for (unsigned x = 0; x < ow; x += 2) {
++            const uint8_t *p = src + (size_t)MIN(x0 + x, dw - 1) * 3;
++
++            crow[x] = p[1];
++            crow[x + 1] = p[2];
++        }
++        written = address_space_write(&address_space_memory,
++                            ca + (uint64_t)(format == 2 ? r / 2 : r) * cp,
++                            MEMTXATTRS_UNSPECIFIED, crow, (ow + 1) & ~1u) == MEMTX_OK;
++    }
++    g_free(yrow);
++    g_free(crow);
++    g_free(img);
++    if (!written) { z8_jdec_fail(s, b, "output DMA failed"); return; }
++    c[0x470 / 4] = oh;
++    s->z8_jdec_core[b] = 0x80000000;
++    s->z8_jdec_pending[b] |= 0x0800c000;
++    s->z8_jdec_phase[b] = 2;
++    s->z8_jdec_jobs++;
++    s->z8_jdec_output_valid[b] = true;
++    s->z8_jdec_output_epoch[b]++;
++    s->z8_jdec_y[b] = ya; s->z8_jdec_uv[b] = ca;
++    s->z8_jdec_width[b] = ow; s->z8_jdec_height[b] = oh;
++    s->z8_jdec_yp[b] = yp; s->z8_jdec_cp[b] = cp;
++    s->z8_jdec_format[b] = format;
++    fprintf(stderr, "Z8_JPEG_DECODE core=%u image %ux%u at (%u,%u) of %ux%u -> y=%"
++            PRIx64 "/%u c=%" PRIx64 "/%u format %u\n", b, ow, oh, x0, y0, dw, dh,
++            ya, yp, ca, cp, format);
++    z8_jdec_irq_update(s, b);
++}
++
++static bool z8_jdec_read(NikonZ9State *s, unsigned b, unsigned off,
++                          unsigned size, uint64_t *value)
++{
++    if (!s->z8_jdec_on || b > 1 || !s->z8_jdec_active[b]) {
++        return false;
++    }
++    if (size != 4 || (off & 3)) {
++        unknown_access(s, (b ? 0x15e21000 : 0x15e20000) + off, 0, size, false);
++        *value = 0;
++        return true;
++    }
++    switch (off) {
++    case 0x02c: *value = s->z8_jdec_core[b]; break;
++    case 0x030: case 0x034: case 0x488: *value = 0; break;
++    case 0x038: *value = s->z8_jdec_hold[b]; break;
++    case 0x480: *value = s->z8_jdec_pending[b]; break;
++    default: *value = s->engine15e2_config[b][off / 4]; break;
++    }
++    return true;
++}
++
++static bool z8_jdec_write(NikonZ9State *s, unsigned b, unsigned off,
++                           uint64_t value, unsigned size)
++{
++    uint32_t *c = s->engine15e2_config[b];
++
++    if (!s->z8_jdec_on || b > 1) {
++        return false;
++    }
++    if (off == 0) {
++        if (size != 4 || !(value & 8) || (value & ~0xffull)) {
++            s->z8_jdec_active[b] = false;      /* back to the encoder */
++            return false;
++        }
++        if (!s->z8_jdec_active[b]) {
++            s->z8_jdec_active[b] = true;
++            s->z8_jdec_phase[b] = 0;
++            s->z8_jdec_start[b] = s->z8_jdec_go[b] = false;
++            s->z8_jdec_pending[b] = s->z8_jdec_core[b] = s->z8_jdec_hold[b] = 0;
++        }
++        c[0] = value;
++        return true;
++    }
++    if (!s->z8_jdec_active[b]) {
++        return false;
++    }
++    if (size != 4 || (off & 3) || off >= 0x500) {
++        unknown_access(s, (b ? 0x15e21000 : 0x15e20000) + off, value, size, true);
++        return true;
++    }
++    switch (off) {
++    case 0x004:
++        if (value & 0x80000000) {               /* reset */
++            s->z8_jdec_output_valid[b] = false;
++            s->z8_jdec_phase[b] = 0;
++            s->z8_jdec_start[b] = s->z8_jdec_go[b] = false;
++            s->z8_jdec_hold[b] = s->z8_jdec_core[b] = 0;
++            c[1] = 0;
++            break;
++        }
++        if (value & 1) {
++            s->z8_jdec_output_valid[b] = false;
++            s->z8_jdec_start[b] = true;
++        }
++        if ((value & 2) && s->z8_jdec_phase[b] == 1) {
++            s->z8_jdec_go[b] = true;
++        }
++        c[1] = value & ~3u;
++        break;
++    case 0x02c:
++        s->z8_jdec_core[b] &= value;           /* the handler writes ~bits */
++        break;
++    case 0x480:
++        s->z8_jdec_pending[b] &= ~value;
++        break;
++    default:
++        c[off / 4] = value;
++        break;
++    }
++    if (s->z8_jdec_start[b] && s->z8_jdec_phase[b] != 1 &&
++        (c[0x404 / 4] & 0xc000) == 0x4000) {
++        z8_jdec_header(s, b);
++    }
++    if (s->z8_jdec_go[b] && s->z8_jdec_phase[b] == 1 &&
++        (c[0x400 / 4] & 0xc000) == 0x4000) {
++        z8_jdec_run(s, b);
++    }
++    z8_jdec_irq_update(s, b);
++    return true;
++}
+diff --git a/hw/arm/nikon-z8-jpeg-sources.h b/hw/arm/nikon-z8-jpeg-sources.h
+--- a/hw/arm/nikon-z8-jpeg-sources.h
++++ b/hw/arm/nikon-z8-jpeg-sources.h
+@@ -368,12 +368,41 @@
+     return true;
+ }
+ 
++/* z8-qemu 09aacd2 queued-count admission, narrowed to our accepted
++ * 153 -> 151 producer. This is a request snapshot, NOT a source receipt.
++ * No read lease, codec work or completion exists until actual publication. */
++static bool jpeg_queued_count(NikonZ9State *s, const uint32_t *c)
++{
++    uint64_t plane=(uint64_t)c[0x410/4]*c[0x41c/4];
++    unsigned bank=s->engine151_capture_wait_bank;
++    return s->engine15e2_bank1_model && s->engine15e2_deferred_input_model &&
++        s->engine15e2_preflight_model && s->engine15e2_limit_disabled_model &&
++        s->capture_thumbnail_model && s->engine151_capture_waiting &&
++        !s->engine151_capture_wait_failed && s->engine151_active[0] && bank<2 &&
++        s->engine153_waiting[bank] && !s->engine153_wait_failed[bank] &&
++        s->engine151_capture_wait_after==s->engine153_wait_after[bank] &&
++        s->engine151_capture_jobs<UINT64_MAX && c[0x404/4]==2 && !c[0x458/4] &&
++        c[0x418/4]>0 && c[0x418/4]<=1024 && c[0x41c/4]>0 && c[0x41c/4]<=1024 &&
++        plane>0 && plane<=4*MiB;
++}
++
+ static bool jpeg_bank_bind(NikonZ9State *s,unsigned b)
+ {
+-    const uint32_t *c=s->engine15e2_config[b];const char *reason=NULL;
++    Z8JpegRequest *q=&s->jpeg_request[b];
++    uint32_t words[0x500/4];
++    memcpy(words,q->producer_wait?q->words:s->engine15e2_config[b],sizeof(words));
++    const uint32_t *c=words;const char *reason=NULL;
+     Z8JpegSource *r=jpeg_source_find_request(s,c,&reason);
+-    Z8JpegRequest *q=&s->jpeg_request[b];
+-    if (!r) { q->failure=reason;return false; }
++    if (q->producer_wait && (!r || r->parent_151_job!=q->parent_151_job ||
++        r->frame<=q->frame || !r->published)) { return false; }
++    if (!r) {
++        if (!jpeg_queued_count(s,c) || s->engine15e2_jpeg_requests[b]==UINT64_MAX ||
++            s->engine15e2_deferred_waits[b]==UINT64_MAX) { q->failure=reason;return false; }
++        *q=(Z8JpegRequest){.snapshot=true,.producer_wait=true,.count_only=true,.no_limit=true,
++            .parent_151_job=s->engine151_capture_jobs+1,.frame=s->engine151_capture_wait_after,
++            .token=s->engine15e2_jpeg_requests[b]+1};
++        memcpy(q->words,c,sizeof(q->words));return true;
++    }
+     if (b && r->kind==Z8_JPEG_HLG_THUMB) {
+         const char *hlg_reason=z8_hlg_bank1_profile(s,r,c);
+         if (hlg_reason) { q->failure=hlg_reason;return false; }
+@@ -420,7 +449,7 @@
+         (!r->published && s->engine15e2_deferred_waits[b]==UINT64_MAX)) {
+         q->failure="counter_overflow";return false;
+     }
+-    uint64_t token=s->engine15e2_jpeg_requests[b]+1;
++    uint64_t token=q->producer_wait?q->token:s->engine15e2_jpeg_requests[b]+1;
+     NBOwner trial=s->output_owner;
+     NBSpan output={(uint64_t)c[0x440/4]<<4,(uint64_t)c[0x458/4]*512};
+     /* Trial reserve and read acquisition commit together, with START state. */
+diff --git a/hw/arm/nikon-z8-jpeg-types.h b/hw/arm/nikon-z8-jpeg-types.h
+--- a/hw/arm/nikon-z8-jpeg-types.h
++++ b/hw/arm/nikon-z8-jpeg-types.h
+@@ -41,7 +41,7 @@
+     uint64_t generation, token, frame, parent_151_job, decoder_job, parent_generation;
+     unsigned source_kind, producer_kind, producer_index;
+     unsigned role;
+-    bool snapshot, lease, count_only, no_limit;
++    bool snapshot, lease, count_only, no_limit, producer_wait;
+     const char *failure;
+ } Z8JpegRequest;
+ #endif
+diff --git a/hw/arm/nikon-z8-jpeg.h b/hw/arm/nikon-z8-jpeg.h
+--- a/hw/arm/nikon-z8-jpeg.h
++++ b/hw/arm/nikon-z8-jpeg.h
+@@ -89,7 +89,8 @@
+     const uint32_t *c = jpeg_request_words(s,b);
+     int owner = engine15e2_owned_source(s, b);
+     return s->engine15e2_limit_disabled_model &&
+-        c[0x404 / 4] == 2 && c[0x458 / 4] == 0 && (owner == 1 || owner == 2 || owner == 3 || owner == 4);
++        c[0x404 / 4] == 2 && c[0x458 / 4] == 0 && (owner == 1 || owner == 2 || owner == 3 || owner == 4 ||
++        jpeg_queued_count(s,c) || (s->engine15e2_jpeg_requested[b] && s->jpeg_request[b].producer_wait));
+ }
+ 
+ static bool engine15e2_jpeg_request(NikonZ9State *s, unsigned b)
+@@ -108,7 +109,7 @@
+      * a temporary codec ceiling is not a DMA allocation or writable span. */
+     bool count_only = video_measure || (no_limit && s->engine15e2_preflight_model);
+     int owner = engine15e2_owned_source(s, b);
+-    if (count_only && !video_measure && owner < 0) { return false; }
++    if (count_only && !video_measure && owner < 0 && !jpeg_queued_count(s,c)) { return false; }
+     /* Count passes may repeat with other quantizers. Every pass reads the
+      * actual RAM and encodes anew; pending request/core/IRQ gates below
+      * still prohibit overlapping jobs or an invented completion. */
+@@ -379,10 +380,22 @@
+ 
+     if (!s->engine15e2_deferred_input_model || !s->engine15e2_jpeg_requested[b] || s->engine15e2_deferred_failed[b]) { continue; }
+     if (s->engine15e2_bank1_model) {
++        Z8JpegRequest *q=&s->jpeg_request[b];
++        if (q->producer_wait) {
++            if (s->engine151_capture_wait_failed ||
++                s->engine151_capture_jobs>q->parent_151_job ||
++                (s->engine151_capture_jobs<q->parent_151_job && !s->engine151_capture_waiting)) {
++                jpeg_bank_failed(s,b,"queued_producer_cancelled");continue;
++            }
++            if (!jpeg_bank_bind(s,b)) { continue; }
++        }
+         Z8JpegSource *r=jpeg_request_source(s,b);
+         if (!r || !r->live) { jpeg_bank_failed(s,b,"source_intent_invalidated");continue; }
+     }
+-    if (s->engine15e2_config[b][0x400 / 4] != 0x4000 || s->engine15e2_config[b][0x404 / 4] != 0x4000) { continue; }
++    const uint32_t *words=jpeg_request_words(s,b);
++    bool count=engine15e2_limit_disabled_request(s,b);
++    if (s->engine15e2_config[b][0x400 / 4] != (0x4000 | (count ? words[0x400/4] : 0)) ||
++        s->engine15e2_config[b][0x404 / 4] != (count ? 0x4002 : 0x4000)) { continue; }
+     if (s->engine15e2_bank1_model && s->engine15e2_deferred_notifications[b]==UINT64_MAX) {
+         jpeg_bank_failed(s,b,"notification_counter_overflow");continue;
+     }
+diff --git a/hw/arm/nikon-z8-jpegdec.h b/hw/arm/nikon-z8-jpegdec.h
+--- /dev/null
++++ b/hw/arm/nikon-z8-jpegdec.h
+@@ -0,0 +1,136 @@
++/* Copyright (C) 2026 RdWing: Z8 adaptation. */
++/*
++ * Nikon Z 6III -- a JPEG stream decoded with libjpeg, for the JPEG cores'
++ * decode mode (z8-jpeg-decode in z8-tools/z8lab_attach.c.in).
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++ * Two calls, no device state: the frame header (size and the chroma
++ * sampling, in the cores' format numbering -- 1 = 4:2:2, the NV16 that
++ * engine 0x15e2 encodes from (mode 0x31), 2 = 4:2:0), and the whole image
++ * as interleaved full-resolution YCbCr, scaled down by 2^hs across and
++ * 2^vs down: libjpeg's DCT scaling for the smaller of the two, nearest
++ * pixel for what remains. A stream libjpeg rejects is a failure, never a
++ * partial image. Uses the libjpeg API the capture models already link
++ * (nikon-z8-jpeg.h).
++ */
++
++#ifndef HW_ARM_NIKON_Z8_JPEGDEC_H
++#define HW_ARM_NIKON_Z8_JPEGDEC_H
++
++#include <setjmp.h>
++#include <jpeglib.h>
++
++typedef struct Z8JpegDecError {
++    struct jpeg_error_mgr api;
++    jmp_buf jump;
++} Z8JpegDecError;
++
++static void z8_jpegdec_error(j_common_ptr codec)
++{
++    longjmp(((Z8JpegDecError *)codec->err)->jump, 1);
++}
++
++static void z8_jpegdec_quiet(j_common_ptr codec, int level)
++{
++    /* Reject truncated/corrupt input; libjpeg must not synthesize an EOI. */
++    if (level < 0) { z8_jpegdec_error(codec); }
++}
++
++/* The frame header: width, height and the sampling of a three-component
++ * stream, 1 for 2x1 luma (4:2:2) and 2 for 2x2 (4:2:0). Anything else --
++ * greyscale, 4:4:4, progressive -- is refused: nothing here says what the
++ * cores report for it. */
++static bool z8_jpegdec_info(const uint8_t *in, size_t len, unsigned *width,
++                             unsigned *height, unsigned *format)
++{
++    struct jpeg_decompress_struct d;
++    Z8JpegDecError err;
++    volatile bool ok = false;
++
++    d.err = jpeg_std_error(&err.api);
++    err.api.error_exit = z8_jpegdec_error;
++    err.api.emit_message = z8_jpegdec_quiet;
++    if (setjmp(err.jump)) {
++        jpeg_destroy_decompress(&d);
++        return false;
++    }
++    jpeg_create_decompress(&d);
++    jpeg_mem_src(&d, (unsigned char *)in, len);
++    if (jpeg_read_header(&d, TRUE) == JPEG_HEADER_OK &&
++        d.image_width && d.image_height && d.image_width <= 16384 && d.image_height <= 16384 &&
++        d.num_components == 3 && !d.progressive_mode &&
++        d.comp_info[1].h_samp_factor == 1 && d.comp_info[1].v_samp_factor == 1 &&
++        d.comp_info[2].h_samp_factor == 1 && d.comp_info[2].v_samp_factor == 1 &&
++        d.comp_info[0].h_samp_factor == 2 &&
++        (d.comp_info[0].v_samp_factor == 1 || d.comp_info[0].v_samp_factor == 2)) {
++        *width = d.image_width;
++        *height = d.image_height;
++        *format = d.comp_info[0].v_samp_factor;
++        ok = true;
++    }
++    jpeg_destroy_decompress(&d);
++    return ok;
++}
++
++/* The image as width * height * 3 bytes of Y, Cb, Cr, scaled; the caller
++ * frees it with g_free. NULL when libjpeg refuses the stream. */
++static uint8_t *z8_jpegdec_ycc(const uint8_t *in, size_t len, unsigned hs,
++                                unsigned vs, unsigned *width,
++                                unsigned *height)
++{
++    struct jpeg_decompress_struct d;
++    Z8JpegDecError err;
++    uint8_t *volatile full = NULL;
++    uint8_t *out;
++    unsigned dw, dh, fx, fy, ow, oh;
++
++    d.err = jpeg_std_error(&err.api);
++    err.api.error_exit = z8_jpegdec_error;
++    err.api.emit_message = z8_jpegdec_quiet;
++    if (setjmp(err.jump)) {
++        jpeg_destroy_decompress(&d);
++        g_free(full);
++        return NULL;
++    }
++    jpeg_create_decompress(&d);
++    jpeg_mem_src(&d, (unsigned char *)in, len);
++    jpeg_read_header(&d, TRUE);
++    d.out_color_space = JCS_YCbCr;
++    d.scale_num = 1;
++    d.scale_denom = 1u << MIN(hs, vs);
++    jpeg_start_decompress(&d);
++    dw = d.output_width;
++    dh = d.output_height;
++    full = g_malloc((size_t)dw * dh * 3);
++    while (d.output_scanline < dh) {
++        JSAMPROW row = full + (size_t)d.output_scanline * dw * 3;
++
++        jpeg_read_scanlines(&d, &row, 1);
++    }
++    jpeg_finish_decompress(&d);
++    jpeg_destroy_decompress(&d);
++
++    fx = 1u << (hs - MIN(hs, vs));
++    fy = 1u << (vs - MIN(hs, vs));
++    if (fx == 1 && fy == 1) {
++        *width = dw;
++        *height = dh;
++        return full;
++    }
++    ow = (dw + fx - 1) / fx;
++    oh = (dh + fy - 1) / fy;
++    out = g_malloc((size_t)ow * oh * 3);
++    for (unsigned y = 0; y < oh; y++) {
++        for (unsigned x = 0; x < ow; x++) {
++            memcpy(out + ((size_t)y * ow + x) * 3,
++                   full + ((size_t)y * fy * dw + (size_t)x * fx) * 3, 3);
++        }
++    }
++    g_free(full);
++    *width = ow;
++    *height = oh;
++    return out;
++}
++
++#endif /* HW_ARM_NIKON_Z8_JPEGDEC_H */
+diff --git a/hw/arm/nikon-z8-playback.h b/hw/arm/nikon-z8-playback.h
+--- /dev/null
++++ b/hw/arm/nikon-z8-playback.h
+@@ -0,0 +1,218 @@
++/* Copyright (C) 2026 RdWing: Z8 adaptation. */
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++/* Z6III decoded NV16 RAM -> A1/F4/B4 playback route. Functional nearest
++ * sampling uses the native fixed-point phases. Physical filters and timing
++ * are not modelled. Sources are completed local JPEG output or the single
++ * checked Z8 crop of a just-produced zoom surface. */
++static bool z8_playback_span(NikonZ9State *s, uint64_t p, uint64_t n)
++{
++    return n && n <= 64 * MiB && !(p & 31) && dma_ram_range(s, p, n);
++}
++
++static bool z8_playback_prepare(NikonZ9State *s)
++{
++    const uint32_t *a = s->engine1542_config[1];
++    const uint32_t *b = s->engine1542_config[7];
++    const uint32_t *f = s->engine1542_config[19];
++    uint64_t p[4] = {capture_nv16_address(a, 0x20), capture_nv16_address(a, 0x28),
++                    capture_nv16_address(b, 0x20), capture_nv16_address(b, 0x28)};
++    unsigned w = a[0x4c/4], h = a[0x50/4], ip = a[0x38/4];
++    unsigned ow = f[0x2c/4], oh = f[0x30/4], op = b[0x38/4];
++    unsigned selector = a[1] & ~3u;
++    uint64_t n[4] = {(uint64_t)ip*h, (uint64_t)ip*h,
++                     (uint64_t)op*oh, (uint64_t)op*oh};
++    int owner = -1;
++    bool cropped_output = false;
++    if (!s->z8_jdec_on || s->z8_playback_requested ||
++        (s->engine1542_pending[1] & 0x10011) || (s->engine1542_pending[7] & 0x1000) || (s->engine1542_pending[14]&0x11) || (s->engine1542_pending[11] & 0x20) ||
++        /* Original Z8 preview and zoom select 0x50/0x10 in both A1
++         * command words. Only their matched, stopped configurations
++         * admit the same owned decoded-NV16 transfer. */
++        (selector != 0x5000 && selector != 0x1000) || (a[1] & 1) ||
++        a[2] != (selector << 16) ||
++        a[3] != 0x71000010 || a[4] != 1 || a[0x40/4] != 0x22 ||
++        b[0xc/4] != 0x41400010 || b[0x10/4] != 1 || b[0x40/4] != 0x22 ||
++        a[0x3c/4] != ip || b[0x3c/4] != op ||
++        !w || (w & 1) || w > 16384 || !h || h > 8192 || ip < w || ip > 32768 ||
++        !ow || (ow & 1) || ow > 16384 || !oh || oh > 8192 || op < ow || op > 32768 ||
++        f[0] != 2 || f[1] != 1 || f[0x24/4] || f[0x28/4] ||
++        !f[0x18/4] || f[0x18/4] > w || !f[0x1c/4] || f[0x1c/4] > h ||
++        !f[0x10/4] || !f[0x14/4] || f[0x20/4] > 7 ||
++        capture_nv16_coordinate(f, ow-1, false) >= f[0x18/4] ||
++        capture_nv16_coordinate(f, oh-1, true) >= f[0x1c/4]) { return false; }
++    for (unsigned k = 0; k < 2; k++) {
++        if (s->z8_jdec_output_valid[k] && s->z8_jdec_format[k] == 1 &&
++            p[0] == s->z8_jdec_y[k] && p[1] == s->z8_jdec_uv[k] &&
++            w == s->z8_jdec_width[k] && h == s->z8_jdec_height[k] &&
++            ip == s->z8_jdec_yp[k] && ip == s->z8_jdec_cp[k]) { owner = k; }
++    }
++    if (owner < 0) { return false; }
++    for (unsigned k = 0; k < 4; k++) {
++        if (k < 2 && cropped_output) {
++            if (!n[k] || n[k] > 64*MiB || !dma_ram_range(s,p[k],n[k])) { return false; }
++        } else if (!z8_playback_span(s, p[k], n[k])) { return false; }
++        for (unsigned j = 0; j < k; j++) {
++            if (p[k] < p[j]+n[j] && p[j] < p[k]+n[k]) { return false; }
++        }
++    }
++    size_t input_bytes = (size_t)ip*h;
++    uint8_t *pixels = g_malloc(input_bytes*2);
++    bool received = true;
++    if (cropped_output) {
++        /* The producer owns active pixels only. Do not read its row
++         * padding or extend the final source row to a full pitch. */
++        memset(pixels,0,input_bytes*2);
++        for (unsigned r=0;received && r<h;r++) {
++            received=address_space_read(&address_space_memory,p[0]+(uint64_t)r*ip,MEMTXATTRS_UNSPECIFIED,pixels+(size_t)r*ip,w)==MEMTX_OK &&
++                address_space_read(&address_space_memory,p[1]+(uint64_t)r*ip,MEMTXATTRS_UNSPECIFIED,pixels+input_bytes+(size_t)r*ip,w)==MEMTX_OK;
++        }
++    } else {
++        received=address_space_read(&address_space_memory,p[0],MEMTXATTRS_UNSPECIFIED,pixels,input_bytes)==MEMTX_OK &&
++            address_space_read(&address_space_memory,p[1],MEMTXATTRS_UNSPECIFIED,pixels+input_bytes,input_bytes)==MEMTX_OK;
++    }
++    if (!received) { g_free(pixels);return false; }
++    s->z8_playback_output_valid=false;
++    g_free(s->z8_playback_pixels);s->z8_playback_pixels=pixels;
++    s->z8_playback_active=true;
++    memcpy(s->z8_playback_input, a, sizeof(s->z8_playback_input));
++    memcpy(s->z8_playback_output, b, sizeof(s->z8_playback_output));
++    memcpy(s->z8_playback_geometry, f, sizeof(s->z8_playback_geometry));
++    s->z8_playback_decode_core = owner;
++    s->z8_playback_decode_epoch = s->z8_jdec_output_epoch[owner];
++    s->z8_playback_outputs_armed = 0;
++    s->z8_playback_requested = true;
++    s->z8_playback_requests++;
++    return true;
++}
++
++static void z8_playback_run(NikonZ9State *s)
++{
++    const uint32_t *a = s->z8_playback_input, *b = s->z8_playback_output;
++    const uint32_t *f = s->z8_playback_geometry;
++    unsigned ip = a[0x38/4], ih = a[0x50/4], op = b[0x38/4];
++    unsigned ow = f[0x2c/4], oh = f[0x30/4];
++    uint64_t oy = capture_nv16_address(b, 0x20), ouv = capture_nv16_address(b, 0x28);
++    if (!s->z8_playback_requested || s->z8_playback_outputs_armed != 2 || !s->z8_playback_pixels) { return; }
++    s->z8_playback_output_valid=false;
++    unsigned core=s->z8_playback_decode_core;
++    if (core>=2 || !s->z8_jdec_output_valid[core] ||
++        s->z8_playback_decode_epoch!=s->z8_jdec_output_epoch[core]) {
++        s->z8_playback_requested=false;s->z8_playback_active=false;
++        g_free(s->z8_playback_pixels);s->z8_playback_pixels=NULL;
++        unknown_access(s,0x15421104,(a[1]&~3u)|1,4,true);return;
++    }
++    size_t ni = (size_t)ip*ih, no = (size_t)ow*oh;
++    const uint8_t *in = s->z8_playback_pixels;
++    uint8_t *out = g_malloc(no*2);
++    bool ok = true;
++    for (unsigned r = 0; ok && r < oh; r++) {
++        unsigned sy = capture_nv16_coordinate(f, r, true);
++        for (unsigned x = 0; x < ow; x++) {
++            out[(size_t)r*ow+x] = in[(size_t)sy*ip+capture_nv16_coordinate(f, x, false)];
++        }
++        for (unsigned x = 0; x < ow; x += 2) {
++            unsigned sx = capture_nv16_coordinate(f, x, false) & ~1u;
++            out[no+(size_t)r*ow+x] = in[ni+(size_t)sy*ip+sx];
++            out[no+(size_t)r*ow+x+1] = in[ni+(size_t)sy*ip+sx+1];
++        }
++    }
++    for (unsigned r = 0; ok && r < oh; r++) {
++        ok = address_space_write(&address_space_memory, oy+(uint64_t)r*op,
++                MEMTXATTRS_UNSPECIFIED, out+(size_t)r*ow, ow) == MEMTX_OK &&
++             address_space_write(&address_space_memory, ouv+(uint64_t)r*op,
++                MEMTXATTRS_UNSPECIFIED, out+no+(size_t)r*ow, ow) == MEMTX_OK;
++    }
++    g_free(s->z8_playback_pixels);s->z8_playback_pixels=NULL;g_free(out);
++    s->z8_playback_requested = false;
++    if (!ok) { unknown_access(s, 0x15421104, (a[1]&~3u)|1, 4, true); return; }
++    s->z8_playback_jobs++; s->z8_playback_bytes += no*2;
++    s->z8_playback_output_valid=true;
++    /* This finite transfer has read its complete input and written both
++     * output planes. Input first/data/end and B4 writer causes follow that
++     * work, never a configuration strobe. STOP can separately acknowledge
++     * the now-quiescent finite input after its native wait is cleared. */
++    s->engine1542_pending[1] |= 0x10011;
++    s->engine1542_pending[7] |= 0x1000;
++    raw_pipeline_irq_update(s);
++    fprintf(stderr, "Z8_PLAYBACK_RESIZE job=%" PRIu64 " %ux%u -> %ux%u bytes=%zu\n",
++        s->z8_playback_jobs, a[0x4c/4], ih, ow, oh, no*2);
++}
++
++static bool z8_playback_output_control(NikonZ9State *s, unsigned i,
++                                        hwaddr addr, uint64_t value)
++{
++    /* B6 has no RAM destination. Original 40cb8738 pulses it only after
++     * an input timeout, through 40c2606c / 40c26084. Retain this control;
++     * it is not permission to perform a delayed pixel transfer. */
++    if (value!=1 || i!=9) { unknown_access(s,addr,value,4,true);return true; }
++    s->engine1542_config[i][1] = value;
++    fprintf(stderr, "Z8_PLAYBACK_CONTROL base=%x pulse=1; no DMA or completion\n", engine1542_bases[i]);
++    return true;
++}
++
++/* Z8's finite A1 route selects E source14 before arming B6. Supply its
++ * requested functional luma bins from the accepted NV16 input, not from a
++ * stale live-view surface. E cause1 follows those actual pixel reads. */
++static void z8_playback_histogram(NikonZ9State *s)
++{
++    const uint32_t *e=s->engine1542_config[14],*a=s->z8_playback_input;
++    unsigned core=s->z8_playback_decode_core;
++    if (core>=2 || !s->z8_jdec_output_valid[core] ||
++        s->z8_playback_decode_epoch!=s->z8_jdec_output_epoch[core]) { return; }
++    if (!s->z8_jdec_on || !s->z8_e_armed || !s->z8_playback_pixels ||
++        !(e[0]&1) || ((e[1]>>4)&15)!=14 || !(e[2]&1) || !(e[0x50/4]&1) ||
++        (s->engine1542_pending[14]&0x11)) { return; }
++    unsigned w=a[0x4c/4],h=a[0x50/4],pitch=a[0x38/4];
++    memset(s->raw_histogram,0,sizeof(s->raw_histogram));
++    for (unsigned y=0;y<h;y++) {
++        for (unsigned x=0;x<w;x++) {
++            uint32_t *bin=&s->raw_histogram[0][s->z8_playback_pixels[(size_t)y*pitch+x]];
++            if (*bin<0xffffff) { (*bin)++; }
++        }
++    }
++    s->raw_histogram_source=14;s->raw_histogram_luma=true;
++    s->raw_histogram_samples=(uint64_t)w*h;s->raw_histogram_frames++;
++    /* The native finite initializer waits on E cause0. The observed E
++     * client mask is zero; do not invent a separate client end event. */
++    s->z8_e_armed=false;s->engine1542_pending[14]|=1;
++}
++
++static bool z8_playback_control(NikonZ9State *s, hwaddr addr, uint64_t value)
++{
++    uint32_t *a=s->engine1542_config[1];
++    if ((value != 0x5001 && value != 0x1001 &&
++         value != 0x5000 && value != 0x1000) ||
++        (a[1] & ~3u) != (value & ~3u) ||
++        a[2] != ((a[1] & ~3u) << 16)) {
++        unknown_access(s, addr, value, 4, true); return true;
++    }
++    if (value & 1) {
++        if (!z8_playback_prepare(s)) { unknown_access(s, addr, value, 4, true); return true; }
++        s->engine1542_config[1][1] = value;
++        /* A1 START owns the finite transfer. The native initializer
++         * waits for input and E data before any timeout-only B6 pulse. */
++        s->z8_playback_outputs_armed=2;
++        z8_playback_histogram(s);
++        z8_playback_run(s);
++    } else {
++        bool active=s->z8_playback_active;
++        s->z8_playback_requested=false;s->z8_playback_active=false;
++        g_free(s->z8_playback_pixels);s->z8_playback_pixels=NULL;
++        s->engine1542_config[1][1] = value;
++        /* Original 40cb87ec clears internal flag0x10 before STOP. All
++         * input DMA is already quiescent; publish its finite end now.
++         * A cancelled request creates no output-completion notification. */
++        if (active) { s->engine1542_pending[1] |= 0x10000;raw_pipeline_irq_update(s); }
++    }
++    return true;
++}
++
++static char *z8_playback_state(Object *obj, Error **errp)
++{
++    NikonZ9State *s = NIKON_Z9_LAB(obj);
++    return g_strdup_printf("{\"requests\":%" PRIu64 ",\"jobs\":%" PRIu64 ",\"bytes\":%" PRIu64
++        ",\"pending\":%s,\"input_active\":%s,\"owned_input\":%s,\"physical_filter_verified\":false}",
++        s->z8_playback_requests, s->z8_playback_jobs, s->z8_playback_bytes,
++        s->z8_playback_requested ? "true" : "false",
++        s->z8_playback_active ? "true" : "false",s->z8_playback_pixels ? "true" : "false");
++}
+diff --git a/hw/arm/nikon-z8-video-nr-empty-reset.h b/hw/arm/nikon-z8-video-nr-empty-reset.h
+--- a/hw/arm/nikon-z8-video-nr-empty-reset.h
++++ b/hw/arm/nikon-z8-video-nr-empty-reset.h
+@@ -21,6 +21,8 @@
+     for (unsigned ch=0;ch<6;ch++) { if (s->dma[ch][0] || s->dma[ch][2]) { mask|=2; } }
+     if (s->wave5_busy || (s->wave5 && (s->wave5->busy || s->wave5->pending ||
+         s->wave5->job || s->wave5->instances))) { mask|=4; }
++    if (s->w5p_model && s->w5p && (s->w5p->busy || s->w5p->pending ||
++        s->w5p->job || s->w5p->instances)) { mask|=4; }
+     if ((s->engine151_pending[0]&8) || (s->engine1518[0].pending&0x08100000)) { mask|=8; }
+     for (unsigned i=0;i<NB_SLOT_COUNT;i++) { if (s->output_owner.slots[i].held) { mask|=16; } }
+     for (unsigned b=0;b<2;b++) {
+diff --git a/hw/arm/nikon-z8-wave5-port.h b/hw/arm/nikon-z8-wave5-port.h
+--- /dev/null
++++ b/hw/arm/nikon-z8-wave5-port.h
+@@ -0,0 +1,818 @@
++/* Copyright (C) 2026 RdWing: Z8 adaptation. */
++/* SPDX-License-Identifier: GPL-2.0-or-later
++ * Authored functional Wave5-compatible HEVC/AVC device. The compatible 5210
++ * identity is an explicit virtual profile, not measured Nikon silicon.
++ * Original microcode execution is required by default and is not available.
++ * Explicit diagnostic mode: actual input RAM -> x265 -> actual output RAM.
++ * Opaque code DMA checks never prove vendor ISA execution. No files or RTOS
++ * flags are injected. The host reference buffers belong to this backend.
++ */
++#include "qemu/thread.h"
++#include "nikon-w5p-codec.h"
++
++
++#define W5P_BASE UINT64_C(0x16010000)
++#define W5P_INSTANCES 4
++#define W5P_REG(off) ((off) / 4)
++
++typedef struct W5pInstance {
++    bool created, configured, buffers, result, sequence_result, ring;
++    bool native_end_written, native_drained;
++    unsigned width, height, depth, fps_n, fps_d;
++    unsigned keyframe_period;
++    unsigned hevc_level;
++    bool hevc_high_tier;
++    unsigned source_index, bytes, nal_type, output_bus;
++    unsigned main_surface;
++    unsigned codec_mode;
++    unsigned crop[4]; /* left, top, right, bottom: coded-surface pixels */
++    int recon_index;
++    uint32_t submit_tick, complete_tick;
++    uint64_t pictures, output;
++    uint64_t ring_physical;
++    unsigned ring_bus, ring_capacity, ring_written;
++    uint64_t work_physical;
++    unsigned work_bus, work_capacity;
++    bool report_requested;
++    uint32_t header_lengths[4]; /* AUD, VPS (HEVC only), SPS, PPS; no prefix */
++    W5pCodec *codec;
++} W5pInstance;
++
++typedef struct W5pJob {
++    struct W5pState *owner;
++    W5pInstance *instance;
++    uint8_t *input;
++    unsigned strides[3], source_index, nal_type;
++    unsigned main_surface;
++    uint64_t output, pts;
++    unsigned capacity, input_bytes, output_bus;
++    uint32_t input_crc;
++    GByteArray *encoded;
++    bool done, valid, native_end;
++} W5pJob;
++
++typedef struct W5pState {
++    NikonZ9State *board;
++    uint32_t regs[0x2000 / 4], pending, interrupt_mask;
++    bool booted, sleeping, busy, lossless;
++    unsigned last_command, instances, fio_address;
++    uint32_t fio_data, fio_words[18];
++    uint64_t writes, reads, commands, completions, rejections, resets;
++    uint32_t external_reset_held;
++    uint64_t external_resets;
++    uint64_t boot_bytes, input_bytes, output_bytes;
++    uint64_t boot_physical;
++    uint32_t boot_crc, input_crc, output_crc;
++    const char *boot_rejection, *source_rejection;
++    W5pInstance instance[W5P_INSTANCES];
++    W5pJob *job;
++    QemuThread worker;
++    bool worker_started;
++    QemuMutex lock;
++    QEMUTimer *timer;
++    qemu_irq irq;
++} W5pState;
++
++#ifndef W5P_UNIT_TEST
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++/* Optional Z8 YUV aperture endpoint. Decode actual WLYV packet RAM for an
++ * owned generation; never substitute the host source or a preview image. */
++static int w5p_yuv_snapshot(W5pState *w,W5pInstance *i,W5pJob *job)
++{
++    NikonZ9State *s=w->board;uint32_t *r=w->regs;Z8YuvData *d=s->z8_yuv_data;
++    if (!s->z8_yuv_data_model || w->fio_words[9]!=8 || r[0x148/4]>=0x40000000) { return -1; }
++    if (!d) { return 0; }
++    d->read_stage=1;
++    unsigned format=r[0x158/4],endian=(format>>6)&15;
++    if (i->depth!=8 || (format&~0x3ffu) || (format&31)!=2 || (endian!=0 && endian!=15) ||
++        (r[0x154/4]>>16)!=i->width || (r[0x154/4]&0xffff)!=i->width) { goto invalid; }
++    uint64_t logical[2]={UINT64_C(0x200000000)|r[0x148/4],UINT64_C(0x200000000)|r[0x14c/4]};
++    uint64_t physical[2]={0,0};
++    unsigned bases[2]={0,0};
++    /* Producer and consumer have separate virtual aliases. Original Z8
++     * maps consumer200000000 to the producer20c000000 backing reservation.
++     * Join them by both actual physical planes, never by the alias alone. */
++    const uint32_t *v=yuvcmp_domain_words(s, 1);
++    for (unsigned p=0;p<2;p++) {
++        for (unsigned bank=0;bank<2;bank++) { for (unsigned n=0;n<4;n++) {
++            unsigned base=0x1200+p*0x400+bank*0x100,off=(base+0x80+n*8)/4;
++            if ((v[off]|(uint64_t)v[off+1]<<32)==logical[p]) { physical[p]=v[off+8]|(uint64_t)v[off+9]<<32;bases[p]=base; }
++        } }
++    }
++    Z8YuvSlot *slot=NULL;
++    d->read_stage=2;
++    for (unsigned n=0;n<G_N_ELEMENTS(d->slots);n++) { if (d->slots[n].owned && d->slots[n].physical[0]==physical[0] && d->slots[n].physical[1]==physical[1]) { slot=&d->slots[n];break; } }
++    if (!slot || slot->width!=i->width || slot->height!=i->height) { goto invalid; }
++    uint8_t *planes[2]={NULL,NULL};bool ok=false;
++    for (unsigned p=0;p<2;p++) {
++        d->read_stage=3+p*10;
++        unsigned ch=0x1000+p*0x400,base=bases[p];
++        if (v[ch/4]!=1 || v[(ch+4)/4]!=1 || v[(base+0x1c)/4]!=i->width ||
++            v[(base+0x20)/4]!=slot->stride || v[(base+0x28)/4]<slot->capacity[p]) { goto done; }
++        bool matched=false;
++        d->read_stage=4+p*10;
++        for (unsigned n=0;n<4;n++) {
++            unsigned off=(base+0x80+n*8)/4;
++            uint64_t a=v[off]|(uint64_t)v[off+1]<<32,b=v[off+8]|(uint64_t)v[off+9]<<32;
++            if (a==logical[p] && b==slot->physical[p]) { matched=true; }
++        }
++        if (!matched || graphics_spans_overlap(slot->physical[p],slot->capacity[p],i->work_physical,i->work_capacity) ||
++            graphics_spans_overlap(slot->physical[p],slot->capacity[p],job->output,job->capacity)) {
++            fprintf(stderr,"Z8_YUV_MAP_REJECT matched=%d plane=%u logical=%"PRIx64" physical=%"PRIx64" capacity=%u work=%"PRIx64":%u output=%"PRIx64":%u\n",matched,p,logical[p],slot->physical[p],slot->capacity[p],i->work_physical,i->work_capacity,job->output,job->capacity);goto done;
++        }
++        uint8_t h[48];
++        d->read_stage=5+p*10;
++        if (address_space_read(&address_space_memory,slot->physical[p],MEMTXATTRS_UNSPECIFIED,h,sizeof(h))!=MEMTX_OK) { goto done; }
++        unsigned n=slot->stride*(slot->height>>p),amount=ldl_le_p(h+36);
++        if (z8_packet_kind(h, sizeof(h), true) != Z8_PACKET_WLYV || ldl_le_p(h+8)!=slot->width || ldl_le_p(h+12)!=(slot->height>>p) ||
++            ldl_le_p(h+16)!=slot->stride || ldl_le_p(h+20)!=p || ldq_le_p(h+24)!=slot->epoch ||
++            ldl_le_p(h+32)!=n || ldl_le_p(h+44) || !amount || amount>slot->capacity[p]-48) { goto done; }
++        g_autofree uint8_t *packet=g_malloc(amount);planes[p]=g_malloc(n);uLongf length=n;
++        d->read_stage=6+p*10;
++        MemTxResult read_result=address_space_read(&address_space_memory,slot->physical[p]+48,MEMTXATTRS_UNSPECIFIED,packet,amount);
++        int decoded=read_result==MEMTX_OK?uncompress(planes[p],&length,packet,amount):Z_DATA_ERROR;
++        uint32_t actual_crc=crc32(0,planes[p],n),expected_crc=ldl_le_p(h+40);
++        if (decoded!=Z_OK || length!=n || actual_crc!=expected_crc) {
++            fprintf(stderr,"Z8_YUV_PACKET_REJECT plane=%u physical=%"PRIx64" read=%d decoded=%d length=%lu expected=%u crc=%x expected_crc=%x\n",p,slot->physical[p],read_result,decoded,(unsigned long)length,n,actual_crc,expected_crc);goto done;
++        }
++    }
++    unsigned ybytes=i->width*i->height;
++    job->input_bytes=ybytes*3/2;job->input=g_malloc(job->input_bytes);memcpy(job->input,planes[0],ybytes);
++    for (unsigned n=0;n<ybytes/4;n++) { job->input[ybytes+n]=planes[1][n*2];job->input[ybytes+ybytes/4+n]=planes[1][n*2+1]; }
++    job->strides[0]=i->width;job->strides[1]=job->strides[2]=i->width/2;
++    job->input_crc=crc32(0,job->input,job->input_bytes);slot->owned=false;d->reads++;d->read_stage=0;ok=true;
++done:
++    g_free(planes[0]);g_free(planes[1]);if (ok) { return 1; }
++invalid:
++    d->rejects++;return 0;
++}
++
++#endif
++static const uint16_t w5p_fio_offsets[] = {
++    0x88f0,0x88f4,0xfe10,0xfe14,0x8e10,0x8e14,0x9e10,0x9e14,
++    0xfe0c,0xfec0,0xfee0,0xfea0,0xfea4,0xfea8,0xfeac,0xff00,
++    0xfe64,0xfe6c
++};
++
++static bool w5p_bus_stopped(W5pState *w)
++{
++    return w->fio_words[0] || w->fio_words[2] || w->fio_words[4] || w->fio_words[6];
++}
++
++static bool w5p_fio(W5pState *w,uint32_t control)
++{
++    if (control&~0x1ffffU) { return false; }
++    unsigned address=control&0xffff,index;
++    for (index=0;index<G_N_ELEMENTS(w5p_fio_offsets);index++) {
++        if (w5p_fio_offsets[index]==address) { break; }
++    }
++    if (index==G_N_ELEMENTS(w5p_fio_offsets)) { return false; }
++    uint32_t value=w->regs[W5P_REG(0x24)];
++    bool status=index==1 || index==3 || index==5 || index==7;
++    if (control&0x10000) {
++        /* Original INIT40e53eb8 posts both SRAM-side configuration words
++         * before the core-start request. These retain configuration only;
++         * they cannot release or complete any microcode work. */
++        if ((w->busy && index>=8) || ((index==16 || index==17) && value&~15U)) { return false; }
++        if (status || (index==0 && value!=0 && value!=0x100) ||
++            (index==2 && value!=0 && value!=7 && value!=255) ||
++            ((index==4 || index==6) && value!=0 && value!=7)) { return false; }
++        w->fio_words[index]=value;
++    } else if (status) {
++        bool held=w->fio_words[index-1]!=0;
++        /* Existing accepted DMA drains before the bus-stop status becomes
++         * idle. An unretired result/IRQ is still separately reset-protected. */
++        if (!held || w->busy) { value=0; }
++        else if (index==3 && w->fio_words[2]==255) { value=0; }
++        else { value=0x3f; } /* pinned Nikon VDI compares exactly 0x3f */
++        w->regs[W5P_REG(0x24)]=value;
++    } else { w->regs[W5P_REG(0x24)]=w->fio_words[index]; }
++    w->fio_address=address;w->regs[W5P_REG(0x20)]=control|0x80000000;
++    return true;
++}
++
++static bool w5p_address(NikonZ9State *s, uint64_t address, uint64_t bytes, uint64_t *physical)
++{
++    if (!bytes || bytes > 256 * MiB) { return false; }
++    /* Original VDI supplies the AXI address high word through FIO FEC0.
++     * Apply it consistently to code, source and bitstream reservations;
++     * otherwise a native low address can refer to an unrelated lab bank. */
++    if (s->w5p && s->w5p->fio_words[9]) {
++        uint64_t extended=((uint64_t)s->w5p->fio_words[9]<<32)|address;
++        if (!dma_ram_range(s,extended,bytes)) { return false; }
++        *physical=extended;return true;
++    }
++    if (address>=UINT64_C(0x40000000) && address<UINT64_C(0x60000000)) {
++        /* Declared virtual 32-bit AXI aperture, independently checked
++         * against actual work RAM. Physical EXPEED master16 is unmeasured. */
++        uint64_t mapped=UINT64_C(0xa00000000)+address-UINT64_C(0x40000000);
++        if (address+bytes>UINT64_C(0x60000000) || !dma_ram_range(s,mapped,bytes)) { return false; }
++        *physical=mapped;return true;
++    }
++    /* The explicit lab bus aperture overlaps low physical firmware RAM.
++     * Resolve encoded DMA addresses first, rather than silently reading or
++     * writing another RAM region at the same numerical 32-bit address. */
++    if (raw_pipeline_address(s,address,bytes,physical) && dma_ram_range(s,*physical,bytes)) { return true; }
++    if (address>=UINT64_C(0xa00000000) && dma_ram_range(s,address,bytes)) { *physical=address;return true; }
++    return false;
++}
++
++static bool w5p_code_address(W5pState *w,uint32_t address,uint64_t bytes,uint64_t *physical)
++{
++    uint32_t high=w->fio_words[9]; /* FEC0: original VDI program extension */
++    if (high) {
++        uint64_t extended=((uint64_t)high<<32)|address;
++        if (!bytes || bytes>4*MiB || !dma_ram_range(w->board,extended,bytes)) { return false; }
++        *physical=extended;return true;
++    }
++    return w5p_address(w->board,address,bytes,physical);
++}
++
++static void w5p_irq_update(W5pState *w)
++{
++    bool asserted=(w->pending&w->interrupt_mask)!=0;
++    w->regs[W5P_REG(0x30)]=w->pending;
++    w->regs[W5P_REG(0x44)]=w->pending != 0;
++    w->regs[W5P_REG(0x4c)]=w->pending;
++    /* Original ZR ISR reads the shared controller before the VPU reason.
++     * Only completed, enabled VPU work owns aggregate bit0. */
++    w->board->video_processing_global[3]=
++        (w->board->video_processing_global[3]&~1U)|asserted;
++    if (w->irq) { qemu_set_irq(w->irq,asserted); }
++}
++
++static void w5p_complete(W5pState *w, unsigned reason)
++{
++    w->busy=false;w->board->wave5_busy=false;
++    w->regs[W5P_REG(0x70)]=0;
++    w->regs[W5P_REG(0x108)]=1;w->regs[W5P_REG(0x10c)]=0;
++    unsigned instance=w->regs[W5P_REG(0x110)]&0xffff;
++    if (instance<W5P_INSTANCES) {
++        /* Native ISR retires per-instance bitmaps by read/modify/write.
++         * Do not advertise an instance before its command has completed. */
++        if (reason&((1U<<6)|(1U<<9))) { w->regs[W5P_REG(0x1fc)]|=1U<<instance; }
++        if (reason&(1U<<8)) { w->regs[W5P_REG(0x1e8)]|=1U<<instance; }
++        if (reason&(1U<<15)) { w->regs[W5P_REG(0x1e4)]|=1U<<instance; }
++    }
++    w->pending|=reason;w->completions++;w5p_irq_update(w);
++    fprintf(stderr,"Z8_W5P_COMPLETE reason=%x pending=%x mask=%x irq120=%u\n",reason,w->pending,w->interrupt_mask,!!(w->pending&w->interrupt_mask));
++}
++
++static uint32_t w5p_virtual_tick(void)
++{
++    /* Recorded command latency on the lab virtual clock. These are not
++     * vendor instruction counts or measured physical silicon timing. */
++    return qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL)/256;
++}
++
++static bool w5p_report(W5pState *w,W5pInstance *i)
++{
++    if (!i->report_requested) { return true; }
++    /* Original ZR40e3c810 reads RET1a8+100 into the four header lengths;
++     * 402ff918 adds a four-byte prefix to each before copying AUD/VPS/SPS/PPS.
++     * Zero-filled header reports formerly produced four-byte empty NALs.
++     * Report actual output lengths in the guest-owned CREATE reservation.
++     * Picture statistics remain unmodeled, not original ISP arithmetic. */
++    uint8_t report[16]={0};
++    for (unsigned n = 0; n < 4; n++) { stl_le_p(report + 4 * n, i->header_lengths[n]); }
++    return i->work_capacity>=0x110 &&
++        address_space_write(&address_space_memory,i->work_physical+0x100,
++            MEMTXATTRS_UNSPECIFIED,report,sizeof(report))==MEMTX_OK;
++}
++
++static void *w5p_encode_worker(void *opaque)
++{
++    W5pJob *job=opaque;W5pInstance *i=job->instance;
++    unsigned bpp=i->depth>8 ? 2 : 1;
++    uint8_t *planes[3]={job->input,job->input+(uint64_t)i->width*i->height*bpp,
++        job->input+(uint64_t)i->width*i->height*bpp*5/4};
++    bool valid=w5p_hevc_picture(i->codec,planes,job->strides,job->pts,job->encoded,&job->nal_type);
++    if (valid && job->native_end) {
++        /* Local C3.11 movie stop sends a final source with EOS/EOB bits.
++         * Append public Annex-B terminal NALs after its real picture. */
++        static const uint8_t hevc_end[]={0,0,0,1,0x48,1,0,0,0,1,0x4a,1};
++        static const uint8_t avc_end[]={0,0,0,1,0x0a,0,0,0,1,0x0b};
++        if (i->codec_mode==3) { g_byte_array_append(job->encoded,avc_end,sizeof(avc_end)); }
++        else { g_byte_array_append(job->encoded,hevc_end,sizeof(hevc_end)); }
++    }
++    qemu_mutex_lock(&job->owner->lock);
++    job->valid=valid;job->done=true;
++    qemu_mutex_unlock(&job->owner->lock);
++    return NULL;
++}
++
++static void w5p_tick(void *opaque)
++{
++    W5pState *w=opaque;W5pJob *job=w->job;
++    if (!job) { return; }
++    qemu_mutex_lock(&w->lock);bool done=job->done;qemu_mutex_unlock(&w->lock);
++    if (!done) { timer_mod(w->timer,qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL)+1000000);return; }
++    qemu_thread_join(&w->worker);w->worker_started=false;
++    W5pInstance *i=job->instance;
++    bool success=job->valid && job->encoded->len && job->encoded->len<=job->capacity &&
++        dma_ram_range(w->board,job->output,job->capacity) &&
++        address_space_write(&address_space_memory,job->output,MEMTXATTRS_UNSPECIFIED,
++                            job->encoded->data,job->encoded->len)==MEMTX_OK;
++    if (success && !w5p_report(w,i)) { success=false; }
++    if (success) {
++        i->bytes=job->encoded->len;i->output=job->output;i->nal_type=job->nal_type;
++        i->source_index=job->source_index;i->output_bus=job->output_bus;i->result=true;i->pictures++;
++        i->main_surface=job->main_surface;
++        if (job->native_end) { i->native_end_written=true; }
++        i->recon_index=(i->pictures-1)%2;i->complete_tick=w5p_virtual_tick();
++        if (i->ring) { i->ring_written+=i->bytes; }
++        w->input_bytes+=job->input_bytes;w->output_bytes+=i->bytes;w->input_crc=job->input_crc;
++        w->output_crc=crc32(0,job->encoded->data,job->encoded->len);
++        w->regs[W5P_REG(0x1e0)]=1;
++        w5p_complete(w,1U<<8);
++    } else {
++        /* An actual encoder error or overflow is a failed command, never a
++         * zero-byte successful picture. No partial guest output is written. */
++        w->regs[W5P_REG(0x108)]=0;w->regs[W5P_REG(0x10c)]=0x100;
++        w->regs[W5P_REG(0x70)]=0;w->busy=false;w->board->wave5_busy=false;
++        w->rejections++;
++    }
++    g_free(job->input);g_byte_array_unref(job->encoded);g_free(job);w->job=NULL;
++}
++
++static bool w5p_snapshot(W5pState *w,W5pInstance *i,W5pJob *job)
++{
++#ifndef W5P_UNIT_TEST
++    int source_result=w5p_yuv_snapshot(w,i,job);
++    if (source_result>=0) { return source_result!=0; }
++#endif
++    w->source_rejection="unsupported source format";
++    uint32_t format=w->regs[W5P_REG(0x158)];
++    unsigned packing=(format>>3)&3,justified=(format>>5)&1,layout=format&7;
++    unsigned endian=(format>>6)&15;
++    if (format&~0x3ffU || packing==3 || layout>3 || (endian!=0 && endian!=15 && endian!=12) ||
++        (i->depth==10 && packing==0) || (i->depth==8 && packing!=0)) { return false; }
++    unsigned sy=w->regs[W5P_REG(0x154)]>>16,sc=w->regs[W5P_REG(0x154)]&0xffff;
++    unsigned bpp=i->depth>8 ? 2 : 1;
++    bool interleaved=layout&2,nv21=layout&1;
++    uint64_t addresses[3],sizes[3];
++    unsigned rows[3]={i->height,i->height/2,i->height/2};
++    unsigned samples[3]={i->width,interleaved ? i->width : i->width/2,i->width/2};
++    unsigned strides[3]={sy,sc,sc};
++    bool main_mapping=false;
++    w->source_rejection="source stride, DMA span or output/work overlap";
++    for (unsigned p=0;p<(interleaved ? 2 : 3);p++) {
++        unsigned minrow=packing==2 ? (samples[p]+2)/3*4 : samples[p]*bpp;
++        sizes[p]=(uint64_t)strides[p]*rows[p];
++        uint64_t physical_size=sizes[p];
++        if (strides[p]<minrow || strides[p]>32768 || (endian==12 && (strides[p]&3)) ||
++            (!main_mapping && !w5p_address(w->board,w->regs[W5P_REG(0x148+p*4)],sizes[p],&addresses[p])) ||
++            !dma_ram_range(w->board,addresses[p],physical_size) ||
++            graphics_spans_overlap(addresses[p],physical_size,i->work_physical,i->work_capacity) ||
++            graphics_spans_overlap(addresses[p],physical_size,job->output,job->capacity)) { return false; }
++        for (unsigned q=0;q<p;q++) {
++            uint64_t other_size=sizes[q];
++            if (graphics_spans_overlap(addresses[p],physical_size,addresses[q],other_size)) {
++                w->source_rejection="source planes overlap";return false;
++            }
++        }
++    }
++    uint64_t total=(uint64_t)i->width*i->height*bpp*3/2;
++    if (total>128*MiB) { w->source_rejection="source exceeds copy bound";return false; }
++    job->input=g_malloc(total);job->input_bytes=total;
++    job->strides[0]=i->width*bpp;job->strides[1]=job->strides[2]=i->width/2*bpp;
++    uint64_t offsets[3]={0,(uint64_t)i->width*i->height*bpp,(uint64_t)i->width*i->height*bpp*5/4};
++    for (unsigned p=0;p<(interleaved ? 2 : 3);p++) {
++        g_autofree uint8_t *row=g_malloc(strides[p]);
++        g_autofree uint8_t *decoded=NULL;
++        w->source_rejection="compact source header, generation or payload integrity";
++        w->source_rejection="source RAM read failed";
++        for (unsigned y=0;y<rows[p];y++) {
++            if (decoded) { memcpy(row,decoded+(uint64_t)y*strides[p],strides[p]); }
++            else if (address_space_read(&address_space_memory,addresses[p]+(uint64_t)y*strides[p],
++                                  MEMTXATTRS_UNSPECIFIED,row,strides[p])!=MEMTX_OK) { return false; }
++            for (unsigned x=0;x<samples[p];x++) {
++                unsigned value;
++                /* Native SRC_FORMAT332 inverts VDI32-bit-big code3 to12.
++                 * Reverse byte lanes within each 32-bit storage word before
++                 * sample unpacking. Complete rows and padding remain intact;
++                 * another endian/layout still requires its own contract. */
++                if (!packing) { value=row[endian==12 ? (x^3u) : x]; }
++                else if (packing==1) {
++                    value=endian==12 ? lduw_be_p(row+((x*2)^2u)) : lduw_le_p(row+x*2);
++                    value=justified ? value>>6 : value&1023;
++                } else {
++                    uint32_t word=endian==12 ? ldl_be_p(row+(x/3)*4) : ldl_le_p(row+(x/3)*4);
++                    unsigned shift=justified ? 22-(x%3)*10 : (x%3)*10;
++                    value=(word>>shift)&1023;
++                }
++                unsigned dest=p,index=x;
++                if (interleaved && p==1) { dest=((x&1)^nv21) ? 2 : 1;index=x/2; }
++                uint8_t *out=job->input+offsets[dest]+(uint64_t)y*job->strides[dest]+index*bpp;
++                if (bpp==2) { stw_le_p(out,value); } else { *out=value; }
++            }
++        }
++    }
++    job->input_crc=crc32(0,job->input,total);
++    w->source_rejection=NULL;
++    return true;
++}
++
++static bool w5p_command(W5pState *w,unsigned command,bool core_start)
++{
++    uint32_t *r=w->regs;
++    fprintf(stderr,"Z8_W5P_COMMAND cmd=%x info=%x option=%x core=%u\n",command,r[0x110/4],r[0x104/4],core_start);
++    unsigned info=r[W5P_REG(0x110)],idx=info&0xffff;
++    if (w->external_reset_held) { return false; }
++    if (w->busy || (w->sleeping && command!=2)) { return false; }
++    if (w5p_bus_stopped(w) && command!=4) { return false; }
++    bool global=command==1 || command==2 || command==4 ||
++                (command==0x4000 && r[W5P_REG(0x104)]==0);
++    if (!global && idx>=W5P_INSTANCES) { return false; }
++    if (global) { idx=0; }
++    W5pInstance *i=&w->instance[idx];
++    if (!global && command!=8 && i->created && (info>>16)!=i->codec_mode) { return false; }
++    if (command==1) {
++        uint64_t code,temp;unsigned bytes=r[W5P_REG(0x114)],tmp=r[W5P_REG(0x120)];
++        w->boot_rejection=NULL;
++        if (!core_start || w->booted || !bytes || bytes>4*MiB || (bytes&4095)) {
++            w->boot_rejection="invalid core request or code size";return false;
++        }
++        if (!w5p_code_address(w,r[W5P_REG(0x110)],bytes,&code)) {
++            w->boot_rejection="unmapped original code address";return false;
++        }
++        if (!w5p_code_address(w,r[W5P_REG(0x11c)],tmp,&temp)) {
++            w->boot_rejection="unmapped original temporary address";return false;
++        }
++        if (graphics_spans_overlap(code,bytes,temp,tmp)) {
++            w->boot_rejection="code and temporary spans overlap";return false;
++        }
++        g_autofree uint8_t *program=g_malloc(bytes);
++        if (address_space_read(&address_space_memory,code,MEMTXATTRS_UNSPECIFIED,program,bytes)!=MEMTX_OK) { return false; }
++        bool nonzero=false;
++        for (unsigned n=0;n<bytes;n++) { nonzero|=program[n]!=0; }
++        if (!nonzero) { w->boot_rejection="supplied code is all zero";return false; }
++        w->boot_crc=crc32(0,program,bytes);w->boot_bytes=bytes;w->boot_physical=code;
++        if (!w->board->w5p_host_codec_diagnostic) {
++            /* The original driver has supplied code, but there is no vendor
++             * core decoder yet. Preserve its DMA evidence and refuse INIT;
++             * never substitute a host service PC or fabricate boot success. */
++            w->boot_rejection="original VPU instruction core unavailable";return false;
++        }
++        w->booted=true;
++        r[W5P_REG(4)]=4; /* functional service entry; not executed microcode PC */
++        w5p_complete(w,0);
++    } else if (!w->booted) { return false; }
++    else if (command==2) {
++        w->sleeping=false;w5p_complete(w,0);
++    }
++    else if (command==8) {
++        unsigned mode = info >> 16;
++        if (i->created || (mode != 1 && mode != 3)) { return false; }
++        bool ring=(r[W5P_REG(0x124)]&(1U<<9))!=0;
++        uint64_t physical=0,work=0;
++        unsigned ring_bus=r[W5P_REG(0x11c)],capacity=r[W5P_REG(0x120)];
++        unsigned work_bus=r[W5P_REG(0x114)],work_capacity=r[W5P_REG(0x118)];
++        if (work_capacity<0x110 || work_capacity>4*MiB ||
++            !w5p_address(w->board,work_bus,work_capacity,&work) ||
++            graphics_spans_overlap(work,work_capacity,w->boot_physical,w->boot_bytes)) { return false; }
++        /* Original ZR40e57cb8 supplies ring start/size during CREATE.
++         * Later SET_PARAM/SET_FB overwrite the command register window. */
++        if (ring && (!capacity || capacity>256*MiB ||
++            !w5p_address(w->board,ring_bus,capacity,&physical) ||
++            graphics_spans_overlap(physical,capacity,work,work_capacity))) { return false; }
++        i->work_physical=work;i->work_bus=work_bus;i->work_capacity=work_capacity;
++        i->ring=ring;i->ring_bus=ring_bus;i->ring_capacity=capacity;i->ring_physical=physical;
++        i->codec_mode=mode;i->created=true;w->instances++;w5p_complete(w,1U<<3);
++    } else if (command==0x200) {
++        if (!i->created || i->result || i->codec) { return false; }
++        if (r[W5P_REG(0x104)]==1) {
++            /* Counted custom GOP syntax retained. The functional profile
++             * uses low-delay IP references; reordering is not verified. */
++            if ((r[W5P_REG(0x11c)]&0xff)>8) { return false; }
++            w5p_complete(w,1U<<9);
++        } else if (r[W5P_REG(0x104)]==0) {
++            unsigned size=r[W5P_REG(0x11c)],depth=(r[W5P_REG(0x124)]>>14)&15;
++            unsigned width=size&0xffff,height=size>>16;
++            unsigned n=r[W5P_REG(0x178)],d=r[W5P_REG(0x174)];
++            unsigned crop[4]={r[W5P_REG(0x138)]&0xffff,r[W5P_REG(0x134)]&0xffff,
++                r[W5P_REG(0x138)]>>16,r[W5P_REG(0x134)]>>16};
++            if (!n || !d) { n=r[W5P_REG(0x150)];d=1; }
++            else if (i->codec_mode==3) {
++                if (d>500000) { return false; }
++                d*=2; /* AVC VUI: time_scale/(2*num_units_in_tick). */
++            }
++            if (!width || !height || width>8192 || height>8192 || (width|height)&1 || (depth!=8 && depth!=10) ||
++                !n || !d || n>1000000 || d>1000000 || r[W5P_REG(0x170)] ||
++                ((crop[0]|crop[1]|crop[2]|crop[3])&1) || crop[0]+crop[2]>=width ||
++                crop[1]+crop[3]>=height ||
++                (i->codec_mode!=3 && (r[W5P_REG(0x138)] || r[W5P_REG(0x134)]))) { return false; }
++            memcpy(i->crop,crop,sizeof(crop));
++            i->hevc_level=i->codec_mode==1 ? (r[W5P_REG(0x124)]>>3)&0x1ff : 0;
++            i->hevc_high_tier=i->codec_mode==1 && (r[W5P_REG(0x124)]&(1U<<12));
++            /* Public Wave5 INTRA_PARAM field layout. Native MOV indexing
++             * follows the configured intra period; a host default250 GOP
++             * cannot substitute for a requested15-frame GOP. */
++            unsigned intra=r[W5P_REG(0x130)];
++            i->keyframe_period=i->codec_mode==3 ? ((intra>>17)&0x7ff) : intra>>16;
++            if (i->codec_mode==3 && !i->keyframe_period) {
++                i->keyframe_period=(intra>>6)&0x7ff;
++            }
++            i->width=width;i->height=height;i->depth=depth;i->fps_n=n;i->fps_d=d;i->configured=true;
++            i->sequence_result=true;r[W5P_REG(0x1e0)]=1;
++            w5p_complete(w,1U<<9);
++        } else { return false; }
++    } else if (command==0x80) {
++        if (!i->configured || i->result) { return false; }
++        /* Retained framebuffer descriptors are management reservations;
++         * codec references live in x265, no fictitious FBC bytes are made. */
++        i->buffers=true;w5p_complete(w,0);
++    } else if (command==0x100) {
++        if (!i->configured || !i->buffers || i->result || w->pending) { return false; }
++        uint64_t output;unsigned output_bus=r[W5P_REG(0x118)];
++        unsigned capacity=r[W5P_REG(0x11c)];
++        if (i->ring) {
++            /* Until reader/wrap ownership is implemented, use only the
++             * remaining actual reservation; never overwrite unread bytes. */
++            if (i->ring_written>=i->ring_capacity) { return false; }
++            output_bus=i->ring_bus+i->ring_written;capacity=i->ring_capacity-i->ring_written;
++        }
++        if (!capacity || capacity>(i->ring ? 256 : 64)*MiB ||
++            !w5p_address(w->board,output_bus,capacity,&output) ||
++            graphics_spans_overlap(output,capacity,i->work_physical,i->work_capacity)) { return false; }
++        if (!i->codec) {
++            i->codec=w5p_video_open(i->codec_mode,i->width,i->height,i->depth,i->fps_n,i->fps_d,w->lossless,i->crop,i->keyframe_period,i->hevc_level,i->hevc_high_tier);
++            if (!i->codec) { return false; }
++        }
++        unsigned option=r[W5P_REG(0x164)],source=r[W5P_REG(0x144)];
++        /* Bit0 implicit headers, bit1 VCL; bit4 is PPS, not a picture.
++         * Native header-only40e59dac requests VPS/SPS/PPS/AUD with0x3c. */
++        bool headers=!(option&3);
++        bool drain=!headers && source==UINT32_MAX && i->native_end_written;
++        if (i->native_drained || (i->native_end_written && !drain)) { return false; }
++        i->submit_tick=w5p_virtual_tick();
++        i->report_requested=(r[W5P_REG(0x128)]&4)!=0;
++        memset(i->header_lengths, 0, sizeof(i->header_lengths));
++        if (headers || source==UINT32_MAX) {
++            GByteArray *payload=g_byte_array_new();
++            bool ok=true;
++            if (headers) { ok=w5p_hevc_headers(i->codec,payload,option,i->header_lengths); }
++            else if (!drain) {
++                static const uint8_t hevc_eos[]={0,0,0,1,0x48,1,0x80};
++                static const uint8_t avc_eos[]={0,0,0,1,0x0a,0x80};
++                if (i->codec_mode==3) { g_byte_array_append(payload,avc_eos,sizeof(avc_eos)); }
++                else { g_byte_array_append(payload,hevc_eos,sizeof(hevc_eos)); }
++            }
++            if (!ok || (!payload->len && !drain) || payload->len>capacity || !w5p_report(w,i) ||
++                (!drain && address_space_write(&address_space_memory,output,MEMTXATTRS_UNSPECIFIED,payload->data,payload->len)!=MEMTX_OK)) {
++                g_byte_array_unref(payload);return false;
++            }
++            if (drain) { i->native_drained=true; }
++            i->output=output;i->output_bus=output_bus;i->bytes=payload->len;i->source_index=UINT32_MAX;
++            i->nal_type=i->codec_mode==3 ? (headers ? 7 : 10) : (headers ? 32 : 36);i->result=true;
++            i->recon_index=headers ? -3 : -1;i->complete_tick=w5p_virtual_tick();
++            if (i->ring) { i->ring_written+=i->bytes; }
++            w->output_bytes+=payload->len;w->output_crc=crc32(0,payload->data,payload->len);
++            g_byte_array_unref(payload);r[W5P_REG(0x1e0)]=1;w5p_complete(w,1U<<8);
++        } else {
++            W5pJob *job=g_new0(W5pJob,1);job->owner=w;job->instance=i;
++            job->native_end=(option&0xc0)==0xc0;
++            job->source_index=source;job->pts=i->pictures;job->output=output;job->output_bus=output_bus;job->capacity=capacity;
++            job->encoded=g_byte_array_new();
++            if (!w5p_snapshot(w,i,job)) {
++                g_free(job->input);g_byte_array_unref(job->encoded);g_free(job);return false;
++            }
++            w->job=job;w->busy=true;w->board->wave5_busy=true;r[W5P_REG(0x70)]=1;
++            qemu_thread_create(&w->worker,"w5p-encode",w5p_encode_worker,job,QEMU_THREAD_JOINABLE);w->worker_started=true;
++            timer_mod(w->timer,qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL)+1000000);
++        }
++    } else if (command==0x4000) {
++        unsigned query=r[W5P_REG(0x104)];
++        if (query==0) {
++            r[W5P_REG(0x118)]=0x10000;r[W5P_REG(0x11c)]=0x574c3556;
++            r[W5P_REG(0x120)]=0x5210;r[W5P_REG(0x124)]=0;
++            r[W5P_REG(0x128)]=3; /* Public Wave5 convention: HEVC/AVC encoders. */
++            r[W5P_REG(0x12c)]=(1U<<3)|(1U<<11); /* Functional 10-bit HEVC/AVC. */
++            r[W5P_REG(0x130)]=0;r[W5P_REG(0x134)]=0;r[W5P_REG(0x140)]=0;
++        } else if (query==2) {
++            if (!i->created || (!i->sequence_result && !i->result)) { return false; }
++            /* Command acceptance (108) is independent of operation success
++             * (1dc). Native ZR40e5890c reads sequence requirements before
++             * allocating reference/task reservations. Never return stale
++             * SET_PARAM addresses as byte counts or a fake picture result. */
++            r[W5P_REG(0x1dc)]=1;
++            r[W5P_REG(0x1d4)]=0;r[W5P_REG(0x1d8)]=0;
++            r[W5P_REG(0x1e0)]=0;
++            if (i->sequence_result && !i->result) {
++                r[W5P_REG(0x11c)]=2;r[W5P_REG(0x120)]=2;
++                r[W5P_REG(0x16c)]=0;
++                /* Explicit virtual management reservations. The host codec
++                 * owns references; these are not measured VPU/FBC sizes. */
++                r[W5P_REG(0x1b0)]=4096;r[W5P_REG(0x1b4)]=4096;
++                i->sequence_result=false;
++                w5p_complete(w,0);
++                w->commands++;w->last_command=command;return true;
++            }
++            r[W5P_REG(0x114)]=i->output_bus;
++            r[W5P_REG(0x118)]=i->output_bus+i->bytes;
++            r[W5P_REG(0x11c)]=2;r[W5P_REG(0x120)]=2;
++            /* Key pictures can recur after the first frame. Report the
++             * actual encoded access unit, not the lifetime frame count. */
++            r[W5P_REG(0x124)]=i->codec_mode==3 ?
++                (i->nal_type==5 ? 0 : 1) :
++                (i->nal_type>=16 && i->nal_type<=23 ? 0 : 1);
++            r[W5P_REG(0x128)]=i->pictures ? i->pictures-1 : 0;
++            /* Native40e59c1c explicitly recognizes HEADER_ONLY=-3. A
++             * header has no reconstructed picture or consumed source. */
++            r[W5P_REG(0x12c)]=(uint32_t)i->recon_index;
++            r[W5P_REG(0x14c)]=i->result ? i->bytes : 0;
++            r[W5P_REG(0x154)]=i->result ? i->source_index : UINT32_MAX;
++            r[W5P_REG(0x158)]=i->pictures;
++            r[W5P_REG(0x130)]=1;r[W5P_REG(0x134)]=0;
++            r[W5P_REG(0x138)]=0;r[W5P_REG(0x13c)]=0;
++            r[W5P_REG(0x144)]=0;r[W5P_REG(0x148)]=0;
++            r[W5P_REG(0x150)]=i->pictures ? i->pictures-1 : 0;
++            r[W5P_REG(0x16c)]=0;r[W5P_REG(0x170)]=0;
++            r[W5P_REG(0x164)]=0;r[W5P_REG(0x168)]=0;
++            r[W5P_REG(0x18c)]=i->source_index<32 ? 1U<<i->source_index : 0;
++            r[W5P_REG(0x19c)]=0;
++            r[W5P_REG(0x1a8)]=i->report_requested ? i->work_bus : 0;
++            r[W5P_REG(0x1b8)]=i->submit_tick;
++            r[W5P_REG(0x1bc)]=r[W5P_REG(0x1c0)]=i->submit_tick;
++            r[W5P_REG(0x1c4)]=r[W5P_REG(0x1c8)]=i->submit_tick;
++            r[W5P_REG(0x1cc)]=i->submit_tick;r[W5P_REG(0x1d0)]=i->complete_tick;
++            r[W5P_REG(0x15c)]=i->nal_type;r[W5P_REG(0x1e0)]=0;
++            i->result=false;
++        } else if (query==6) { r[W5P_REG(0x114)]=i->ring ? i->ring_bus+i->ring_written : i->output_bus+i->bytes; }
++        else if (query==7) { r[W5P_REG(0x114)]=0; }
++        else { return false; }
++        w5p_complete(w,0);
++    } else if (command==0x20 || command==0x10) {
++        if (!i->created || i->result || w->pending) { return false; }
++        w5p_hevc_close(i->codec);i->codec=NULL;
++        if (command==0x20) { memset(i,0,sizeof(*i));w->instances--; }
++        w5p_complete(w,0);
++    } else if (command==4) {
++        if (w->pending) { return false; }
++        w->sleeping=true;w5p_complete(w,0);
++    } else { return false; }
++    w->commands++;w->last_command=command;return true;
++}
++
++/* The native movie power sequence asserts all seven bank8 bits16..22
++ * after destroying its codec, and releases them before the next INIT.
++ * Previously these writes only changed the bootstrap latch: CUR_PC stayed
++ * nonzero and the original VDI returned CALLED_BEFORE on a fresh session.
++ * Model the observed complete reset bundle, not an invented mapping of an
++ * individual bit to a physical subcore. Active DMA/results remain protected.
++ */
++static bool w5p_external_reset(NikonZ9State *s,hwaddr address,uint32_t value)
++{
++    const uint32_t bundle=0x007f0000;
++    W5pState *w=s->w5p;
++    if (!s->w5p_model || !(value&bundle)) { return true; }
++    bool release=address==0x0d154248;
++    if (!release && (w->busy || w->job || w->pending || w->instances)) {
++        w->rejections++;return false;
++    }
++    uint32_t held=release ? w->external_reset_held&~value :
++                           w->external_reset_held|(value&bundle);
++    if (held==bundle && w->external_reset_held!=bundle) {
++        memset(w->regs,0,sizeof(w->regs));
++        memset(w->fio_words,0,sizeof(w->fio_words));
++        w->fio_address=0;w->fio_data=0;
++        w->booted=false;w->sleeping=false;w->interrupt_mask=0;
++        w->boot_physical=0;w->boot_bytes=0;w->boot_crc=0;
++        w->external_resets++;w5p_irq_update(w);
++    }
++    fprintf(stderr,"Z8_W5P_RESET release=%u value=%x held=%x\n",release,value,held);
++    w->external_reset_held=held;
++    return true;
++}
++
++static bool w5p_access(NikonZ9State *s,hwaddr address,uint64_t *value,unsigned size,bool write)
++{
++    if (!s->w5p_model || address<W5P_BASE || address>=W5P_BASE+0x2000) { return false; }
++    W5pState *w=s->w5p;unsigned off=address-W5P_BASE;
++    if (size!=4 || (off&3) || (off>=0x200 && off!=0x1040 && off!=0x1044)) { goto rejected; }
++    unsigned word=off/4;
++    if (!write) {
++        *value=off==0x1044 ? 0x5210 : off==0x1040 ? 0x574c3556 : w->regs[word];w->reads++;return true;
++    }
++    if (off==0x1044 || off==0x1040 || off==4 || off==8) { goto rejected; }
++    if (w->busy && off!=0x34 && off!=0x3c && off!=0x48 && off!=0x20 && off!=0x24) { goto rejected; }
++    uint32_t v=*value;
++    if (off==0x34) { w->pending&=~v;w5p_irq_update(w); }
++    else if (off==0x3c) { if (v!=1) { goto rejected; }w5p_irq_update(w); }
++    else if (off==0x48) { w->interrupt_mask=v;w->regs[word]=v;w5p_irq_update(w); }
++    else if (off==0x50) {
++        if (w->pending || (v&~0x3fffffffU)) { goto rejected; }
++        for (unsigned i=0;i<W5P_INSTANCES;i++) {
++            if (w->instance[i].result) { goto rejected; }
++        }
++        if (v) {
++            for (unsigned i=0;i<W5P_INSTANCES;i++) { w5p_hevc_close(w->instance[i].codec);memset(&w->instance[i],0,sizeof(w->instance[i])); }
++            memset(w->regs,0,sizeof(w->regs));w->booted=false;w->sleeping=false;w->instances=0;w->resets++;
++            w->interrupt_mask=0;w->pending=0;w5p_irq_update(w);
++        }
++        w->regs[word]=v;w->regs[W5P_REG(0x54)]=0;
++    } else if (off==0x100) { w->regs[word]=v; }
++    else if (off==0x6c || off==0x38) {
++        if (v!=1 || !w->regs[W5P_REG(0x70)] ||
++            !w5p_command(w,w->regs[W5P_REG(0x100)],off==0x6c)) { goto rejected; }
++    } else if (off==0x20) {
++        if (!w5p_fio(w,v)) { goto rejected; }
++    } else if (off==0x70) { if (v>1) { goto rejected; }w->regs[word]=v; }
++    else if (off==0 || off==0x58 || off==0x5c || off==0x60 || off==0x64 || off==0x68 || off==0x24 || (off>=0x104 && off<0x200)) { w->regs[word]=v; }
++    else { goto rejected; }
++    w->writes++;return true;
++rejected:
++    w->rejections++;
++    fprintf(stderr,"Z8_W5P_REJECT off=%x write=%u value=%" PRIx64 " busy=%u boot=%u; no completion\n",off,write,*value,w->busy,w->booted);
++    if (!write) { *value=0; }
++    if (!w->busy) {
++        w->regs[W5P_REG(0x70)]=0;
++        w->regs[W5P_REG(0x108)]=0;
++        w->regs[W5P_REG(0x10c)]=0x100;
++    }
++    return true;
++}
++
++#ifndef W5P_UNIT_TEST
++static bool get_w5p_model(Object *obj,Error **errp) { return NIKON_Z9_LAB(obj)->w5p_model; }
++static void set_w5p_model(Object *obj,bool value,Error **errp)
++{
++    NikonZ9State *s=NIKON_Z9_LAB(obj);
++    if (s->wave5_realized) { error_setg(errp,"Choose Wave5 upstream model before realization");return; }
++    if (value && !s->w5p) {
++        s->w5p=g_new0(W5pState,1);s->w5p->board=s;
++        s->w5p->external_reset_held=0x7f0000;
++        qemu_mutex_init(&s->w5p->lock);
++        s->w5p->timer=timer_new_ns(QEMU_CLOCK_VIRTUAL,w5p_tick,s->w5p);
++    }
++    s->w5p_model=value;
++    s->w5p_host_codec_diagnostic=value;
++    s->w5p_irq_number=120;
++}
++static char *get_w5p_state(Object *obj,Error **errp)
++{
++    NikonZ9State *s=NIKON_Z9_LAB(obj);W5pState *w=s->w5p;
++    if (!w) { return g_strdup("{\"enabled\":false}"); }
++    GString *j=g_string_new(NULL);
++    g_string_append_printf(j,"{\"external_reset_held\":%u,\"external_resets\":%" PRIu64 ",",
++        w->external_reset_held,w->external_resets);
++    g_string_append_printf(j,"\"enabled\":%s,\"virtual_product\":%u,\"booted\":%s,\"busy\":%s,\"pending\":%u,"
++        "\"writes\":%" PRIu64 ",\"reads\":%" PRIu64 ",\"commands\":%" PRIu64 ",\"completions\":%" PRIu64 ","
++        "\"rejects\":%" PRIu64 ",\"boot_bytes\":%" PRIu64 ",\"boot_crc\":%u,\"input_bytes\":%" PRIu64 ","
++        "\"output_bytes\":%" PRIu64 ",\"input_crc\":%u,\"output_crc\":%u,"
++        "\"irq_number\":%u,\"interrupt_mask\":%u,\"irq_asserted\":%s,\"last_command\":%u,\"instances\":[",
++        s->w5p_model ? "true" : "false",0x5210,w->booted ? "true" : "false",w->busy ? "true" : "false",w->pending,
++        w->writes,w->reads,w->commands,w->completions,w->rejections,w->boot_bytes,w->boot_crc,w->input_bytes,w->output_bytes,w->input_crc,w->output_crc,
++        s->w5p_irq_number,w->interrupt_mask,(w->pending&w->interrupt_mask) ? "true" : "false",w->last_command);
++    for (unsigned n=0;n<W5P_INSTANCES;n++) {
++        W5pInstance *i=&w->instance[n];
++        g_string_append_printf(j,"%s{\"created\":%s,\"configured\":%s,\"width\":%u,\"height\":%u,\"depth\":%u,\"pictures\":%" PRIu64 ",\"result\":%s,\"bytes\":%u,"
++            "\"ring\":%s,\"ring_bus\":%u,\"ring_capacity\":%u,\"ring_written\":%u,"
++            "\"codec_mode\":%u,\"display_width\":%u,\"display_height\":%u,\"crop\":[%u,%u,%u,%u],\"fps_n\":%u,\"fps_d\":%u,\"keyframe_period\":%u,\"hevc_level\":%u,\"hevc_high_tier\":%s}",
++            n ? "," : "",i->created ? "true" : "false",i->configured ? "true" : "false",i->width,i->height,i->depth,i->pictures,i->result ? "true" : "false",i->bytes,
++            i->ring ? "true" : "false",i->ring_bus,i->ring_capacity,i->ring_written,
++            i->codec_mode,i->width-i->crop[0]-i->crop[2],i->height-i->crop[1]-i->crop[3],
++            i->crop[0],i->crop[1],i->crop[2],i->crop[3],i->fps_n,i->fps_d,i->keyframe_period,i->hevc_level,i->hevc_high_tier ? "true" : "false");
++    }
++    g_string_append(j,"],\"fio_configuration\":{");
++    for (unsigned n=0;n<G_N_ELEMENTS(w5p_fio_offsets);n++) {
++        g_string_append_printf(j,"%s\"0x%x\":%u",n ? "," : "",w5p_fio_offsets[n],w->fio_words[n]);
++    }
++    g_string_append(j,"},\"command_registers\":{");
++    for (unsigned n=0x100;n<0x200;n+=4) {
++        g_string_append_printf(j,"%s\"0x%x\":%u",n==0x100 ? "" : ",",n,w->regs[n/4]);
++    }
++    g_string_append_printf(j,"},\"source_rejection\":\"%s\",\"boot_rejection\":\"%s\",\"original_execution_required\":%s,\"diagnostic_host_codec\":%s,\"boot_physical\":%" PRIu64 ","
++        "\"physical_identity_verified\":false,\"vendor_microcode_executed\":false,"
++        "\"scope\":\"virtual VDI control; original code DMA evidence; explicitly optional diagnostic host codec\"}",
++        w->source_rejection ? w->source_rejection : "",w->boot_rejection ? w->boot_rejection : "",s->w5p_host_codec_diagnostic ? "false" : "true",
++        s->w5p_host_codec_diagnostic ? "true" : "false",w->boot_physical);
++    return g_string_free(j,false);
++}
++
++
++#endif
++
++#ifndef W5P_UNIT_TEST
++static bool w5p_reset_access(NikonZ9State *s,hwaddr addr,uint64_t value,unsigned size)
++{
++    if (!s->w5p_model || (addr!=0x0d154348 && addr!=0x0d154248) || !(value&0x7f0000)) { return false; }
++    if (size!=4 || value&~UINT64_C(0x7f0000) || !w5p_external_reset(s,addr,value)) {
++        s->w5p->rejections++;
++        s->w5p->regs[0x108/4]=0;s->w5p->regs[0x10c/4]=0x100;
++        return true;
++    }
++    if (addr==0x0d154248) { s->peripheral_release8|=value; }
++    else { s->peripheral_release8&=~value; }
++    return true;
++}
++static void w5p_finalize(NikonZ9State *s)
++{
++    W5pState *w=s->w5p;if (!w) { return; }
++    timer_del(w->timer);
++    if (w->worker_started) { qemu_thread_join(&w->worker); }
++    if (w->job) { g_free(w->job->input);g_byte_array_unref(w->job->encoded);g_free(w->job); }
++    for (unsigned n=0;n<W5P_INSTANCES;n++) { w5p_hevc_close(w->instance[n].codec); }
++    timer_free(w->timer);qemu_mutex_destroy(&w->lock);g_free(w);s->w5p=NULL;
++}
++#endif
+diff --git a/hw/arm/nikon-z9-d980.h b/hw/arm/nikon-z9-d980.h
+--- a/hw/arm/nikon-z9-d980.h
++++ b/hw/arm/nikon-z9-d980.h
+@@ -55,11 +55,10 @@
+     return raw_pipeline_address(s, *encoded, (uint64_t)*stride * *height, physical);
+ }
+ 
+-static bool primary_d980_ready(NikonZ9State *s)
++static bool primary_d980_descriptor_ready(NikonZ9State *s,const uint32_t *c)
+ {
+     unsigned w, h, pitch;
+     uint64_t encoded, physical;
+-    const uint32_t *c = s->primary_d980_latched;
+     if (!primary_d980_description(s, c, 0, &w, &h, &pitch, &encoded, &physical)) {
+         return false;
+     }
+@@ -73,6 +72,9 @@
+     }
+     return true;
+ }
++
++static bool primary_d980_ready(NikonZ9State *s)
++{ return primary_d980_descriptor_ready(s,s->primary_d980_latched); }
+ 
+ static uint8_t *primary_d980_pack12(const NikonRawPixels *p,
+                                   unsigned width, unsigned height, unsigned stride)
+@@ -195,10 +197,12 @@
+         return false;
+     }
+     s->primary_d980_frames++;
++    s->primary_d980_completed_submit=s->primary_d980_submits;
+     s->primary_d980_bytes += bytes;
+     s->primary_d980_last_encoded = encoded;
+     s->primary_d980_last_physical = physical;
+     producer_journal_finish(s, &journal_token, true);
++    engine153_deferred_try(s);
+     if (s->sensor_tag_model) {
+         g_free(s->sensor_tag_sha256);
+         s->sensor_tag_sha256 = g_compute_checksum_for_data(G_CHECKSUM_SHA256,
+@@ -217,8 +221,58 @@
+     return true;
+ }
+ 
++/* z8-qemu 0478736 fresh-submission rearm, adapted from HE to the
++ * locally accepted ordinary 153 -> 151 queue. A newer descriptor plus an
++ * exact waiting consumer owns this input. Merely ticking cannot replay it.
++ * Reinitialize only a masked old done status, as upstream does; DMA and
++ * publication still run through primary_d980_receive and the RAM journal. */
++static bool primary_d980_capture_rearm(NikonZ9State *s)
++{
++    if (!s->engine153_alternate_bank_model || !s->primary_d980_stream_model ||
++        !s->primary_d980_completed_submit ||
++        s->primary_d980_submits<=s->primary_d980_completed_submit ||
++        !s->primary_d980_frames || s->engine151_capture_consumed_frame!=s->primary_d980_frames ||
++        s->primary_reset_stage || s->primary_video_active || s->primary_d980_single_armed ||
++        !(s->engine150c_active&0x4000) || (s->engine_150c_init[0x18/4]&0x4000) ||
++        s->engine150c_stop_requested || s->engine150c_stop_reset_asserted ||
++        s->primary_d980_pending!=0x4000000u ||
++        (s->primary_d980_pending&s->engine_150c_init[0x20c/4]) ||
++        s->engine153_pending[0] || s->engine153_pending[1] ||
++        s->primary_d980_input_epoch==UINT64_MAX ||
++        !primary_d980_descriptor_ready(s,s->primary_d980_submitted)) { return false; }
++    /* The queued thumbnail count is submitted after the preceding main
++     * JPEG has left its bank. Preserve that native ordering: an NR request
++     * alone must not overwrite a 151 source awaiting its main encode. */
++    bool jpeg_wait=false;
++    for (unsigned b=0;b<2;b++) {
++        const Z8JpegRequest *q=&s->jpeg_request[b];
++        if (!s->engine15e2_jpeg_requested[b]) { continue; }
++        if (!q->producer_wait || s->engine15e2_deferred_failed[b] ||
++            q->parent_151_job!=s->engine151_capture_jobs+1 || q->frame!=s->primary_d980_frames) { return false; }
++        jpeg_wait=true;
++    }
++    if (!jpeg_wait) { return false; }
++    int selected=-1;
++    for (unsigned b=0;b<2;b++) {
++        const uint32_t *c=s->engine153_config[b];
++        uint64_t source=c[0xb4/4]|((uint64_t)c[0xb0/4]<<32);
++        if (!s->engine153_waiting[b] || s->engine153_wait_failed[b] ||
++            s->engine153_wait_after[b]!=s->primary_d980_frames ||
++            !engine153_future_source(s,source)) { continue; }
++        if (selected>=0) { return false; } selected=b;
++    }
++    if (selected<0) { return false; }
++    memcpy(s->primary_d980_latched,s->primary_d980_submitted,sizeof(s->primary_d980_latched));
++    s->primary_d980_slot=0;s->primary_d980_pending=0;
++    s->primary_d980_input_epoch++;s->primary_d980_capture_rearms++;
++    fprintf(stderr,"Z9_D980_CAPTURE_REARM submit=%" PRIu64 " after_frame=%" PRIu64 " bank=%d; no DMA/completion\n",
++        s->primary_d980_submits,s->primary_d980_frames,selected);
++    return true;
++}
++
+ static void primary_d980_tick(NikonZ9State *s)
+ {
++    primary_d980_capture_rearm(s);
+     primary_d980_receive(s, false);
+ }
+ 
+diff --git a/hw/arm/nikon-z9-lab.c b/hw/arm/nikon-z9-lab.c
+--- a/hw/arm/nikon-z9-lab.c
++++ b/hw/arm/nikon-z9-lab.c
+@@ -369,6 +369,9 @@
+     bool primary_video_aggregate; /* A strictly admitted150c ff00 video job. */
+     bool z8_video_data_model;
+     struct Z8VideoData *z8_video_data;
++    struct W5pState *w5p;
++    bool w5p_model, w5p_host_codec_diagnostic;
++    uint32_t w5p_irq_number;
+     struct WlWave5State *wave5;
+     bool wave5_z8_session_reset_model;
+     bool wave5_model, wave5_busy, wave5_lossless_requested, wave5_realized, wave5_host_codec_diagnostic;
+@@ -416,7 +419,7 @@
+     uint32_t engine1548_direct_ratio[2][4];
+     uint32_t engine1548_direct_pair[2];
+     uint32_t engine1548_direct_control[2];
+-    uint32_t engine1548_requested_bank[2];
++    uint32_t engine1548_requested_bank[2], engine1548_active_bank[2];
+     uint32_t engine1548_layer_fields[2][2][0x294 / 4];
+     uint32_t engine1548_ratio_fields[2][2][6];
+     uint32_t engine1548_small_triplets[2][18];
+@@ -457,6 +460,9 @@
+     uint32_t engine151_green_means[2];
+     uint64_t engine151_green_samples, engine151_capture_cancels;
+     bool engine151_capture_pixels_model, engine151_capture_pending;
++    bool engine151_capture_waiting, engine151_capture_wait_failed;
++    unsigned engine151_capture_wait_bank;
++    uint64_t engine151_capture_wait_after;
+     uint64_t engine151_capture_jobs, engine151_capture_bytes, engine151_capture_acks;
+     uint64_t engine151_capture_consumed_frame, engine151_capture_source;
+     unsigned engine151_capture_source_kind;
+@@ -647,6 +653,35 @@
+     bool engine153_frame_pass_model;
+     qemu_irq engine153_irq[2];
+     uint32_t engine153_pending[2];
++    uint64_t z8_graphics_decode_epoch;
++    unsigned z8_graphics_decode_core;
++    bool z8_jdec_on;                       /* z8-jpeg-decode */
++    bool z8_jdec_active[2], z8_jdec_start[2], z8_jdec_go[2];
++    unsigned z8_jdec_phase[2];             /* 0 idle, 1 at the header, 2 done */
++    uint32_t z8_jdec_pending[2], z8_jdec_core[2], z8_jdec_hold[2];
++    uint64_t z8_jdec_jobs, z8_jdec_errors;
++    bool z8_jdec_output_valid[2], z8_playback_requested, z8_playback_active;
++    bool z8_playback_output_valid;
++    uint8_t *z8_playback_pixels;
++    uint64_t z8_jdec_y[2], z8_jdec_uv[2], z8_jdec_output_epoch[2];
++    uint64_t z8_playback_decode_epoch;
++    unsigned z8_playback_decode_core;
++    uint32_t z8_jdec_width[2], z8_jdec_height[2];
++    uint32_t z8_jdec_yp[2], z8_jdec_cp[2], z8_jdec_format[2];
++    uint32_t z8_playback_input[0x100 / 4], z8_playback_output[0x100 / 4];
++    uint32_t z8_playback_geometry[0x100 / 4];
++    uint64_t z8_playback_requests, z8_playback_jobs, z8_playback_bytes;
++    unsigned z8_playback_outputs_armed;
++
++    bool z8_e_armed;
++    uint32_t raw_histogram[3][256];
++    uint64_t raw_histogram_samples, raw_histogram_frames;
++    unsigned raw_histogram_source;
++    bool raw_histogram_luma;
++    bool engine153_alternate_bank_model;
++    bool engine153_waiting[2], engine153_wait_failed[2];
++    uint8_t engine153_reset_stage[2], engine153_wait_descriptor[2][0x7c0];
++    uint64_t engine153_wait_after[2];
+     uint64_t engine153_jobs[2], engine153_bytes[2], engine153_acks[2];
+     uint64_t engine153_consumed_dma_frame[2], engine153_last_source[2], engine153_last_target[2];
+     bool z8_hsfc1538_identity_model, z8_hsfc1534_identity_model;
+@@ -763,6 +798,7 @@
+     bool primary_d980_model;
+     uint32_t primary_d980_submitted[28], primary_d980_valid;
+     uint64_t primary_d980_writes, primary_d980_submits;
++    uint64_t primary_d980_completed_submit, primary_d980_capture_rearms;
+     bool primary19d_config_model;
+     uint32_t primary19d_config_words[61];
+     uint64_t primary19d_config_valid, primary19d_config_writes;
+@@ -1998,10 +2034,11 @@
+     if (g->config48[0x200] == 0) {
+         return true;
+     }
+-    if (g->config48[0x200] != 15 || !g->color_matrix_valid || !g->color_offset_valid) {
++    if ((g->config48[0x200] != 15 && g->config48[0x200] != 8) ||
++        (g->config48[0x200] == 15 && (!g->color_matrix_valid || !g->color_offset_valid))) {
+         return false;
+     }
+-    for (unsigned bank = 0; bank < 6; bank++) {
++    for (unsigned bank = g->config48[0x200] == 8 ? 3 : 0; bank < 6; bank++) {
+         for (unsigned i = 0; i < (bank < 3 ? 256 : 32); i++) {
+             if (!g->color_written[bank][i]) {
+                 return false;
+@@ -2017,7 +2054,7 @@
+      * matrix, piecewise output LUT. The knots come from the ROM identity
+      * table at 41ed9584. Stage ordering, interpolation/rounding and flag8's
+      * association with this grid remain model assumptions, not GPU traces.
+-     * Only the observed all-stages mode (15) with zero offsets is supported.
++     * Mode 15 uses all stages; playback mode 8 uses the output tables alone.
+      * The separate ROM sRGB and pure-power tables preclude adding an implicit
+      * sRGB affine correction to every output table. Alpha is preserved. */
+     static const unsigned knots[33] = {
+@@ -2030,10 +2067,12 @@
+         return;
+     }
+     for (unsigned c = 0; c < 3; c++) {
+-        double v = 0;
+-        for (unsigned k = 0; k < 3; k++) {
+-            v += sextract32(g->config48[0x201 + c * 3 + k], 0, 12) *
+-                 (double)g->color_tables[k][in[k]] / 1024.0;
++        double v = g->config48[0x200] == 8 ? in[c] * 16.0 : 0;
++        if (g->config48[0x200] == 15) {
++            for (unsigned k = 0; k < 3; k++) {
++                v += sextract32(g->config48[0x201 + c * 3 + k], 0, 12) *
++                     (double)g->color_tables[k][in[k]] / 1024.0;
++            }
+         }
+         v = MIN(4096.0, MAX(0.0, v));
+         unsigned segment = 0;
+@@ -2082,7 +2121,7 @@
+     case 0x482: case 0x4d2: case 0x485: case 0x4d5: case 0x730:
+     case 0x731: case 0x740: case 0x741: case 0x742: case 0x743:
+         return value == 0;
+-    case 0x200: return value == 0 || value == 15;
++    case 0x200: return value == 0 || value == 8 || value == 15;
+     default: return false;
+     }
+ }
+@@ -2365,6 +2404,47 @@
+     return true;
+ }
+ 
++/* Local Z8 JPEG playback adapter. Upstream HEAD accepts only zero at
++ * op48/reg4b8; this observed nonzero value is the decoder's NV16 UV plane.
++ * Parameter staging never completes a draw. Bind both mapped planes to one
++ * actual decoder epoch; final format, geometry and DMA checks follow at draw. */
++static bool graphics_jpeg_uv(NikonZ9State *s, uint32_t value)
++{
++    Z9Graphics *g=&s->graphics;
++    uint64_t y,uv;
++    if (!s->z8_jdec_on || !g->image_pending || !value ||
++        !graphics_dma_address(s,g->config48[0x4b2],1,&y) ||
++        !graphics_dma_address(s,value,1,&uv)) { return false; }
++    int selected=-1;
++    for (unsigned b=0;b<2;b++) {
++        if (!s->z8_jdec_output_valid[b] || !s->z8_jdec_output_epoch[b] ||
++            s->z8_jdec_format[b]!=1 || s->z8_jdec_y[b]!=y || s->z8_jdec_uv[b]!=uv) { continue; }
++        if (selected>=0) { return false; } selected=b;
++    }
++    if (selected<0) { return false; }
++    s->z8_graphics_decode_core=selected;
++    s->z8_graphics_decode_epoch=s->z8_jdec_output_epoch[selected];return true;
++}
++
++static bool graphics_jpeg_source(NikonZ9State *s,unsigned width,unsigned height,
++                                 uint64_t y,uint64_t *uv,uint64_t *bytes)
++{
++    Z9Graphics *g=&s->graphics;
++    unsigned b=s->z8_graphics_decode_core,pitch=g->config48[0x4b3]&0xffff;
++    *bytes=(uint64_t)pitch*height;
++    if (!s->z8_jdec_on || b>=2 || !s->z8_graphics_decode_epoch ||
++        !s->z8_jdec_output_valid[b] || s->z8_jdec_format[b]!=1 ||
++        s->z8_jdec_output_epoch[b]!=s->z8_graphics_decode_epoch ||
++        s->z8_jdec_y[b]!=y || s->z8_jdec_width[b]!=width || s->z8_jdec_height[b]!=height ||
++        s->z8_jdec_yp[b]!=pitch || s->z8_jdec_cp[b]!=pitch ||
++        g->config48[0x4c3] || (g->config48[0x4b3]>>16)!=height ||
++        (width&1) || !width || !height || pitch<width || *bytes>64*MiB ||
++        !graphics_dma_address(s,g->config48[0x4b8],*bytes,uv) ||
++        s->z8_jdec_uv[b]!=*uv || graphics_spans_overlap(y,*bytes,*uv,*bytes) ||
++        !g->yuv_inverse_valid || g->config48[0x900]!=0x4e4e0002) { return false; }
++    return true;
++}
++
+ static bool graphics_render_image(NikonZ9State *s)
+ {
+     /* Opt-in functional implementation, not a reconstruction of the GV380T
+@@ -2376,13 +2456,14 @@
+     static const uint32_t over_coeff[8] = {0, 0x81100, 0, 0x81100, 0, 0x81100, 1, 0x80100};
+     bool over = !memcmp(&g->config48[0x780], over_coeff, sizeof(over_coeff));
+     bool a8 = g->config48[0x4b4] == 0x21;
++    bool nv16 = g->config48[0x4b4] == 0x71;
+     bool planar = (g->config48[0x21] & 0xffff) == 0x71;
+     bool yuva = planar || (g->config48[0x21] & 0xffff) == 0x72;
+-    bool stencil = a8 && g->config48[0x610] == 0x39 && g->config48[0x611] == 2 &&
++    bool stencil = g->config48[0x610] == 0x39 && g->config48[0x611] == 2 &&
+                    g->config48[0x630] == 0 && g->config48[0x650] == 0;
+     bool normal = g->config48[0x610] == 0 && g->config48[0x611] == 0 &&
+                   g->config48[0x630] == (a8 ? 3 : 0) && g->config48[0x650] == (a8 ? 2 : 0);
+-    unsigned source_bpp = a8 ? 1 : 4;
++    unsigned source_bpp = (a8 || nv16) ? 1 : 4;
+     unsigned width = graphics_float(g->image_geometry[0]);
+     unsigned height = graphics_float(g->image_geometry[1]);
+     unsigned source_x = g->config48[0x4c3] >> 16;
+@@ -2425,10 +2506,10 @@
+         g->config48[0x620] != 0 || g->config48[0x640] != 0 ||
+         m[6] != 0 || m[7] != 0 || m[8] != 1 || fabs(determinant) < 1e-8 ||
+         (!over && memcmp(&g->config48[0x780], src_coeff, sizeof(src_coeff))) ||
+-        (!a8 && g->config48[0x4b4] != 3) || (!yuva && (g->config48[0x21] & 0xffff) != 3) ||
++        (!a8 && !nv16 && g->config48[0x4b4] != 3) || (!yuva && (g->config48[0x21] & 0xffff) != 3) ||
+         g->config48[0x23] != g->config48[0x21] || g->config48[0x20] != g->config48[0x22] ||
+         g->config48[0x4c0] != 0x101 || g->config48[0x4c2] != 1 ||
+-        g->config48[0x350] != 0 || g->config48[0x4b8] != 0 ||
++        g->config48[0x350] != 0 || (!nv16 && g->config48[0x4b8] != 0) ||
+         g->config48[0x4c4] != ((source_x + width - 1) << 16 | (source_y + height - 1)) ||
+         g->config47[0x72] != width || g->config47[0x73] != height ||
+         g->config47[0xdf] != 1 || x0 > x1 || y0 > y1 ||
+@@ -2441,6 +2522,12 @@
+          graphics_spans_overlap(src, src_bytes, dst, dst_bytes)))) {
+         return false;
+     }
++    uint64_t uv=0,plane=0;
++    if (nv16 && (stencil || yuva ||
++        !graphics_jpeg_source(s,width,height,src,&uv,&plane) ||
++        !dma_ram_range(s,src,plane) || graphics_spans_overlap(src,plane,dst,dst_bytes) ||
++        graphics_spans_overlap(uv,plane,dst,dst_bytes) ||
++        !nb_writable(&s->output_owner,(NBSpan){dst,dst_bytes}))) { return false; }
+     uint8_t paint[4] = {255, 255, 255, 255};
+     if (stencil) {
+         uint32_t packed = g->config47[0xc1];
+@@ -2458,7 +2545,24 @@
+     if (!source) {
+         return false;
+     }
+-    cpu_physical_memory_read(src, source, src_bytes);
++    if (address_space_read(&address_space_memory,src,MEMTXATTRS_UNSPECIFIED,source,src_bytes)!=MEMTX_OK) { return false; }
++    if (nv16) {
++        g_autofree uint8_t *chroma=g_try_malloc(plane);
++        uint8_t *rgba=g_try_malloc((uint64_t)width*height*4);
++        if (!chroma || !rgba) { g_free(rgba);return false; }
++        if (address_space_read(&address_space_memory,uv,MEMTXATTRS_UNSPECIFIED,chroma,plane)!=MEMTX_OK) {
++            g_free(rgba);return false;
++        }
++        const uint8_t opaque[2]={255,255};
++        for (unsigned y=0;y<height;y++) {
++            for (unsigned x=0;x<width;x+=2) {
++                size_t at=(size_t)y*src_stride+x;
++                uint8_t packed[4]={source[at],source[at+1],chroma[at],chroma[at+1]};
++                graphics_yuv_decode(g,packed,opaque,(uint8_t (*)[4])(rgba+((size_t)y*width+x)*4));
++            }
++        }
++        g_free(source);source=rgba;src_offset=0;src_stride=width*4;
++    }
+     Z9ImageInput input = {
+         /* 402129d0 emits child origin/end from image+10/+14 and parent
+          * pitch/height from its texture. Geometry remains child-relative;
+@@ -2505,7 +2609,7 @@
+             " blend=%s color=%x source_format=%s mode=%s target_format=%s filter=%u"
+             " matrix=%g,%g,%g,%g,%g,%g clip=%u,%u,%u,%u source_stride=%u; functional affine image model, no measured timing\n",
+             g->image_jobs, src, dst, width, height, pixels, over ? "SRC_OVER" : "SRC",
+-            g->config48[0x200], a8 ? "A8" : "RGBA8888", stencil ? "STENCIL" : "NORMAL",
++            g->config48[0x200], nv16 ? "NV16" : a8 ? "A8" : "RGBA8888", stencil ? "STENCIL" : "NORMAL",
+             planar ? "Y+UV" : yuva ? "YYUV+A" : "RGBA8888", input.filter,
+             m[0], m[1], m[2], m[3], m[4], m[5], x0, y0, x1, y1, src_stride);
+     return true;
+@@ -3031,6 +3135,91 @@
+     return true;
+ }
+ 
++static bool graphics_black_path_yuva(NikonZ9State *s, const uint8_t *mask,
++                                    unsigned pitch, unsigned height,
++                                    unsigned samples, bool over, unsigned source_alpha,
++                                    uint64_t *target)
++{
++    if (!source_alpha) {
++        return graphics_zero_path_yuva(s, mask, pitch, height, samples, over, target);
++    }
++    Z9Graphics *g = &s->graphics;
++    bool planar = (g->config48[0x21] & 0xffff) == 0x71;
++    unsigned bpp = planar ? 1 : 2;
++    uint64_t cb = UINT64_MAX, ce = 0, ab = UINT64_MAX, ae = 0, color, alpha;
++    /* Reuse image conversion and its pair/alpha ownership. This does not
++     * interpret another paint mode or implement a proprietary shader. */
++    if ((pitch & 1) || !g->yuv_forward_valid || !g->yuv_inverse_valid ||
++        g->config48[0x900] != 0x4e4e0002 || g->config48[0x2a] != g->config48[0x2b] ||
++        g->config48[0x912] || g->config48[0x919] ||
++        g->config48[0x911] != g->config48[0x914] || g->config48[0x911] != g->config48[0x917]) {
++        return false;
++    }
++    for (unsigned y = 0; y < height; y++) {
++        for (unsigned x = 0; x < pitch; x += 2) {
++            uint64_t at = (uint64_t)y * pitch + x;
++            if (mask[at] || mask[at + 1]) {
++                cb = MIN(cb, at * bpp); ce = MAX(ce, (at + 2) * bpp);
++                ab = MIN(ab, at); ae = MAX(ae, at + 2);
++            }
++        }
++    }
++    if (ce > 64 * MiB || ae > 32 * MiB ||
++        !graphics_dma_address(s, g->config48[0x20], MAX(ce, 2 * bpp), &color) ||
++        !graphics_dma_address(s, g->config48[0x2a], MAX(ae, 2), &alpha) ||
++        (ce && graphics_spans_overlap(color + cb, ce - cb, alpha + ab, ae - ab))) {
++        return false;
++    }
++    *target = color;
++    if (!ce) { return true; }
++    g_autofree uint8_t *colors = g_try_malloc(ce);
++    g_autofree uint8_t *alphas = g_try_malloc(ae);
++    if (!colors || !alphas) { return false; }
++    cpu_physical_memory_read(color, colors, ce);
++    cpu_physical_memory_read(alpha, alphas, ae);
++    for (unsigned y = 0; y < height; y++) {
++        unsigned first = pitch, last = 0;
++        for (unsigned x = 0; x < pitch; x += 2) {
++            uint64_t at = (uint64_t)y * pitch + x;
++            if (!mask[at] && !mask[at + 1]) { continue; }
++            first = MIN(first, x); last = x + 2;
++            uint8_t *pair = colors + at * bpp, *aa = alphas + at;
++            uint8_t rgba[2][4], packed[4];
++            const uint8_t opaque[2] = {255, 255};
++            uint8_t yyuv[4] = {pair[0], pair[1], planar ? aa[0] : pair[2],
++                              planar ? aa[1] : pair[3]};
++            graphics_yuv_decode(g, yyuv, planar ? opaque : aa, rgba);
++            for (unsigned p = 0; p < 2; p++) {
++                unsigned k = mask[at + p];
++                if (!k) { continue; }
++                unsigned denom = samples * (over ? 255 : 1);
++                unsigned source_weight = k * (over ? 255 : 1);
++                unsigned keep = over ? denom - source_alpha * k : samples - k;
++                unsigned result_alpha = source_alpha * source_weight + rgba[p][3] * keep;
++                for (unsigned c = 0; c < 3; c++) {
++                    uint64_t value = (uint64_t)rgba[p][c] * rgba[p][3] * keep;
++                    rgba[p][c] = result_alpha ? (value + result_alpha / 2) / result_alpha : 0;
++                }
++                rgba[p][3] = (result_alpha + denom / 2) / denom;
++                if (!planar) { aa[p] = rgba[p][3]; }
++            }
++            graphics_yuv_encode(g, rgba, packed);
++            if (mask[at]) {
++                pair[0] = packed[0];
++                if (planar) { aa[0] = packed[2]; aa[1] = packed[3]; }
++                else { pair[2] = packed[2]; pair[3] = packed[3]; }
++            }
++            if (mask[at + 1]) { pair[1] = packed[1]; }
++        }
++        if (last) {
++            uint64_t off = (uint64_t)y * pitch + first;
++            cpu_physical_memory_write(color + off * bpp, colors + off * bpp, (last - first) * bpp);
++            cpu_physical_memory_write(alpha + off, alphas + off, last - first);
++        }
++    }
++    return true;
++}
++
+ static bool graphics_render_path(NikonZ9State *s)
+ {
+     /* Native 4020dc50 maps context quality 1200/1201/1202 to axis factors
+@@ -3047,13 +3236,13 @@
+     unsigned x0 = g->config47[0xe0] >> 16, y0 = g->config47[0xe0] & 0xffff;
+     unsigned x1 = g->config47[0xe1] >> 16, y1 = g->config47[0xe1] & 0xffff;
+     unsigned pitch = g->config48[0x21] >> 16;
+-    bool zero_mode = g->config47[0xc0] == 0 && g->config47[0xc1] == 0;
++    bool zero_mode = g->config47[0xc0] == 0 && !(g->config47[0xc1] & 0xffffff00U);
+     /* ZR MENU emits constant-paint c0=10000 with transparent c1=0
+      * on Y+UV (71). Reuse the image renderer's measured plane layout.
+      * Use the existing zero-paint coverage/conversion only;
+      * the validated paint-mode and converted-zero checks still apply.
+      * General colored YYUV paths remain unsupported. */
+-    bool zero_yuva = g->config47[0xc1] == 0 &&
++    bool zero_yuva = !(g->config47[0xc1] & 0xffffff00U) &&
+                      ((g->config48[0x21] & 0xffff) == 0x72 ||
+                       (g->config48[0x21] & 0xffff) == 0x71);
+     unsigned pixel_bpp = zero_yuva ? ((g->config48[0x21] & 0xffff) == 0x71 ? 1 : 2) : 4;
+@@ -3094,7 +3283,7 @@
+         rgba[c] = rgba[3] ? (v * 255 + rgba[3] / 2) / rgba[3] : 0;
+     }
+     graphics_color_pixel(g, rgba, converted);
+-    if (zero_yuva && (converted[0] || converted[1] || converted[2] || converted[3] ||
++    if (zero_yuva && (converted[0] || converted[1] || converted[2] ||
+                      (uint64_t)pitch * surface_height > 32 * MiB)) {
+         return false;
+     }
+@@ -3220,7 +3409,7 @@
+         }
+     }
+     if (zero_yuva) {
+-        if (!graphics_zero_path_yuva(s, buffer, pitch, surface_height, samples, over, &target)) {
++        if (!graphics_black_path_yuva(s, buffer, pitch, surface_height, samples, over, converted[3], &target)) {
+             return false;
+         }
+     } else if (window_bytes) {
+@@ -3372,6 +3561,41 @@
+     }
+ }
+ 
++static bool graphics_inline_packet_allowed(const Z9Graphics *g, uint32_t header)
++{
++    return !g->inline_path_phase ||
++           header == (0xa0000000 | (g->inline_path_end << 7)) ||
++           (header == 0xa8000000 && g->image_selector == g->inline_path_end);
++}
++
++static bool graphics_inline_path(Z9Graphics *g, unsigned selector)
++{
++    if (g->image_pending || g->path_pending) {
++        return false;
++    }
++    if (selector == 0x5e5 || selector == 0xe73) {
++        if (g->inline_path_phase || !g->path_controls[0] ||
++            (g->path_kind != 1 && g->path_kind != 2) ||
++            !(g->path_paint_valid & g->path_paint_mask & 3) || !g->path_program) {
++            return false;
++        }
++        g->path_edge_count = 0;
++        g->inline_path_phase = 1;
++        g->inline_path_end = selector == 0xe73 ? 0xe85 : 0x5ec;
++    } else if (selector == 0x5ec || selector == 0xe85) {
++        if (g->inline_path_phase != 1 || selector != g->inline_path_end) {
++            return false;
++        }
++        g->inline_path_phase = 0;
++        g->inline_path_end = 0;
++        g->path_pending = true; /* zero pixels; later draw owns completion */
++        g->path_descriptors++;
++    } else {
++        return false;
++    }
++    return true;
++}
++
+ static bool graphics_commit(NikonZ9State *s)
+ {
+     Z9Graphics *g = &s->graphics;
+@@ -3382,9 +3606,7 @@
+     if (g->clear_phase && !clear_packet) {
+         return false; /* incomplete native clear sequence cannot report idle */
+     }
+-    if (g->inline_path_phase &&
+-        !(g->header == (0xa0000000 | (g->inline_path_end << 7)) ||
+-          (g->header == 0xa8000000 && g->image_selector == g->inline_path_end))) {
++    if (!graphics_inline_packet_allowed(g, g->header)) {
+         return false; /* nonempty inline geometry is not implemented */
+     }
+     if (s->graphics_image_model && (g->header & 0xf7c0007f) == 0xa0000000) {
+@@ -3404,38 +3626,9 @@
+             g->path_direction = 0;
+         } else if (g->header == 0xa8000000 && s->graphics_path_model &&
+                    g->image_initialized && (g->image_selector == 0x5e5 ||
+-                    (g->image_selector == 0xe73 &&
+-                     object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-zr-lab"))))) {
+-            /* Original 40226acc with segment/coordinate counts zero emits
+-             * exactly 5e5,A8,5ec,A8. Clear prior edges now, but do not queue
+-             * or finish a draw before its matching end and 46/4a commit.
+-             * Z8 C3.11 40226bd8 branches to 40227a94 for zero segments
+-             * without selecting a fill/stroke E program. A preceding glyph
+-             * can therefore leave either validated program bound. Empty
+-             * geometry contributes no coverage in graphics_render_path;
+-             * retain the paint/control/program and transaction checks.
+-             * ZR 4022b214 branches directly from segment count <1 at
+-             * 4022b31c to 4022c1d4, emitting e73,A8,e85,A8 instead.
+-             * Nonempty inline streams remain unsupported. */
+-            if (g->inline_path_phase || !g->path_controls[0] ||
+-                !(g->path_paint_valid & 1) ||
+-                (g->path_kind != 1 && g->path_kind != 2) || !g->path_program) {
+-                return false;
+-            }
+-            g->path_edge_count = 0;
+-            g->inline_path_phase = 1;
+-            g->inline_path_end = g->image_selector == 0xe73 ? 0xe85 : 0x5ec;
+-        } else if (g->header == 0xa8000000 && s->graphics_path_model &&
+-                   g->image_initialized && (g->image_selector == 0x5ec ||
+-                    (g->image_selector == 0xe85 &&
+-                     object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-zr-lab"))))) {
+-            if (g->inline_path_phase != 1 || g->image_selector != g->inline_path_end) {
+-                return false;
+-            }
+-            g->inline_path_phase = 0;
+-            g->inline_path_end = 0;
+-            g->path_pending = true; /* valid empty work, pixel count is zero */
+-            g->path_descriptors++;
++                    g->image_selector == 0xe73 || g->image_selector == 0x5ec ||
++                    g->image_selector == 0xe85)) {
++            if (!graphics_inline_path(g, g->image_selector)) { return false; }
+         } else if (g->header == 0xa8000000 && s->graphics_path_model && g->image_initialized) {
+             /* Original Z9 4020f0ec/402406c4 style selectors, independently
+              * varied in stroke-parameters-001. A8 commits configuration,
+@@ -3455,8 +3648,7 @@
+                      (s->graphics_path_model && (selector == 0x97f || selector == 0x93b ||
+                       selector == 0x826 || selector == 0x7df ||
+                       selector == 0x5e5 || selector == 0x5ec ||
+-                      ((selector == 0xe73 || selector == 0xe85) &&
+-                       object_dynamic_cast(OBJECT(s), MACHINE_TYPE_NAME("nikon-zr-lab"))) ||
++                      selector == 0xe73 || selector == 0xe85 ||
+                       selector == 0x7cd || selector == 0x7d0 || selector == 0x7ca ||
+                       selector == 0x935 || selector == 0x937 || selector == 0x939)))))) {
+             g->image_selector = selector;
+@@ -3710,7 +3902,10 @@
+             }
+             g->barriers++;
+             g->pending |= 0x01000000;
+-        } else if (graphics_init48(reg, g->payload[0]) ||
++        } else if ((s->graphics_image_model && s->z8_jdec_on &&
++                    ((reg==0x4b8 && graphics_jpeg_uv(s,g->payload[0])) ||
++                     (reg==0x4b4 && g->payload[0]==0x71))) ||
++                   graphics_init48(reg, g->payload[0]) ||
+                    (s->graphics_image_model &&
+                     /* Z8 portrait setup emits the same bounded state sequence as ZR.
+                      * These writes only stage state; draw validation remains strict. */
+@@ -3834,6 +4029,17 @@
+             g->fault = true;
+             fprintf(stderr, "Z9_GRAPHICS_REJECT word=%08x header=%08x received=%u/%u; no completion\n",
+                     g->fifo[g->head], g->header, g->received, g->wanted);
++            fprintf(stderr, "Z9_GRAPHICS_CONTEXT image=%u path=%u init=%u kind=%x paint_mask=%x paint_valid=%x controls=%u,%u\n",
++                    g->image_pending, g->path_pending, g->image_initialized, g->path_kind, g->path_paint_mask, g->path_paint_valid, g->path_controls[0], g->path_controls[1]);
++            fprintf(stderr, "Z9_GRAPHICS_CONTEXT stencil=%08x,%08x,%08x,%08x paint=%08x format=%08x target_fmt=%08x geometry=%08x,%08x clip=%08x,%08x\n",
++                    g->config48[0x610],g->config48[0x611],g->config48[0x630],g->config48[0x650],g->config47[0xc1],g->config48[0x4b4],g->config48[0x21],g->image_geometry[0],g->image_geometry[1],g->config47[0xe0],g->config47[0xe1]);
++            fprintf(stderr, "Z9_GRAPHICS_CONTEXT src=%08x stride=%08x origin=%08x extent=%08x color=%08x alpha=%08x target_stride=%08x\n",
++                    g->config48[0x4b2],g->config48[0x4b3],g->config48[0x4c3],g->config48[0x4c4],g->config48[0x20],g->config48[0x2a],g->config48[0x21]);
++            for (unsigned r=0;r<ARRAY_SIZE(g->config48);r++) {
++                if (g->config48[r]) { fprintf(stderr,"Z9_GRAPHICS_REG48 %03x=%08x\n",r,g->config48[r]); }
++            }
++            for (unsigned r=0;r<9;r++) { fprintf(stderr,"Z9_GRAPHICS_MATRIX %u=%08x\n",r,g->image_matrix[r]); }
++            fprintf(stderr,"Z9_GRAPHICS_IMAGE_CONTROL %x,%x height=%x\n",g->image_control[0],g->image_control[1],g->vectors[0x12c]);
+             return false;
+         }
+         g->head = (g->head + 1) % ARRAY_SIZE(g->fifo);
+@@ -5016,6 +5222,7 @@
+ {
+     uint32_t *l = s->engine1548_layer_fields[1][0];
+     unsigned width = l[0] & 0x7fff, height = (l[0] >> 16) & 0x7fff;
++    unsigned bank = (s->engine1548_requested_bank[1] >> 8) & 3;
+     bool overlay = l[0x240 / 4] == 1;
+     uint64_t color = 0, alpha = 0;
+     uint64_t count = (uint64_t)width * height;
+@@ -5027,8 +5234,8 @@
+     g_autofree uint8_t *yyuv = NULL;
+     g_autofree uint8_t *aa = NULL;
+     if (overlay) {
+-        color = s->engine1548_addresses[1][2][0] |
+-                (uint64_t)s->engine1548_addresses[1][2][1] << 32;
++        color = s->engine1548_addresses[1][2 + bank][0] |
++                (uint64_t)s->engine1548_addresses[1][2 + bank][1] << 32;
+         alpha = l[0x100 / 4] | (uint64_t)l[0x104 / 4] << 32;
+         if (l[0x200 / 4] || l[0x180 / 4] != width * 2 || l[0x1c0 / 4] != width ||
+             color >> 34 != 3 || alpha >> 34 != 3) {
+@@ -5068,6 +5275,7 @@
+     /* Scanout consumes actual guest RAM, independently of its producer.
+      * MENU format71 uses full-height UV; NV12 retains M placement/bounds. */
+     bool menu_cache = direct[0] == 0x200;
++    bool video_nv16 = (direct[0] & 31) == 0;
+     bool nv12 = (direct[0] & 31) == 4;
+     /* Native402aa528 independently selects direct input (bit0), layer0
+      * (bit1) and layer1 (bit2). MENU transitions stop an optional layer
+@@ -5075,7 +5283,7 @@
+      * for reading the separately enabled NV12 source. */
+     if ((s->engine1548_direct_control[1] & 3) == 3 &&
+         ((nv12 && !(video_height & 1) && !direct[6]) ||
+-         (menu_cache && !(video_left & 1))) &&
++         (video_nv16 && !(video_left & 1))) &&
+         video_width && video_height && !(video_width & 1) &&
+         video_left <= width && video_width <= width - video_left &&
+         video_top <= height && video_height <= height - video_top &&
+@@ -5085,7 +5293,7 @@
+         video_uv = s->engine1548_addresses[1][1][0] |
+                    (uint64_t)s->engine1548_addresses[1][1][1] << 32;
+         size_t n = (size_t)video_stride * video_height;
+-        size_t uv_bytes = menu_cache ? n : n / 2;
++        size_t uv_bytes = video_nv16 ? n : n / 2;
+         if (video_y >> 34 == 3 && video_uv >> 34 == 3 && n <= 16 * MiB) {
+             video_y -= UINT64_C(0x400000000);
+             video_uv -= UINT64_C(0x400000000);
+@@ -5133,7 +5341,7 @@
+                 y >= video_top && y - video_top < video_height) {
+                 unsigned vx = x - video_left, vy_row = y - video_top;
+                 size_t at = (size_t)video_stride * video_height +
+-                            (menu_cache ? vy_row : vy_row / 2) * video_stride + (vx & ~1U);
++                            (video_nv16 ? vy_row : vy_row / 2) * video_stride + (vx & ~1U);
+                 int vy = video[(size_t)vy_row * video_stride + vx];
+                 int vu = video[at] - 128, vv = video[at + 1] - 128;
+                 background[0] = CLAMP(vy + ((359 * vv + 128) >> 8), 0, 255);
+@@ -5157,7 +5365,8 @@
+     s->engine1548_scanout_width = width;
+     s->engine1548_scanout_height = height;
+     s->engine1548_scanout_frames++;
+-    s->engine1548_last_background_format = video ? (menu_cache ? 0 : 4) : UINT32_MAX;
++    s->engine1548_active_bank[1] = bank;
++    s->engine1548_last_background_format = video ? (video_nv16 ? 0 : 4) : UINT32_MAX;
+     s->engine1548_last_frame_has_video = video && nv12;
+     if (video && nv12) {
+         s->engine1548_video_frames++;
+@@ -12508,7 +12717,8 @@
+ 
+ static void engine15e2_deferred_input_notify(NikonZ9State *s);
+ 
+-static bool engine151_capture_admit(NikonZ9State *s, unsigned i, bool execute)
++static bool engine153_future_source(NikonZ9State *s, uint64_t source);
++static bool engine151_capture_admit(NikonZ9State *s, unsigned i, bool execute, bool future)
+ {
+     const uint32_t *c = s->engine151_config[i];
+     if (s->hlg_pipeline.requested || s->hlg_pipeline.owned) { return false; }
+@@ -12543,7 +12753,8 @@
+     uint64_t inbytes = (uint64_t)pitch * ih, plane = (uint64_t)stride * oh;
+     if (i != 0 || s->engine151_pending[i] ||
+         (!decoded && (!s->primary_d980_frames ||
+-         s->engine151_capture_consumed_frame == s->primary_d980_frames || source != s->primary_d980_last_physical)) ||
++         (!future && s->engine151_capture_consumed_frame == s->primary_d980_frames) ||
++         (source != s->primary_d980_last_physical && (!future || !engine153_future_source(s, source))))) ||
+         c[0x200 / 4] != 0x10000 || c[0x204 / 4] || c[0x60 / 4] || c[0x64 / 4] ||
+         c[0x218 / 4] != 1 || (c[0x21c / 4] != 1 && c[0x21c / 4] != 3) || c[0x220 / 4] != (decoded ? 2 : 19) ||
+         !iw || !ih || !ow || !oh || ((iw | ih | ow | oh | cx | cy | stride) & 1) ||
+@@ -12751,12 +12962,58 @@
+ 
+ static bool engine151_capture_pixels(NikonZ9State *s, unsigned i)
+ {
+-    return engine151_capture_admit(s, i, true);
++    return engine151_capture_admit(s, i, true, false);
++}
++
++/* z9-qemu 065ea58: an ISP request can wait behind the exact queued NR
++ * producer. It completes only after the matching D980 generation and NR DMA. */
++static bool engine151_capture_queue(NikonZ9State *s)
++{
++    uint32_t *c = s->engine151_config[0];
++    uint64_t source = c[0x900/4] | ((uint64_t)c[0x904/4] << 32);
++    if (!s->engine153_alternate_bank_model || !s->engine153_inplace_identity_model ||
++        s->engine151_capture_waiting || s->engine151_capture_consumed_frame != s->primary_d980_frames ||
++        !engine151_capture_admit(s, 0, false, true)) { return false; }
++    int selected = -1;
++    for (unsigned bank = 0; bank < 2; bank++) {
++        uint32_t *upstream = s->engine153_config[bank];
++        uint64_t input = upstream[0xb4/4] | ((uint64_t)upstream[0xb0/4] << 32);
++        if (!s->engine153_waiting[bank] || s->engine153_wait_failed[bank] ||
++            s->engine153_wait_after[bank] != s->primary_d980_frames || input != source) { continue; }
++        if (selected >= 0) { return false; }
++        selected = bank;
++    }
++    if (selected < 0) { return false; }
++    s->engine151_capture_wait_bank = selected;
++    s->engine151_capture_wait_after = s->primary_d980_frames;
++    s->engine151_capture_waiting = true;
++    s->engine151_capture_wait_failed = false;
++    return true;
++}
++
++static void engine151_capture_wait_try(NikonZ9State *s)
++{
++    unsigned bank = s->engine151_capture_wait_bank;
++    if (!s->engine151_capture_waiting || s->engine151_capture_wait_failed ||
++        !s->engine151_active[0] || s->primary_d980_frames <= s->engine151_capture_wait_after ||
++        s->engine153_consumed_dma_frame[bank] != s->primary_d980_frames ||
++        s->engine153_waiting[bank]) { return; }
++    /* Configuration must remain the admitted request; only IRQ mask may change. */
++    if (memcmp(s->engine151_latched[0], s->engine151_config[0], 0x40) ||
++        memcmp((uint8_t *)s->engine151_latched[0] + 0x44,
++               (uint8_t *)s->engine151_config[0] + 0x44, sizeof(s->engine151_latched[0]) - 0x44) ||
++        !engine151_capture_pixels(s, 0)) {
++        s->engine151_capture_wait_failed = true;
++        return;
++    }
++    s->engine151_capture_waiting = false;
++    s->engine151_active[0] = false;
++    engine151_update_irq(s, 0);
+ }
+ 
+ static unsigned engine151_finite_mode(NikonZ9State *s, unsigned i)
+ {
+-    if (i || !s->engine151_capture_pixels_model || !engine151_capture_admit(s, i, false)) { return 0; }
++    if (i || !s->engine151_capture_pixels_model || !engine151_capture_admit(s, i, false, false)) { return 0; }
+     /* Both geometries and source provenance already passed the pure admission.
+      * Ordinary packed RAW uses220=19; the exact history U16 request uses2. */
+     return s->engine151_config[i][0x220/4] == 2 ? 3 : 1;
+@@ -12856,7 +13113,8 @@
+         unsigned finite_mode = engine151_finite_mode(s, i);
+         if (video && finite_mode) { start_reason = "finite_conflict"; goto invalid; }
+         bool photo = finite_mode != 0;
+-        if (i == 0 && s->engine151_capture_pixels_model && !video && !photo) {
++        bool deferred_photo = !video && !photo && i == 0 && engine151_capture_queue(s);
++        if (i == 0 && s->engine151_capture_pixels_model && !video && !photo && !deferred_photo) {
+             start_reason = s->engine151_config[0][0x21c/4] == 5 ? video_reason : "capture_unclassified"; goto invalid;
+         }
+         /* Finite capture admission performs its complete RAM/profile checks
+@@ -12891,7 +13149,7 @@
+         }
+         if (s->engine151_active[i]) {
+             s->engine151_active[i] = false;
+-            if (i == 0) { s->z8_video_isp_owner = false; }
++            if (i == 0) { s->z8_video_isp_owner = false; s->engine151_capture_waiting = false; }
+             s->engine151_stops[i]++;
+         }
+         if (!(s->engine151_pending[i] & 0x200)) {
+@@ -12906,7 +13164,7 @@
+     if (off == 0xc && value == 1) {
+         if (s->engine151_control_model && s->engine151_active[i]) {
+             s->engine151_active[i] = false;
+-            if (i == 0) { s->z8_video_isp_owner = false; }
++            if (i == 0) { s->z8_video_isp_owner = false; s->engine151_capture_waiting = false; }
+             s->engine151_stops[i]++;
+             if (s->raw_pipeline_model) {
+                 /* Normal stop callback tests bit0 for OS flag4. */
+@@ -12986,6 +13244,7 @@
+         return true;
+     }
+     uint32_t mask = engine151_mask(i, off);
++    if (i == 0 && s->engine151_capture_waiting && off != 0x40) { goto invalid; }
+     if (!mask) {
+         return false;
+     }
+@@ -13181,6 +13440,23 @@
+     return 0;
+ }
+ 
++static uint32_t z8_e_histogram_mask(unsigned off)
++{
++    switch (off) {
++    case 0x00: return 1;            /* start */
++    case 0x04: return 0xf3;         /* 2 + 4 bits */
++    case 0x08: return 0xf;          /* four enables */
++    case 0x0c: return 0x7f7f;       /* two 7-bit fields */
++    case 0x10: return 0xfff;        /* byte | byte << 4 | 3 bits << 8 */
++    case 0x20: case 0x24: case 0x28: case 0x2c:
++        return 0x07ff07ff;          /* 11-bit pairs */
++    case 0x30: return 0x7ff;
++    case 0x40: return 0x1fff1fff;   /* 13-bit pair */
++    case 0x44: return 0x1fff;
++    default: return 0;
++    }
++}
++
+ static bool engine1542_read(NikonZ9State *s, hwaddr addr, unsigned size,
+                             uint64_t *value)
+ {
+@@ -13195,6 +13471,9 @@
+                      (off == 0xa8 || off == 0xac) ? s->v2_snap_uv : 0;
+         *value = (off & 4) ? (a >> 32) & 15 : (uint32_t)a;
+         return true;
++    }
++    if (s->z8_jdec_on && i == 14 && z8_e_histogram_mask(off)) {
++        *value = s->engine1542_config[i][off / 4]; return true;
+     }
+     if (off == engine1542_status(i)) {
+         *value = s->engine1542_pending[i];
+@@ -13364,6 +13643,15 @@
+ 
+ #include "nikon-z8-hlg-c1-rearm.h"
+ 
++/* z8-qemu 09aacd2 held C1 release, scoped to saved JPEG playback.
++ * This retires a held synchronous writer, never ACKs its pending IRQ. */
++static bool playback_c1_release(NikonZ9State *s,unsigned j,uint64_t value)
++{
++    return s->z8_jdec_on && j==1 && value==3 && s->engine1543_active[j] &&
++        s->engine1543_held[j] && !s->capture_nv16_requested && !s->z8_video_c1_owner &&
++        !s->z8_ring_stop_owned[j];
++}
++
+ static bool engine1543_control_write(NikonZ9State *s, unsigned i,
+                                     hwaddr addr, uint64_t value)
+ {
+@@ -13372,9 +13660,10 @@
+                    s->engine1543_active[j];
+     bool rearm = mode == 3 && capture_stream_can_rearm(s, j, value);
+     bool photo_rearm = z8_hlg_c1_can_rearm(s,j,value);
++    bool playback_release = playback_c1_release(s,j,value);
+     if (value & ~0x103u ||
+         (mode == 1 && (!engine1543_ready(s, j) || s->engine1543_active[j])) ||
+-        (mode == 3 && s->engine1543_active[j] && !rearm && !photo_rearm) ||
++        (mode == 3 && s->engine1543_active[j] && !rearm && !photo_rearm && !playback_release) ||
+         (s->z8_c0_stop_model && j < 2 && mode == 1 && s->z8_ring_stop_owned[j]) ||
+         (stopped && (value != 0x100 || s->engine1542_config[i][1] != 0x101 ||
+          s->engine1543_latched[j][1] != 0x101 || s->engine1543_latched[j][4] != 0x29 ||
+@@ -13392,6 +13681,7 @@
+         !config_only && !z8_video_c1_profile(s) && !capture_nv16_prepare(s)) {
+         unknown_access(s, addr, value, 4, true); return true;
+     }
++    if (playback_release) { s->engine1543_active[j] = s->engine1543_held[j] = false; }
+     if (photo_rearm) {
+         s->engine1543_active[j] = s->engine1543_held[j] = false;
+         s->heif_c1_rearms++;
+@@ -13486,6 +13776,7 @@
+ static bool z8_hsfc1530_matches(NikonZ9State *s);
+ static void z8_hsfc152c_frame(NikonZ9State *s);
+ #include "nikon-z9-pixels.h"
++static void engine153_deferred_try(NikonZ9State *s);
+ #include "nikon-z9-d980.h"
+ #include "nikon-z8-hsfc-pixels.h"
+ #include "nikon-z9-jpeg.h"
+@@ -13594,8 +13885,11 @@
+ }
+ #include "nikon-z8-video-processing.h"
+ #include "nikon-z8-wave5.h"
++#include "nikon-z8-wave5-port.h"
+ #include "nikon-z8-video-nr-empty-reset.h"
+ #include "nikon-z8-video-ring.h"
++
++#include "nikon-z8-playback.h"
+ 
+ static bool engine1542_write(NikonZ9State *s, hwaddr addr, uint64_t value,
+                              unsigned size)
+@@ -13623,6 +13917,17 @@
+         if (i == 1 || i == 11) { z8_hlg_c1_retire(s); }
+         raw_pipeline_irq_update(s);
+         return true;
++    }
++    if (s->z8_jdec_on && i == 9 && off == 4 &&
++        s->z8_playback_requests) {
++        return z8_playback_output_control(s, i, addr, value);
++    }
++    if (s->z8_jdec_on && i == 1 && off == 4 &&
++        (value == 0x5001 || value == 0x5000 || value == 0x1001 ||
++         (value == 0x1000 && (s->z8_playback_active || s->z8_playback_requested ||
++          ((s->engine1542_config[1][1] & ~3u) == 0x1000 &&
++           s->engine1542_config[1][2] == 0x10000000))))) {
++        return z8_playback_control(s, addr, value);
+     }
+     if (z8_hlg_c1_target_locked(s, i, off, value)) {
+         unknown_access(s, addr, value, size, true); return true;
+@@ -13654,6 +13959,14 @@
+             unknown_access(s, addr, value, size, true); return true;
+         }
+     }
++    if (s->z8_jdec_on && i == 14 && z8_e_histogram_mask(off)) {
++        if (value & ~(uint64_t)z8_e_histogram_mask(off)) {
++            unknown_access(s, addr, value, size, true); return true;
++        }
++        s->engine1542_config[i][off / 4] = value;
++        if (off == 0 && value == 1) { s->z8_e_armed = true; }
++        return true;
++    }
+     uint32_t mask = engine1542_mask(i, off);
+     if (!mask) {
+         return false;
+@@ -13668,6 +13981,7 @@
+         return true;
+     }
+     s->engine1542_config[i][off / 4] = value;
++    if (s->z8_jdec_on && i == 14 && off == 0x50 && (value & 1)) { s->z8_e_armed = true; }
+     if (s->engine1542_ram_input_model && i == 2) {
+         for (unsigned j = 0; j < ARRAY_SIZE(engine1542_ram_input_offsets); j++) {
+             if (off == engine1542_ram_input_offsets[j]) { s->engine1542_ram_input_valid |= 1u << j; }
+@@ -13917,7 +14231,25 @@
+ 
+ #include "nikon-z8-1534-reference-qemu.h"
+ 
+-static bool engine153_frame_pass(NikonZ9State *s, unsigned bank)
++/* WonderLantern z9-qemu 065ea58: admission of a submitted future D980
++ * slot is separate from consuming an actually completed DMA generation. */
++static bool engine153_future_source(NikonZ9State *s, uint64_t source)
++{
++    const uint32_t *d = s->primary_d980_submitted;
++    if (!s->engine153_alternate_bank_model || !s->primary_d980_submits ||
++        d[7] > 1 || d[0] != s->primary_d980_cache_format ||
++        (d[1] >> 16) != s->primary_d980_cache_width ||
++        (d[2] >> 16) != s->primary_d980_cache_height ||
++        d[4] != s->primary_d980_cache_stride) { return false; }
++    for (unsigned slot = 0; slot < 4; slot++) {
++        unsigned at = 12 + d[7] * 8 + slot * 2;
++        uint64_t encoded = d[at] | ((uint64_t)d[at + 1] << 32);
++        if (encoded == source + UINT64_C(0x400000000)) { return true; }
++    }
++    return false;
++}
++
++static bool engine153_frame_pass(NikonZ9State *s, unsigned bank, bool validate_only)
+ {
+     uint32_t *c = s->engine153_config[bank];
+     uint64_t program = c[0x48 / 4] | ((uint64_t)c[0x4c / 4] << 32);
+@@ -13938,13 +14270,16 @@
+     /* Opt-in cross-bank ownership applies to ordinary D980 generations on
+      * BOTH banks, including the H route. Historical decoder records retain
+      * their existing independent ownership. No guest task or tail reads. */
+-    if (s->z8_bank0_d980_identity_model && !decoded &&
++    if ((s->z8_bank0_d980_identity_model || s->engine153_alternate_bank_model) && !decoded && !validate_only &&
+         !z8_d980_other_bank_available(s->primary_d980_frames,
+             s->engine153_consumed_dma_frame[bank ^ 1],
+             s->engine153_pending[bank ^ 1], source,
+             s->engine153_last_source[bank ^ 1])) { return false; }
+     bool ordinary_bank0 = false;
+-    if (bank == 0 && s->z8_bank0_d980_identity_model) {
++    if (bank == 0 && s->engine153_alternate_bank_model && !decoded &&
++        !s->heif1534.enabled) {
++        ordinary_bank0 = true;
++    } else if (bank == 0 && s->z8_bank0_d980_identity_model) {
+         switch (z8_bank0_route(decoded != NULL, s->heif1534.enabled,
+                                s->primary_d980_cache_format)) {
+         case Z8_NR_HSFC: break;
+@@ -13960,8 +14295,9 @@
+     if (decoded) {
+         if (decoded->nr_consumed) { return false; }
+     } else if (!s->primary_d980_frames || !s->primary_d980_cache ||
+-               s->engine153_consumed_dma_frame[bank] == s->primary_d980_frames ||
+-               source != s->primary_d980_last_physical) { return false; }
++               (!validate_only && s->engine153_consumed_dma_frame[bank] == s->primary_d980_frames) ||
++               (source != s->primary_d980_last_physical &&
++                (!validate_only || !engine153_future_source(s, source)))) { return false; }
+     bool decoded_u16 = decoded && decoded->storage_bits == 16 && decoded->output_bits == 14;
+     unsigned expected_format = decoded ? (decoded_u16 ? 0 : 2) : s->primary_d980_cache_format;
+     unsigned expected_width = decoded ? 4140 : s->primary_d980_cache_width;
+@@ -14010,6 +14346,7 @@
+         (!s->engine153_inplace_identity_model &&
+          target < source + bytes && source < target + bytes)) { return false; }
+     if (!nb_writable(&s->output_owner, (NBSpan){target, bytes})) { return false; }
++    if (validate_only) { return !decoded; }
+     /* Neutral algorithm approximation: retain every input pixel and padding
+      * byte. Internal pyramid/scratch results are intentionally unsupported.
+      * Consume actual D980 RAM, or an explicitly enabled retained decoder
+@@ -14053,6 +14390,59 @@
+         " bytes=%zu geometry=%ux%u stride=%u; neutral functional approximation\n",
+         bank, source, target, bytes, width, height, pitch);
+     return true;
++}
++
++static bool engine153_deferred_queue(NikonZ9State *s, unsigned bank)
++{
++    uint32_t *c = s->engine153_config[bank];
++    uint64_t program = c[0x48/4] | ((uint64_t)c[0x4c/4] << 32);
++    if (!s->engine153_alternate_bank_model || s->engine153_waiting[bank] ||
++        !engine153_frame_pass(s, bank, true)) { return false; }
++    if (address_space_read(&address_space_memory, program, MEMTXATTRS_UNSPECIFIED,
++                           s->engine153_wait_descriptor[bank], 0x7c0) != MEMTX_OK) { return false; }
++    s->engine153_waiting[bank] = true;
++    s->engine153_wait_failed[bank] = false;
++    s->engine153_wait_after[bank] = s->primary_d980_frames;
++    return true;
++}
++
++static void engine153_deferred_try(NikonZ9State *s)
++{
++    if (!s->engine153_alternate_bank_model) { return; }
++    for (unsigned bank = 0; bank < 2; bank++) {
++        uint32_t *c = s->engine153_config[bank];
++        uint64_t source = c[0xb4/4] | ((uint64_t)c[0xb0/4] << 32);
++        if (!s->engine153_waiting[bank] || s->engine153_wait_failed[bank] ||
++            s->primary_d980_frames <= s->engine153_wait_after[bank] ||
++            source != s->primary_d980_last_physical ||
++            MAX(s->engine153_consumed_dma_frame[0], s->engine153_consumed_dma_frame[1]) == s->primary_d980_frames) { continue; }
++        uint8_t descriptor[0x7c0];
++        uint64_t program = c[0x48/4] | ((uint64_t)c[0x4c/4] << 32);
++        if (address_space_read(&address_space_memory, program, MEMTXATTRS_UNSPECIFIED,
++                               descriptor, sizeof(descriptor)) != MEMTX_OK ||
++            memcmp(descriptor, s->engine153_wait_descriptor[bank], sizeof(descriptor))) {
++            s->engine153_wait_failed[bank] = true;
++            continue;
++        }
++        c[1] = 0;
++        bool done = engine153_frame_pass(s, bank, false);
++        c[1] = 1;
++        if (!done) { s->engine153_wait_failed[bank] = true; continue; }
++        s->engine153_waiting[bank] = false;
++        engine153_irq_update(s, bank);
++    }
++    engine151_capture_wait_try(s);
++}
++
++static bool get_engine153_alternate_bank_model(Object *obj, Error **errp)
++{ return NIKON_Z9_LAB(obj)->engine153_alternate_bank_model; }
++static void set_engine153_alternate_bank_model(Object *obj, bool value, Error **errp)
++{
++    NikonZ9State *s = NIKON_Z9_LAB(obj);
++    if (s->image_ram.ram || s->image_ram.rom_device) {
++        error_setg(errp, "engine153-alternate-bank-model is immutable after realization"); return;
++    }
++    s->engine153_alternate_bank_model = value;
+ }
+ 
+ #include "nikon-z8-nr-properties.h"
+@@ -14500,19 +14890,43 @@
+ {
+     unsigned bank, off; uint32_t mask;
+     if (!engine153_config_register(s, addr, &bank, &off, &mask)) { return false; }
++    if (s->engine153_alternate_bank_model &&
++        (s->engine153_reset_stage[bank] ||
++         ((s->engine153_waiting[bank] || s->engine153_pending[bank]) && off == 0x14 && value == 3))) {
++        static const unsigned offsets[] = {0x14, 0x18, 0, 0, 0x14, 0x18};
++        static const unsigned values[] = {3, 3, 1, 0, 0, 0};
++        unsigned stage = s->engine153_reset_stage[bank];
++        if (size != 4 || stage >= 6 || off != offsets[stage] || value != values[stage]) { goto invalid; }
++        s->engine153_config[bank][off/4] = value;
++        s->engine153_config_writes[bank]++;
++        if (stage == 2) {
++            s->engine153_waiting[bank] = s->engine153_wait_failed[bank] = false;
++            s->engine153_pending[bank] = s->engine153_config[bank][1] = 0;
++            s->engine153_reset_pulses[bank]++;
++            engine153_irq_update(s, bank);
++        }
++        s->engine153_reset_stage[bank] = (stage + 1) % 6;
++        return true;
++    }
+     if ((s->engine153_frame_pass_model || s->engine153_inplace_identity_model) && (off == 4 || off == 0x2c)) {
+         if (size != 4 || value > 1) { goto invalid; }
+         if (off == 4) {
+-            if (value && !engine153_frame_pass(s, bank)) { goto invalid; }
++            if (value && s->engine153_waiting[bank]) { goto invalid; }
++            if (value && !engine153_frame_pass(s, bank, false) &&
++                !engine153_deferred_queue(s, bank)) { goto invalid; }
++            if (!value && s->engine153_waiting[bank]) {
++                s->engine153_waiting[bank] = s->engine153_wait_failed[bank] = false;
++            }
+             s->engine153_config[bank][1] = value;
+         } else {
+             if (value & ~s->engine153_pending[bank]) { goto invalid; }
+             s->engine153_pending[bank] &= ~value;
+             s->engine153_acks[bank] += !!value;
++            if (value && s->engine153_alternate_bank_model) { s->engine153_config[bank][1] = 0; }
+         }
+         engine153_irq_update(s, bank); return true;
+     }
+-    if ((s->engine153_frame_pass_model || s->engine153_inplace_identity_model) && s->engine153_pending[bank] &&
++    if ((s->engine153_frame_pass_model || s->engine153_inplace_identity_model) && (s->engine153_pending[bank] || s->engine153_waiting[bank]) &&
+         off != 0x20) { goto invalid; }
+     if (size != 4 || (!mask && (off != 4 || value)) || (value & ~(uint64_t)mask)) {
+ invalid:
+@@ -14603,11 +15017,14 @@
+            (off >= 0x4c0 && off <= 0x4d4 && !(off & 3));
+ }
+ 
++#include "nikon-z8-jpeg-decode-mmio.h"
++
+ static bool engine15e2_config_read(NikonZ9State *s, hwaddr addr,
+                                  unsigned size, uint64_t *value)
+ {
+     unsigned b, off; uint32_t mask; bool readable;
+     if (!engine15e2_config_register(s, addr, &b, &off, &mask, &readable)) { return false; }
++    if (z8_jdec_read(s, b, off, size, value)) { return true; }
+     if (engine15e2_jpeg_read(s, b, off, size, value)) { return true; }
+     if (s->engine15e2_bank1_model && off==0x488 &&
+         (s->engine15e2_jpeg_requested[b] || s->engine15e2_jpeg_pending[b] || s->engine15e2_jpeg_core[b])) {
+@@ -14642,6 +15059,7 @@
+         }
+         return false;
+     }
++    if (z8_jdec_write(s, b, off, value, size)) { return true; }
+     if (engine15e2_jpeg_write(s, b, off, value, size)) { return true; }
+     if (s->engine15e2_jpeg_model && (b == 0 || s->engine15e2_bank1_model) &&
+         (s->engine15e2_jpeg_requested[b] || s->engine15e2_jpeg_pending[b] ||
+@@ -15989,6 +16407,7 @@
+     NikonZ9State *s = opaque;
+     uint64_t video_value=0;
+     if (video_processing_config_access(s,addr,&video_value,size,false)) { return video_value; }
++    if (w5p_access(s,addr,&video_value,size,false)) { return video_value; }
+     if (wave5_access(s,addr,&video_value,size,false)) { return video_value; }
+     if (s->bootstrap_fixtures && s->z8_video_interface_model &&
+         s->z8_video_serial_input_valid && size == 4 && !(addr & 3) &&
+@@ -16250,6 +16669,10 @@
+             }
+         }
+     }
++    if (s->z8_jdec_on && s->z8_playback_jobs && addr >= 0x15c00000 && addr < 0x15c00c00 && size == 4 && !(addr & 3)) {
++        unsigned word = (addr - 0x15c00000) / 4;
++        return s->raw_histogram[word / 256][word % 256];
++    }
+     if (engine1542_read(s, addr, size, &engine1518_value)) {
+         return engine1518_value;
+     }
+@@ -16422,7 +16845,8 @@
+         unsigned off = (addr - 0x15480000) % 0x4000;
+         /* 402ab3ec requests in bits 8..9 of +2214; selector 3 merely
+          * reads +3214. +16..17 current bank remains zero without scanout. */
+-        return off == 0x2214 ? s->engine1548_requested_bank[unit] : 0;
++        return off == 0x2214 ? (s->engine1548_requested_bank[unit] & ~0x30000u) |
++            (s->engine1548_active_bank[unit] << 16) : 0;
+     }
+     if (s->engine1548_config_model && s->bootstrap_fixtures && size == 4 &&
+         (addr == 0x15481200 || addr == 0x15481280 ||
+@@ -16613,6 +17037,7 @@
+     if (engine153_config_write(s, addr, value, size)) { return; }
+     if (video_reset15_access(s,addr,value,size) || video_nr_reset_access(s,addr,value,size)) { return; }
+     if (video_processing_config_access(s,addr,&value,size,true)) { return; }
++    if (w5p_access(s,addr,&value,size,true)) { return; }
+     if (wave5_access(s,addr,&value,size,true)) { return; }
+     if (s->bootstrap_fixtures && s->z8_video_interface_model && size == 4 &&
+         addr >= 0x15002100 && addr <= 0x15002108 && !(addr & 3)) {
+@@ -17746,6 +18171,7 @@
+         fprintf(stderr, "Z9_FIXTURE peripheral unit0 reset addr=0x%" HWADDR_PRIx "\n", addr);
+         return; /* exact 40cbd698 -> 40c2d790/7d8 unit-0 initialization */
+     }
++    if (w5p_reset_access(s,addr,value,size)) { return; }
+     if (wave5_z8_session_reset_access(s,addr,value,size)) { return; }
+     if (s->bootstrap_fixtures && size == 4 && value &&
+         !(value & ~UINT32_C(0xfe7ff000)) &&
+@@ -18904,6 +19330,7 @@
+     /* 40c1f644 registers 106 through the same original OS path as ADC. */
+     s->engine150c_irq = qdev_get_gpio_in(gic, 0x106 - 32);
+     z8_wave5_realize(s,gic);
++    if (s->w5p_model) { s->w5p->irq=qdev_get_gpio_in(gic,120-32); }
+     if (s->z8_video_data_model || s->z8_hsfc152c_pixels_model || s->z8_hsfc1530_decode_model) {
+         s->z8_front_irq[0]=qdev_get_gpio_in(gic,0x10b-32);
+         s->z8_front_irq[1]=qdev_get_gpio_in(gic,0x10c-32);
+@@ -19673,6 +20100,16 @@
+     NIKON_Z9_LAB(obj)->engine1548_control_model = value;
+ }
+ 
++static bool get_z8_jdec_on(Object *obj, Error **errp)
++{ return NIKON_Z9_LAB(obj)->z8_jdec_on; }
++static void set_z8_jdec_on(Object *obj, bool value, Error **errp)
++{
++    NikonZ9State *s = NIKON_Z9_LAB(obj);
++    if (s->image_ram.ram || s->image_ram.rom_device) {
++        error_setg(errp, "z8-jpeg-decode is immutable after realization"); return;
++    }
++    s->z8_jdec_on = value;
++}
+ static bool get_engine1548_scanout_model(Object *obj, Error **errp)
+ {
+     return NIKON_Z9_LAB(obj)->engine1548_scanout_model;
+@@ -19758,6 +20195,8 @@
+     object_class_property_add_bool(oc,"z8-video-data-model",get_z8_video_data_model,set_z8_video_data_model);
+     object_class_property_add_str(oc,"z8-video-data-state",get_z8_video_data_state,NULL);
+     z8_wave5_properties(oc);
++    object_class_property_add_bool(oc,"wave5-upstream-model",get_w5p_model,set_w5p_model);
++    object_class_property_add_str(oc,"wave5-upstream-state",get_w5p_state,NULL);
+     object_class_property_add_bool(oc,"video-processing-config-model",get_video_processing_config_model,set_video_processing_config_model);
+     object_class_property_add_str(oc,"video-processing-config-state",get_video_processing_config_state,NULL);
+     object_class_property_add_bool(oc,"video-initial-reset-model",get_video_initial_reset_model,set_video_initial_reset_model);
+@@ -19868,6 +20307,8 @@
+     object_class_property_add_str(oc, "primary-d980-prepared-start-state", get_primary_d980_prepared_start_state, NULL);
+     object_class_property_add_bool(oc, "primary-d980-channel-boundary-model", get_primary_d980_channel_boundary_model, set_primary_d980_channel_boundary_model);
+     object_class_property_add_str(oc, "primary-d980-channel-boundary-state", get_primary_d980_channel_boundary_state, NULL);
++    object_class_property_add_bool(oc, "z8-jpeg-decode", get_z8_jdec_on, set_z8_jdec_on);
++    object_class_property_add_str(oc, "z8-playback-state", z8_playback_state, NULL);
+     object_class_property_add_bool(oc, "engine15e2-config-model", get_engine15e2_config_model, set_engine15e2_config_model);
+     object_class_property_add_str(oc, "engine15e2-config-state", get_engine15e2_config_state, NULL);
+     object_class_property_add_bool(oc, "engine15e2-bank1-jpeg-model", get_engine15e2_bank1_model, set_engine15e2_bank1_model);
+@@ -19919,6 +20360,7 @@
+     object_class_property_add_str(oc, "z8-hsfc1540-state", get_z8_hsfc1540_state, NULL);
+     object_class_property_add_bool(oc, "z8-153c-ordinary-lossless-model", get_z8_153c_ordinary_lossless_model, set_z8_153c_ordinary_lossless_model);
+     object_class_property_add_str(oc, "z8-153c-ordinary-state", get_z8_153c_ordinary_state, NULL);
++    object_class_property_add_bool(oc, "engine153-alternate-bank-model", get_engine153_alternate_bank_model, set_engine153_alternate_bank_model);
+     object_class_property_add_bool(oc, "engine153-config-model", get_engine153_config_model, set_engine153_config_model);
+     object_class_property_add_str(oc, "engine153-config-state", get_engine153_config_state, NULL);
+     object_class_property_add_str(oc, "engine1530-config-state", get_engine1530_config_state, NULL);
+@@ -20073,6 +20515,7 @@
+ static void nikon_z9_finalize(Object *obj)
+ {
+     NikonZ9State *s = NIKON_Z9_LAB(obj);
++    w5p_finalize(s);
+     g_clear_pointer(&s->producer_journal_checksum, g_checksum_free);
+     g_free(s->producer_journal_scratch);
+     nikon_nand_image_close(&s->nand_image);

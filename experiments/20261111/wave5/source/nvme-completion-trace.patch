@@ -1,0 +1,219 @@
+--- a/hw/nvme/ctrl.c
++++ b/hw/nvme/ctrl.c
+@@ -195,6 +195,7 @@
+ 
+ #include "qemu/osdep.h"
+ #include "qemu/cutils.h"
++#include "qemu/atomic.h"
+ #include "qemu/error-report.h"
+ #include "qemu/log.h"
+ #include "qemu/units.h"
+@@ -316,6 +317,22 @@
+     [NVME_CMD_ZONE_MGMT_RECV]       = NVME_CMD_EFF_CSUPP,
+ };
+ 
++/* Opt-in trace output; these counters never affect NVMe control or status.
++ * Explicit virtual time matches paused-guest sensor/CPU observations. Standard
++ * trace backend timestamps are not a substitute for this field. */
++static uint64_t nvme_audit_next_instance;
++#define NVME_AUDIT_FIELDS(n) qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL), \
++    (n)->audit_instance, qatomic_inc_fetch(&(n)->audit_next_event)
++
++static void nvme_audit_boundary(NvmeCtrl *n, NvmeRequest *req,
++                                unsigned kind, uint64_t detail)
++{
++    if (n->audit_next_request) {
++        trace_pci_nvme_audit_boundary(NVME_AUDIT_FIELDS(n),
++            req ? req->audit_request : 0, kind, req ? req->status : 0, detail);
++    }
++}
++
+ static void nvme_process_sq(void *opaque);
+ static void nvme_ctrl_reset(NvmeCtrl *n, NvmeResetType rst);
+ static inline uint64_t nvme_get_timestamp(const NvmeCtrl *n);
+@@ -712,6 +729,9 @@
+     req->aiocb = NULL;
+     memset(&req->cqe, 0x0, sizeof(req->cqe));
+     req->status = NVME_SUCCESS;
++    req->audit_request = 0;
++    req->audit_offset = 0;
++    req->audit_length = 0;
+ }
+ 
+ static inline void nvme_sg_init(NvmeCtrl *n, NvmeSg *sg, bool dma)
+@@ -1524,12 +1544,16 @@
+         ret = pci_dma_write(PCI_DEVICE(n), addr, (void *)&req->cqe,
+                             sizeof(req->cqe));
+         if (ret) {
++            nvme_audit_boundary(n, req, 5, ret); /* CQ DMA failed, not posted. */
+             trace_pci_nvme_err_addr_write(addr);
+             trace_pci_nvme_err_cfs();
+             stl_le_p(&n->bar.csts, NVME_CSTS_FAILED);
+             break;
+         }
+ 
++        trace_pci_nvme_audit_posted(NVME_AUDIT_FIELDS(n),
++            req->audit_request, cq->cqid, addr, req->status,
++            le16_to_cpu(req->cqe.status));
+         QTAILQ_REMOVE(&cq->req_list, req, entry);
+ 
+         nvme_inc_cq_tail(cq);
+@@ -1553,6 +1577,8 @@
+ static void nvme_enqueue_req_completion(NvmeCQueue *cq, NvmeRequest *req)
+ {
+     assert(cq->cqid == req->sq->cqid);
++    trace_pci_nvme_audit_queued(NVME_AUDIT_FIELDS(cq->ctrl),
++                               req->audit_request, req->status);
+     trace_pci_nvme_enqueue_req_completion(nvme_cid(req), cq->cqid,
+                                           le32_to_cpu(req->cqe.result),
+                                           le32_to_cpu(req->cqe.dw1),
+@@ -2135,6 +2161,10 @@
+         trace_pci_nvme_err_aio(cid, strerror(-ret), req->status);
+     }
+ 
++    if (req->sq->sqid && req->cmd.opcode == NVME_CMD_FLUSH) {
++        trace_pci_nvme_audit_flush(NVME_AUDIT_FIELDS(nvme_ctrl(req)),
++                                  req->audit_request, req->status, ret);
++    }
+     nvme_enqueue_req_completion(nvme_cq(req), req);
+ }
+ 
+@@ -2181,6 +2211,11 @@
+         nvme_finalize_zoned_write(ns, req);
+     }
+ 
++    if (req->sq->sqid && req->cmd.opcode == NVME_CMD_WRITE) {
++        trace_pci_nvme_audit_done(NVME_AUDIT_FIELDS(nvme_ctrl(req)),
++            req->audit_request, req->audit_offset, req->audit_length,
++            req->status, ret);
++    }
+     nvme_enqueue_req_completion(nvme_cq(req), req);
+ }
+ 
+@@ -3839,6 +3874,15 @@
+ 
+         block_acct_start(blk_get_stats(blk), &req->acct, data_size,
+                          BLOCK_ACCT_WRITE);
++        if (req->cmd.opcode == NVME_CMD_WRITE) {
++            req->audit_offset = data_offset;
++            req->audit_length = data_size;
++            trace_pci_nvme_audit_dispatch(NVME_AUDIT_FIELDS(n),
++                req->audit_request, data_offset, data_size,
++                !ns->params.zoned && !ns->lbaf.ms &&
++                !NVME_ID_NS_DPS_TYPE(ns->id_ns.dps),
++                ns->lbaf.ds, ns->lbaf.ms, NVME_ID_NS_DPS_TYPE(ns->id_ns.dps));
++        }
+         nvme_blk_write(blk, data_offset, BDRV_SECTOR_SIZE, nvme_rw_cb, req);
+     } else {
+         req->aiocb = blk_aio_pwrite_zeroes(blk, data_offset, data_size,
+@@ -4822,6 +4866,7 @@
+         return NVME_INVALID_QID | NVME_DNR;
+     }
+ 
++    nvme_audit_boundary(n, req, 3, qid); /* Real Delete SQ request. */
+     trace_pci_nvme_del_sq(qid);
+ 
+     sq = n->sq[qid];
+@@ -4841,6 +4886,7 @@
+         nvme_post_cqes(cq);
+         QTAILQ_FOREACH_SAFE(r, &cq->req_list, entry, next) {
+             if (r->sq == sq) {
++                nvme_audit_boundary(n, r, 4, qid); /* CQE discarded, not posted. */
+                 QTAILQ_REMOVE(&cq->req_list, r, entry);
+                 QTAILQ_INSERT_TAIL(&sq->req_list, r, entry);
+             }
+@@ -6115,6 +6161,7 @@
+     NvmeRequest *r, *next;
+     int i;
+ 
++    nvme_audit_boundary(n, req, 2, ((uint64_t)sqid << 16) | cid);
+     req->cqe.result = 1;
+     if (nvme_check_sqid(n, sqid)) {
+         return NVME_INVALID_FIELD | NVME_DNR;
+@@ -6141,6 +6188,7 @@
+         if (r->cqe.cid == cid) {
+             if (r->aiocb) {
+                 r->status = NVME_CMD_ABORT_REQ;
++                nvme_audit_boundary(n, r, 6, req->audit_request);
+                 blk_aio_cancel_async(r->aiocb);
+             }
+             break;
+@@ -7830,6 +7878,10 @@
+         nvme_req_clear(req);
+         req->cqe.cid = cmd.cid;
+         memcpy(&req->cmd, &cmd, sizeof(NvmeCmd));
++        req->audit_request = qatomic_inc_fetch(&n->audit_next_request);
++        trace_pci_nvme_audit_begin(NVME_AUDIT_FIELDS(n), req->audit_request,
++            sq->sqid, sq->cqid, le16_to_cpu(cmd.cid),
++            le32_to_cpu(cmd.nsid), cmd.opcode);
+ 
+         if (sq->sqid && atomic) {
+             req->atomic_write = cmd_is_atomic;
+@@ -7893,6 +7945,8 @@
+     NvmeSecCtrlEntry *sctrl;
+     NvmeNamespace *ns;
+     int i;
++
++    nvme_audit_boundary(n, NULL, 1, rst); /* Before original drain/free. */
+ 
+     for (i = 1; i <= NVME_MAX_NAMESPACES; i++) {
+         ns = nvme_ns(n, i);
+@@ -9315,6 +9369,8 @@
+ 
+         n->subsys->namespaces[ns->params.nsid] = ns;
+     }
++    trace_pci_nvme_audit_instance(NVME_AUDIT_FIELDS(n),
++                                pci_bus_num(pci_get_bus(pci_dev)), pci_dev->devfn);
+ }
+ 
+ static void nvme_exit(PCIDevice *pci_dev)
+@@ -9532,6 +9588,8 @@
+ {
+     NvmeCtrl *n = NVME(obj);
+ 
++    n->audit_instance = qatomic_inc_fetch(&nvme_audit_next_instance);
++
+     device_add_bootindex_property(obj, &n->namespace.blkconf.bootindex,
+                                   "bootindex", "/namespace@1,0",
+                                   DEVICE(obj));
+--- a/hw/nvme/nvme.h
++++ b/hw/nvme/nvme.h
+@@ -443,6 +443,10 @@
+     BlockAcctCookie         acct;
+     NvmeSg                  sg;
+     bool                    atomic_write;
++    /* Passive trace metadata only; never read by guest/device decisions. */
++    uint64_t                audit_request;
++    uint64_t                audit_offset;
++    uint64_t                audit_length;
+     QTAILQ_ENTRY(NvmeRequest)entry;
+ } NvmeRequest;
+ 
+@@ -582,6 +586,11 @@
+     NvmeParams   params;
+     NvmeBus      bus;
+ 
++    /* Process-instance identity and monotonically increasing trace counters.
++     * Keep them across queue deletion/controller reset; NVMe is unmigratable. */
++    uint64_t    audit_instance;
++    uint64_t    audit_next_request;
++    uint64_t    audit_next_event;
+     uint16_t    cntlid;
+     bool        qs_created;
+     uint32_t    page_size;
+--- a/hw/nvme/trace-events
++++ b/hw/nvme/trace-events
+@@ -217,3 +217,13 @@
+ pci_nvme_ub_db_wr_invalid_sqtail(uint32_t qid, uint16_t new_tail) "submission queue doorbell write value beyond queue size, sqid=%"PRIu32", new_head=%"PRIu16", ignoring"
+ pci_nvme_ub_unknown_css_value(void) "unknown value in cc.css field"
+ pci_nvme_ub_too_many_mappings(void) "too many prp/sgl mappings"
++
++# Passive command evidence; disabled by default. Ordinary WRITE only.
++pci_nvme_audit_instance(int64_t virtual_ns, uint64_t instance, uint64_t seq, uint32_t bus, uint32_t devfn) "virtual_ns=%" PRId64 " instance=%" PRIu64 " seq=%" PRIu64 " bus=%u devfn=%u"
++pci_nvme_audit_begin(int64_t virtual_ns, uint64_t instance, uint64_t seq, uint64_t request, uint16_t sqid, uint16_t cqid, uint16_t cid, uint32_t nsid, uint8_t opcode) "virtual_ns=%" PRId64 " instance=%" PRIu64 " seq=%" PRIu64 " request=%" PRIu64 " sqid=%u cqid=%u cid=%u nsid=%u opcode=%u"
++pci_nvme_audit_dispatch(int64_t virtual_ns, uint64_t instance, uint64_t seq, uint64_t request, uint64_t offset, uint64_t length, bool supported, uint8_t lbads, uint16_t metadata, uint8_t pi) "virtual_ns=%" PRId64 " instance=%" PRIu64 " seq=%" PRIu64 " request=%" PRIu64 " offset=%" PRIu64 " length=%" PRIu64 " supported=%u lbads=%u metadata=%u pi=%u"
++pci_nvme_audit_done(int64_t virtual_ns, uint64_t instance, uint64_t seq, uint64_t request, uint64_t offset, uint64_t length, uint16_t status, int ret) "virtual_ns=%" PRId64 " instance=%" PRIu64 " seq=%" PRIu64 " request=%" PRIu64 " offset=%" PRIu64 " length=%" PRIu64 " status=%u ret=%d"
++pci_nvme_audit_queued(int64_t virtual_ns, uint64_t instance, uint64_t seq, uint64_t request, uint16_t status) "virtual_ns=%" PRId64 " instance=%" PRIu64 " seq=%" PRIu64 " request=%" PRIu64 " status=%u"
++pci_nvme_audit_posted(int64_t virtual_ns, uint64_t instance, uint64_t seq, uint64_t request, uint16_t cqid, uint64_t address, uint16_t status, uint16_t wire_status) "virtual_ns=%" PRId64 " instance=%" PRIu64 " seq=%" PRIu64 " request=%" PRIu64 " cqid=%u address=%" PRIu64 " status=%u wire_status=%u"
++pci_nvme_audit_flush(int64_t virtual_ns, uint64_t instance, uint64_t seq, uint64_t request, uint16_t status, int ret) "virtual_ns=%" PRId64 " instance=%" PRIu64 " seq=%" PRIu64 " request=%" PRIu64 " status=%u ret=%d"
++pci_nvme_audit_boundary(int64_t virtual_ns, uint64_t instance, uint64_t seq, uint64_t request, unsigned boundary, uint16_t status, uint64_t detail) "virtual_ns=%" PRId64 " instance=%" PRIu64 " seq=%" PRIu64 " request=%" PRIu64 " boundary=%u status=%u detail=%" PRIu64 ""
