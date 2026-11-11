@@ -1,0 +1,117 @@
+{
+  "date": "2026-11-11",
+  "scope": "fresh offline compilation, ELF checks and MAIN reconstruction; no camera or USB access",
+  "compiler": "Ubuntu clang version 21.1.8 (6ubuntu1)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /usr/lib/llvm-21/bin\n",
+  "shipping_units": 28,
+  "compile_diagnostics": 0,
+  "layout": {
+    "32": {
+      "runtime_w5": [
+        23184,
+        18908,
+        1053600,
+        1053588,
+        2880,
+        8
+      ],
+      "live_ui_metadata": [
+        1280333129,
+        1,
+        18488,
+        8,
+        16,
+        28,
+        32,
+        48,
+        56,
+        12072,
+        40,
+        12296,
+        12300,
+        12312
+      ],
+      "pb": [
+        8240,
+        1856,
+        32,
+        8196
+      ]
+    },
+    "36": {
+      "runtime_w5": [
+        23184,
+        18908,
+        1053600,
+        1053592,
+        2880,
+        8
+      ],
+      "live_ui_metadata": [
+        1280333131,
+        3,
+        37920,
+        8,
+        16,
+        28,
+        32,
+        48,
+        56,
+        12072,
+        40,
+        12296,
+        12300,
+        12312
+      ],
+      "icon32_metadata": [
+        1228091981,
+        2,
+        37920,
+        12072,
+        18484,
+        19384,
+        216,
+        220,
+        6032,
+        6056,
+        224,
+        18144,
+        37880
+      ],
+      "pb": [
+        8400,
+        1856,
+        32,
+        8196
+      ]
+    }
+  },
+  "exclusive_instruction_count": 194,
+  "reference_elf_link_passed": true,
+  "manifest_materialization": {
+    "base": true,
+    "reference": true
+  },
+  "stages": [
+    {
+      "stage": "live",
+      "sha256": "27d5f1dac7be0426b7747f9ff159b8a4a37e60bf082648e17cba38c5c7ded719"
+    },
+    {
+      "stage": "playback",
+      "sha256": "a46b334d28b72f8f9899f11731c3537a607144300d399a9d6dac82d7629bced2"
+    },
+    {
+      "stage": "usb",
+      "sha256": "56395e20d394f9f454a4160497df07e2c2e40e97433d82f522378c6ef70b897a"
+    },
+    {
+      "stage": "pool",
+      "sha256": "98638cf72deb1980fb7b3cdf2b82501f112303dad0ba9beb9a6757517b790544"
+    }
+  ],
+  "pool_main_sha256": "98638cf72deb1980fb7b3cdf2b82501f112303dad0ba9beb9a6757517b790544",
+  "bootguard_main_sha256": "fecbe07e3a0ea2a9136b8e6a396e06b81d3d4e81eda7881c4b98ae20653be1f4",
+  "matches_original_v36_main": true,
+  "qemu_rerun": false,
+  "physical_camera_verified": false
+}

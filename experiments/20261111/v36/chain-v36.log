@@ -1,0 +1,7 @@
+{"output": "chain-v36/pb/live-fixed.emulation-only.main", "output_sha256": "a46b334d28b72f8f9899f11731c3537a607144300d399a9d6dac82d7629bced2", "changed_vs_input": 31682}
+patched chain-v36/usb/usb.main: hook 0x401dac34 -> cave 0x401fff80 (52 B)
+usb ranges 7
+out 98638cf72deb1980fb7b3cdf2b82501f112303dad0ba9beb9a6757517b790544
+a46b334d28b72f8f  chain-v36/pb/live-fixed.emulation-only.main
+56395e20d394f9f4  chain-v36/usb/usb.main
+98638cf72deb1980  chain-v36/pool/pool.main

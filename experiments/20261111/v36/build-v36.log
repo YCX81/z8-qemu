@@ -1,0 +1,2 @@
+{"payload_bytes": 81224, "recorded_bytes": 67512, "payload_identical": false, "hooks_identical": false, "payload_sha256": "5d3d8717d50c5e7743da9a42416c9ae51e4a3342e9d12e9ef2432a807956b890"}
+{"output": "build-v36/live-fixed.emulation-only.main", "output_sha256": "27d5f1dac7be0426b7747f9ff159b8a4a37e60bf082648e17cba38c5c7ded719", "changed_vs_input": 73906}

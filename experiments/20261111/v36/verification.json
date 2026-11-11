@@ -1,0 +1,87 @@
+{
+  "sha256": "a6e1d92ef0c52fc4af066eb128460f8c01415e282ade12070e1c4bf5d70a6cde",
+  "bytes": 99051117,
+  "source": "d67413c2ede6b9ce8887175f20700bd9fbad2a973a4820968c45503d15d80d96",
+  "main": "fecbe07e3a0ea2a9136b8e6a396e06b81d3d4e81eda7881c4b98ae20653be1f4",
+  "identity": "04.06.p0",
+  "eg": "eg2070_0406p0.bi",
+  "base_main": "98638cf72deb1980fb7b3cdf2b82501f112303dad0ba9beb9a6757517b790544",
+  "layers": [
+    "NikonFirmwarePatch v0.4.0-rc.2 (framing, video-quality, photo-tools; log-colour left out: its cave overlaps the C64 slot layer) replacing v0.3.0-r1",
+    "Live v36 = v32 + Wave5 close_lock moved from uncached DMA pool to cached runtime (REC hang root cause) + Live icon v3",
+    "fenestra-bootguard-v2 (one retry per build, new build id)"
+  ],
+  "bootguard": {
+    "source_sha256": "98638cf72deb1980fb7b3cdf2b82501f112303dad0ba9beb9a6757517b790544",
+    "sha256": "fecbe07e3a0ea2a9136b8e6a396e06b81d3d4e81eda7881c4b98ae20653be1f4",
+    "build_id": "0xdfdf880c",
+    "cave": [
+      "0x401fe000",
+      "0x401fe0e4"
+    ],
+    "symbols": {
+      "CLEAR": "0x401d8384",
+      "DISC_BREAK": "0x401c4ef4",
+      "DISC_CONT": "0x401c4ecc",
+      "DISC_ID": "0x401c4d7c",
+      "DISC_LEN": "0x401c4d58",
+      "DISC_NAME": "0x401c4d4c",
+      "INSPECT": "0x401d78d8",
+      "RETRY": "0x1",
+      "TICK_BL": "0x401d8984",
+      "TICK_CMP": "0x401d8960",
+      "TOKEN": "0x401cf98c",
+      "_start": "0x401fe000",
+      "build_id": "0x401fe060",
+      "flag_magic": "0x401fe068",
+      "inspect": "0x401fe070",
+      "token": "0x401fe000"
+    },
+    "patches": {
+      "0x401c4d4c": "cbz w0, DISC_CONT",
+      "0x401c4d58": "b.hi DISC_CONT",
+      "0x401c4d7c": "cbz w0, DISC_CONT",
+      "0x401cf98c": "b CAVE_TOKEN",
+      "0x401d8960": "cmp w9, #1000",
+      "0x401d8984": "bl CAVE_INSPECT"
+    },
+    "changed": [
+      [
+        "0x401c4d4c",
+        "0x401c4d4e"
+      ],
+      [
+        "0x401c4d58",
+        "0x401c4d5a"
+      ],
+      [
+        "0x401c4d7c",
+        "0x401c4d7e"
+      ],
+      [
+        "0x401cf98c",
+        "0x401cf990"
+      ],
+      [
+        "0x401d8961",
+        "0x401d8963"
+      ],
+      [
+        "0x401d8984",
+        "0x401d8988"
+      ],
+      [
+        "0x401fe000",
+        "0x401fe0e4"
+      ]
+    ]
+  },
+  "body_crc": true,
+  "header_digest": true,
+  "qemu": {
+    "run": "n4v36-a1",
+    "status": "PASS",
+    "note": "Live photo regression in QEMU; movie REC verified on hardware with v9b diag build only"
+  },
+  "physical_camera_verified": false
+}

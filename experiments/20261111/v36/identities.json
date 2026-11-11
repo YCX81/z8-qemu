@@ -1,0 +1,41 @@
+{
+  "schema": "v36.artifact-identities/v1",
+  "artifacts": {
+    "reference-main": {
+      "bytes": 81807709,
+      "sha256": "c7c6dbeea8a94064a10d47a7b9022ab26e4aa6b12ba5fb63b1ad85abac4fe4d4"
+    },
+    "merged-base": {
+      "bytes": 81807709,
+      "sha256": "54f25ad5d58d2c1f26498db7771d33816616e5494eb404f784cf8fe640d77c0e"
+    },
+    "live-main": {
+      "bytes": 81807709,
+      "sha256": "27d5f1dac7be0426b7747f9ff159b8a4a37e60bf082648e17cba38c5c7ded719"
+    },
+    "playback-main": {
+      "bytes": 81807709,
+      "sha256": "a46b334d28b72f8f9899f11731c3537a607144300d399a9d6dac82d7629bced2"
+    },
+    "usb-main": {
+      "bytes": 81807709,
+      "sha256": "56395e20d394f9f454a4160497df07e2c2e40e97433d82f522378c6ef70b897a"
+    },
+    "pool-main": {
+      "bytes": 81807709,
+      "sha256": "98638cf72deb1980fb7b3cdf2b82501f112303dad0ba9beb9a6757517b790544"
+    },
+    "core-baseline": {
+      "bytes": 81807709,
+      "sha256": "c770f34014849b2c42f20b9258a32b8959253cfb296e48f83417572781e00864"
+    },
+    "bootguard-main": {
+      "bytes": 81807709,
+      "sha256": "fecbe07e3a0ea2a9136b8e6a396e06b81d3d4e81eda7881c4b98ae20653be1f4"
+    },
+    "firmware": {
+      "bytes": 99051117,
+      "sha256": "a6e1d92ef0c52fc4af066eb128460f8c01415e282ade12070e1c4bf5d70a6cde"
+    }
+  }
+}
