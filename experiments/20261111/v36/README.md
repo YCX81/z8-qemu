@@ -8,6 +8,21 @@ The matching source and portable reconstruction tools are in
 Start with that directory's `REPRODUCE-v36.md`. This is a cross-repository source
 checkpoint; the hash verifier does not compile or operate a camera.
 
+## Moving to another machine
+
+The distribution name and home paths below describe the original laboratory.
+They do not describe every machine and are not installed by cloning either
+repository. An existing WSL distribution named Ubuntu is sufficient.
+
+Linking and MAIN reconstruction require separately transferred private inputs.
+The local migration bundle is named `v36-private-inputs.zip`; it is not a public
+GitHub attachment. It contains the four MAIN identities, the historical v36
+container, matching materialized manifests and a dependency-free input verifier.
+After transferring and extracting it, run `python3 verify_inputs.py` and set
+`INPUTS` to its absolute directory. Use the explicit input arguments in the
+companion reproduction guide. Source-only checks work without this bundle;
+linking and the full chain do not.
+
 ## What was found
 
 Under `$HOME/.local/share/nikon-z8-qemu/live-audio`:

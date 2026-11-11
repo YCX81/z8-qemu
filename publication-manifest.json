@@ -70,7 +70,7 @@
     "experiments/20261111/exmcu/host-wake.patch": "e7df1f7085df7002b5a243b5eb290676e68d9529ce63da3331c01bdf521017eb",
     "experiments/20261111/exmcu/native_run.py": "cf311d64aafaa05558b6ee7f32a24c83df2c3523623d44aabe7ec658f09c6bb4",
     "experiments/20261111/export-manifest.json": "9d66c5ef6acf7c2eb4db2f5950cc47f66babe64b2a32156b95f0e068bb955fb8",
-    "experiments/20261111/v36/README.md": "24d163cf1c782badf35cc2525245bb6322698619f9393ca1cd1e3a359a9f13cf",
+    "experiments/20261111/v36/README.md": "287265fd5109a66e618df4d9c3050a6ba72411a5fc525055c05e62729925cfcd",
     "experiments/20261111/v36/build-v36.log": "fbc6e0c02885cf0d8a90df6d5e3bf42459c4e2dc0f86afe144804da65cd1550d",
     "experiments/20261111/v36/chain-v36.log": "0502f23cf3cc0722ec23fe08d788425360c69c4e2dcd3b43cb491d9dee7e0ec4",
     "experiments/20261111/v36/identities.json": "26e6e491f7d66e97b07f673890e596173631f813986683f85f3804be6405d566",
