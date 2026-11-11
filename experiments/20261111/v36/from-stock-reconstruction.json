@@ -1,0 +1,92 @@
+{
+  "schema": "v36.from-stock-reconstruction/v1",
+  "original_package_sha256": "d67413c2ede6b9ce8887175f20700bd9fbad2a973a4820968c45503d15d80d96",
+  "core_compiler": "Ubuntu clang version 18.1.8 (20ubuntu8)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /path/to/compiler/bin\n",
+  "live_compiler": "Ubuntu clang version 21.1.8 (6ubuntu1)\nTarget: x86_64-pc-linux-gnu\nThread model: posix\nInstalledDir: /path/to/compiler/bin\n",
+  "private_intermediate_inputs": [],
+  "public_toolkits": {
+    "r1": {
+      "tag": "v0.3.0-r1",
+      "sha256": "704dbb2e09abed4e641174810ad655a413a2eff4042845371499c896634591ed"
+    },
+    "rc2": {
+      "tag": "v0.4.0-rc.2",
+      "sha256": "9a00183b54ee80e02e89445a59f5806a1e738ea22e2400538221ca27c21d9b4c"
+    }
+  },
+  "stages": [
+    {
+      "stage": "nfp-r1",
+      "file": "nfp-r1.main",
+      "bytes": 81807709,
+      "sha256": "8bc079ddb367aceb11d0f65e59bef39081c27b34bc160ee6cf08a80718b31f56"
+    },
+    {
+      "stage": "nfp-rc2",
+      "file": "nfp-rc2.main",
+      "bytes": 81807709,
+      "sha256": "71c1475f2dd2f87a9d3f10f90408f9aa0487d62fbfa3dfb2ceb8a0b05140e382"
+    },
+    {
+      "stage": "core-baseline",
+      "file": "core-baseline.main",
+      "bytes": 81807709,
+      "sha256": "c770f34014849b2c42f20b9258a32b8959253cfb296e48f83417572781e00864"
+    },
+    {
+      "stage": "source-generated-seed",
+      "file": "seed.main",
+      "bytes": 81807709,
+      "sha256": "50f2a5b22217710c6f35faf1e4639ef675f2738184525be0190f36bcc42cb36b"
+    },
+    {
+      "stage": "playback",
+      "file": "pb/live-fixed.emulation-only.main",
+      "bytes": 81807709,
+      "sha256": "a46b334d28b72f8f9899f11731c3537a607144300d399a9d6dac82d7629bced2"
+    },
+    {
+      "stage": "usb",
+      "file": "usb/usb.main",
+      "bytes": 81807709,
+      "sha256": "56395e20d394f9f454a4160497df07e2c2e40e97433d82f522378c6ef70b897a"
+    },
+    {
+      "stage": "pool",
+      "file": "pool/pool.main",
+      "bytes": 81807709,
+      "sha256": "98638cf72deb1980fb7b3cdf2b82501f112303dad0ba9beb9a6757517b790544"
+    },
+    {
+      "stage": "main",
+      "file": "v36.main",
+      "bytes": 81807709,
+      "sha256": "fecbe07e3a0ea2a9136b8e6a396e06b81d3d4e81eda7881c4b98ae20653be1f4"
+    },
+    {
+      "stage": "package",
+      "file": "Z_8_0406.bin",
+      "bytes": 99051117,
+      "sha256": "a6e1d92ef0c52fc4af066eb128460f8c01415e282ade12070e1c4bf5d70a6cde"
+    }
+  ],
+  "physical_camera_verified": false,
+  "qemu_rerun": false,
+  "current_core_source_identity": "a5cf9aea7a7f7a638e8f8444d0a0da8538eaebdf72aaa323977816cba4f9394f",
+  "historical_runtime_identity": "a45bb382924140bcc2c3655e777ae1138927c51a09f25ffdef618fb5766b7577",
+  "passed": true,
+  "date": "2026-11-11",
+  "validation": {
+    "fresh_output_directory": true,
+    "legacy_python_file_access_guard_enabled": true,
+    "guarded_categories": [
+      "old fxfix MAINs",
+      "old nfp-rc2 state",
+      "old live-audio state",
+      "Windows card backup",
+      "private migration bundle"
+    ],
+    "original_firmware_input_only": true,
+    "firmware_inputs_from_git": false
+  }
+}

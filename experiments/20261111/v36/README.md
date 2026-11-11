@@ -8,7 +8,11 @@ The matching source and portable reconstruction tools are in
 Start with that directory's `REPRODUCE-v36.md`. This is a cross-repository source
 checkpoint; the hash verifier does not compile or operate a camera.
 
-## Moving to another machine
+## Reconstruct directly from original firmware
+
+The [stock-to-v36 entry](https://github.com/YCX81/fenestra-z8/tree/z8-c311/research/z8-live/from-stock) generates the matching MAIN and update container from an original C 3.11 package, the two repositories and bundled public NFP toolkit dependencies. It does not require any historical MAIN or private manifest. Use that workflow for a fresh machine. The companion source helpers are in [from-stock/](from-stock/README.md). The sections below preserve the older input-migration route.
+
+## Moving historical inputs to another machine
 
 The distribution name and home paths below describe the original laboratory.
 They do not describe every machine and are not installed by cloning either
@@ -85,3 +89,5 @@ The byte-bearing local manifests, complete firmware/MAIN files, memory captures,
 media, virtual environments and raw emulator output remain local under the
 repository's existing publication boundary. The adjacent logs contain only
 build-stage sizes, paths and hashes; no firmware byte arrays.
+
+The complete stock-only reconstruction result is in [from-stock-reconstruction.json](from-stock-reconstruction.json). It includes the matching full update-package hash and a test with legacy laboratory input reads blocked. Public NFP toolkits and their corresponding source/licenses are now pinned in the companion repository.

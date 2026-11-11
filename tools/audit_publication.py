@@ -115,6 +115,8 @@ FILES.update({'experiments/20261111/wave5/source/nikon-z9-pixels.h', 'experiment
 FILES.add('docs/features-and-usage.zh-CN.md')
 # v36 offline reconstruction evidence and local identity verifier.
 FILES.update(["experiments/20261111/v36/README.md","experiments/20261111/v36/build-v36.log","experiments/20261111/v36/chain-v36.log","experiments/20261111/v36/identities.json","experiments/20261111/v36/reproduction-check.json","experiments/20261111/v36/verification.json","experiments/20261111/v36/verify_local.py"])
+# Source-only C64/portrait helpers for stock-to-v36 reconstruction.
+FILES.update(["experiments/20261111/v36/from-stock-reconstruction.json","experiments/20261111/v36/from-stock/README.md","experiments/20261111/v36/from-stock/video_track_orientation.py","experiments/20261111/v36/from-stock/z8_orientation.py","experiments/20261111/v36/from-stock/z8_orientation_unlock.py","experiments/20261111/v36/from-stock/z8_slots_core.py","experiments/20261111/v36/from-stock/z8_slots_image.py","experiments/20261111/v36/from-stock/z8_slots_imenu.py","experiments/20261111/v36/from-stock/z8_slots_labels.py","experiments/20261111/v36/from-stock/z8_slots_layout.py","experiments/20261111/v36/from-stock/z8_slots_main_menu.py","experiments/20261111/v36/from-stock/z8_video.py","experiments/20261111/v36/from-stock/z8_video_file_rotation.py","experiments/20261111/v36/from-stock/z8_video_layout.py"])
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),
