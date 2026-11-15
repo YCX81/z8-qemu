@@ -1,5 +1,7 @@
 # Nikon Z8 固件仿真研究
 
+2026-11-15 · [V62 Live 源码与构建环境](https://github.com/YCX81/fenestra-z8/blob/z8-c311/research/z8-live/build-tools/livediag/feat-onemov/RELEASE-v62.md): 实际构建/整机 QEMU 在 Windows 的 WSL Linux 运行，Mac 保存归档及交付副本。V62 包含 Log 文字与 Live 快门声修复，保留 V61 RAW 跨卡回放；用户已确认编译、测试和实机验证完成，本次发布不重复执行。V62 的音频模型实验保留在该源码检查点，不自动加入本仓库默认构建。
+
 [English](README.md) · [完整功能与使用指南](docs/features-and-usage.zh-CN.md)
 
 文档更新：**2026-11-11**。本工作区基于 [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu) 开展 Nikon Z8 C3.11 移植，上游起点为 `27498735e3ed202052dfc6306ded6b867af70a58`。共享 Z9 参考工具保留，Z8 的固件身份、MCU 绑定、资源和验收基线独立定义。

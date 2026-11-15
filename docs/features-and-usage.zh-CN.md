@@ -1,5 +1,7 @@
 # Z8 QEMU 功能与使用指南
 
+2026-11-15 · [V62 Live 源码与构建环境](https://github.com/YCX81/fenestra-z8/blob/z8-c311/research/z8-live/build-tools/livediag/feat-onemov/RELEASE-v62.md): 实际构建/整机 QEMU 在 Windows 的 WSL Linux 运行，Mac 保存归档及交付副本。V62 包含 Log 文字与 Live 快门声修复，保留 V61 RAW 跨卡回放；用户已确认编译、测试和实机验证完成，本次发布不重复执行。V62 的音频模型实验保留在该源码检查点，不自动加入本仓库默认构建。
+
 更新日期：2026-11-11。默认分支为 `main`，11 月 Live/Wave5 进展已合并到 `experiments/20261111/`；原临时进展分支已删除。合并保留了实验源码，默认 `tools/build.py` 仍使用根目录 `qemu/` 模型，不会自动应用实验目录下的补丁。
 
 ## 当前提供什么
