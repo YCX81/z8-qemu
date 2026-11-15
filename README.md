@@ -6,7 +6,7 @@
 
 [简体中文](README.zh-CN.md)
 
-Documentation updated: **2026-11-11**. This workspace ports Nikon Z8 C3.11 to the research emulator from [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu), starting from upstream commit `27498735e3ed202052dfc6306ded6b867af70a58`. Z8 firmware identities, MCU bindings, resources and acceptance baselines are defined separately from the retained Z9 reference tools.
+Documentation updated: **2026-11-15**. This workspace ports Nikon Z8 C3.11 to the research emulator from [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu), starting from upstream commit `27498735e3ed202052dfc6306ded6b867af70a58`. Z8 firmware identities, MCU bindings, resources and acceptance baselines are defined separately from the retained Z9 reference tools.
 
 **Assisted original-firmware menus, synthetic live view and ordinary post-trigger NEFs (one packed14 and one F0 lossless) have recorded local QEMU acceptance. RAW pre-release capture remains incomplete.** This is an experimental emulator, not camera-installable firmware. It does not connect to or flash a physical camera.
 
@@ -32,7 +32,24 @@ Open Gate video, AF enhancements, online Nikon Imaging Cloud integration, comple
 
 ## November source experiments and usage
 
-The default branch also contains the archived Wave5/Live-audio overlay and patches, CFexpress hotplug model and harnesses, and EXMCU/host-wake experiments. Their original prepared source trees, private MAIN/EX inputs and laboratory helpers remain prerequisites. The [usage guide](docs/features-and-usage.zh-CN.md) maps every feature to its entry point, explains baseline builds and menu controls, and separates runnable baseline workflows from archived experiments. The firmware-side Live menu and v36 candidate are documented in [Fenestra Z8](https://github.com/YCX81/fenestra-z8/blob/z8-c311/docs/features-and-usage.zh-CN.md).
+The default branch also contains the archived Wave5/Live-audio overlay and patches, CFexpress hotplug model and harnesses, and EXMCU/host-wake experiments. Their original prepared source trees, private MAIN/EX inputs and laboratory helpers remain prerequisites. The [usage guide](docs/features-and-usage.zh-CN.md) maps every feature to its entry point, explains baseline builds and menu controls, and separates runnable baseline workflows from archived experiments. The firmware-side Live menu and V62 checkpoint are documented in [Fenestra Z8](https://github.com/YCX81/fenestra-z8/blob/z8-c311/docs/features-and-usage.zh-CN.md).
+
+## Worktree cleanup / 工作树清理（2026-11-15）
+
+本次仅核对源码归档、Git 历史、构建路径引用和运行进程，未重新编译、运行测试或启动 QEMU。
+
+| 工作树或源码副本 | 处理 | 依据 |
+|---|---|---|
+| Mac `z8-portrait-menu` | 完整备份及 Git bundle 后删除；分支保留 | 布局和直方图源码从 V50 起集成并沿用到 V62；原 `8357634` 分支现已合入 QEMU `main`，不再需要独立工作树 |
+| WSL `v37hevc-src`、`v37src`、`v39src`、`v40src` | 含 Git 历史及本地改动的备份完成后删除 | 共同 V37 基线已合并；所有有效本地改动均能逐文件匹配当前源码归档，V62 构建链及运行进程不再引用这些目录 |
+| WSL `v41src`、`v43src`–`v45src`、`v46src`、`v46rsrc`、`v47src`–`v50src` | 保留 | 含尚未逐字归档的历史实现；不能仅按旧版本号认定其内容都可删除 |
+| WSL `v51src` | 保留 | V52/V53 构建器仍直接引用其中的构建工具，V62 延用这条前置链 |
+| WSL QEMU `merged/tree`、`z8-he-history-20261017` | 保留 | 前者有 11 个已跟踪文件改动，后者是独立 HE/RAW 研究；均未证明被 V62 覆盖 |
+| 其他仓库主工作目录 | 保留 | 上游工具、密钥工具、其他机型和独立研究仓库不属于可删除的 V62 重复工作树 |
+
+本次 Mac 备份位于工作区 `worktree-backups/portrait-before-removal-20261115/`，含完整工作文件与 `portrait-history.bundle`。WSL 备份位于 `$HOME/worktree-backups/v62-covered-sources-20261115/`，每个目录分别保存 `.tar.gz`、文件数及 SHA256 收据。删除前均核对归档内容；恢复时解包到原路径，portrait 分支也可重新创建工作树。备份包含未提交内容，保留本地，不上传 GitHub。
+
+此前清理的 Mac `fenestra-z8-v37` 和 WSL `v37cs` 的备份继续保留；当前 V62 源码、交付包和实验室构建输入未因本次清理而移动。
 
 ## Public branches
 
