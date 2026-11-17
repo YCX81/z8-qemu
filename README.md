@@ -1,168 +1,272 @@
-# Nikon Z8 firmware emulation research
+# Nikon Z8 Firmware Emulator (`z8-qemu`)
 
-2026-11-15 · [V62 Live 源码与构建环境](https://github.com/YCX81/fenestra-z8/blob/z8-c311/research/z8-live/build-tools/livediag/feat-onemov/RELEASE-v62.md): 实际构建/整机 QEMU 在 Windows 的 WSL Linux 运行，Mac 保存归档及交付副本。V62 包含 Log 文字与 Live 快门声修复，保留 V61 RAW 跨卡回放；用户已确认编译、测试和实机验证完成，本次发布不重复执行。V62 的音频模型实验保留在该源码检查点，不自动加入本仓库默认构建。
+**English** | [简体中文](README.zh-CN.md)
 
-[Feature and usage guide (中文)](docs/features-and-usage.zh-CN.md) · [Merged Live / Wave5 source checkpoint](docs/progress-20261111.md)
+`z8-qemu` is an experimental QEMU-based hardware emulator for **Nikon Z8 firmware C3.11** (machine `nikon-z8-bringup`), adapted from [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu) and pinned to upstream QEMU `10.2.4`.
 
-[简体中文](README.zh-CN.md)
+It lets you boot an extracted Z8 `MAIN` firmware image on a Linux or Windows WSL2 host, navigate native camera menus in your browser, test synthetic Live View and EVF rendering, capture single-shot RAW (`.NEF`) files onto a virtual CFexpress card, and run custom firmware experiments (such as 32/64 Picture Control slots and portrait video HUD layouts) without touching physical hardware.
 
-Documentation updated: **2026-11-15**. This workspace ports Nikon Z8 C3.11 to the research emulator from [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu), starting from upstream commit `27498735e3ed202052dfc6306ded6b867af70a58`. Z8 firmware identities, MCU bindings, resources and acceptance baselines are defined separately from the retained Z9 reference tools.
+> [!IMPORTANT]
+> **Emulator Only — Never Flash Derived Files to a Camera**
+> - This project runs entirely on your computer. It **never** connects to or flashes a physical camera.
+> - Firmware files, decryption keys, and sensor dumps are **not** included; you must extract `MAIN` from your own official `Z_8_0311.bin` package.
+> - Slot-expansion and overlay tools generate modified local `MAIN` binaries strictly for QEMU experiments. They are **not** valid camera update packages and must **never** be written to a real camera.
 
-**Assisted original-firmware menus, synthetic live view and ordinary post-trigger NEFs (one packed14 and one F0 lossless) have recorded local QEMU acceptance. RAW pre-release capture remains incomplete.** This is an experimental emulator, not camera-installable firmware. It does not connect to or flash a physical camera.
+---
 
-The baseline runtime evidence below was reconciled on 2026-10-19 against main `a140c42` and its recorded results. The November source checkpoint is now merged into `experiments/20261111/`; it does not replace the default `qemu/` build overlay or extend those runtime acceptance claims. This documentation update did not rerun firmware, verify the current binary or test physical hardware. Historical results belong to their recorded inputs, sources and binaries. Detailed research notes are mostly in Chinese; see the [feature TODO](docs/TODO.md) and [implementation record](docs/z8-status.md).
+## Interface Preview
 
-## Current results and limits
+| Browser Console (`127.0.0.1:8788`) | Synthetic LCD Live View |
+| :---: | :---: |
+| ![Browser Interactive Console](docs/images/web-console.png) | ![Synthetic LCD Live View](docs/images/liveview-lcd.png) |
+| **Native Photo Shooting Menu** | **Expanded C64 Picture Control Slots** |
+| ![Photo Shooting Menu](docs/images/menu-photo.png) | ![C64 Picture Control Slots](docs/images/c64-slot-list.png) |
 
-| Area | Recorded evidence | Remaining boundary |
-|---|---|---|
-| Menus and synthetic live view | Three MENU → half-press return cycles; five scanout checks with an independent decoder. Historical run: 1,743 RAW frames, 2,547 LCD frames, 731 containing live view; zero unknown MMIO accesses. | External MCU peer and explicit virtual resources required. Menu hashes are regression baselines, without real-camera image comparison. Bare-model full boot is unverified. |
-| C32/C64 Picture Control slots | Separate four-stage acceptance for 32 and 64 photo slots plus 32 and 64 video slots: import, native selection, guest NAND save and new-process recovery. | Explicit experiment using a derived MAIN and active firmware calls. Real Nikon Imaging Cloud files, final color output and camera hardware are unverified. 64 is the tested capacity, not a hardware limit. |
-| Ordinary NEF | C11/C12 exported one 80,790,528-byte NEF. LibRaw decoded all 45,705,600 RAW samples with zero differences against actual producer RAM; packed bytes matched and three embedded JPEGs decoded. C12 used the public CLI recipe. | One post-trigger frame from the periodic stream model; single-frame sensor-model requests remained zero. This NEF is a padded packed14 copy, not compression. Not pre-release capture or sensor/ISP fidelity evidence. |
-| Per-photo audit and F0 lossless14 (2026-10-14) | One original C3.11 single shot with candidate QEMU `d39e1fd5…` wrote a 35,111,661-byte NEF to the card (`d211e239…`). LibRaw decoded all 45,705,600 samples with zero differences against the 151 producer snapshot. The F0 strip is 34,339,053 bytes, which rules out the 80,017,920-byte packed fallback; exiftool independently checked the predictor metadata. Three embedded JPEGs decoded. | Opt-in only: `engine1540-lossless14-model` and `output-buffer-ownership-model` are off by default, and the run used `profiles/z8-lossless14-properties.json`. The encoder is an attributed functional F0 format taken from upstream; it does not execute Nikon compression microcode or implement HE/HE*. The audit grants `pixels_verified`, not `native_accepted`. JPEG job byte matching, multi-photo UI recovery, the complete native writer lifecycle, historical RAW and physical devices remain unverified. See [photo audit](docs/z8-photo-audit.md). |
-| Native writer binding | C16 associated the native file object, ID/path, nine writes, final length, cleanup, return and result store with the exported NEF; its file ranges were covered by completed NVMe writes. | C16 used a private observer. Public observer integration has synthetic tests, without equivalent public runtime acceptance. Complete buffer lifetime, native allocation generation and physical-media durability remain unverified. |
-| RAW pre-release research | HALF20 reached the native C120/PRE display, getter4 and state2/handler3 with explicit resources and the opt-in wide control model. | Zero D980/RAW output and no accepted historical frames/NEFs. The release interval stopped on a diagnostic cross-domain hit, without a firmware exception or unknown MMIO. HALF21 is preparation only. |
-| Producer generation journal | Default-off metadata for actual D980→151 NV16/RAW→1540 RAM output: full SHA-256, virtual time, model write generations and parent lineage. Seven firmware-free QTests and eight helper tests were recorded as passing. | The 64-record journal is not a 64-frame pixel cache. Latest-source restrictions remain; CPU/other DMA writes, native ownership and historical retention are unverified. |
+---
 
-Receipts: [slot acceptance](docs/verification/slots-20261012.json) and [ordinary NEF / C12 / C16](docs/verification/raw-single-20261012.json). NVMe completion alone does not establish NEF acceptance or media durability; file export, decoding and RAM comparisons are separate checks.
+## Feature Overview
 
-RAW pre-release acceptance requires at least **two distinct retained pre-trigger frames and one post-trigger frame**, with pre-trigger DMA and enqueue before the earliest FULL request across every enabled route, and post-trigger DMA after the latest verified native FULL consumer on the same virtual clock. Complete queue, buffer-lifetime, file-set and full-pixel evidence is required. Increasing preview counts or exporting repeated frames is insufficient. See [runtime comparisons](docs/z8-raw-runtime.md) and the [multi-frame auditor](docs/z8-precapture-audit.md).
+| Feature | Entry Point | What Works Today | Current Scope & Limits |
+| :--- | :--- | :--- | :--- |
+| **Interactive Menus & Live View** | `Start-Z8.ps1` (Windows)<br>`tools/z8_run.py` (Linux/WSL) | Boots stock Z8 C3.11 into synthetic Live View; browser UI sends `MENU` and half-press shutter; supports automated headless menu round-trip checks. | Uses host MCU peers and synthetic Bayer frames rather than real CMOS/ISP hardware. |
+| **Strict Bring-Up Probe** | `Test-Z8.ps1`<br>`tools/z8_bringup.py` | Runs bounded boot checks and halts immediately on any unmodeled MMIO register access. | Optional bootstrap/bus/serial/NAND fixtures are explicit test assumptions, not proof of bare-metal boot. |
+| **Single-Shot NEF Capture** | `tools/z8_capture_probe.py`<br>`tools/z8_export_nefs.py` | Captures a full-resolution `8280×5520` 14-bit `.NEF` (uncompressed/packed14 or opt-in `F0` lossless14) to a virtual exFAT card and verifies decoded pixels via LibRaw. | Single post-trigger frame only; **RAW pre-release burst capture is not yet complete**. `F0` uses an upstream functional encoder rather than Nikon compression microcode (`HE`/`HE*` unsupported). |
+| **C32 / C64 Picture Control Slots** | `tools/z8_slots_acceptance.py` | Expands custom Picture Control slots to **32 or 64** for both Photo and Video (`C-1`–`C-64`), including `.NP3` import, menu selection, virtual NAND save, and cold-boot restore. | Runs on a derived QEMU `MAIN` image; not enabled by default in `Start-Z8.ps1`. |
+| **Portrait HUD, EVF & Lab Overlays** | `experiments/20261114/`<br>`experiments/20261111/` | Archived overlays for vertical video OSD + histogram alignment, Wave5 H.264/HEVC + Live audio models, CFexpress hotplug harnesses, and native EXMCU wake paths. | Stored as separate source overlays/patches; **not** automatically applied by the default `tools/build.py` build. |
 
-Open Gate video, AF enhancements, online Nikon Imaging Cloud integration, complete film simulation, photo Log, RED Log3G10/R3D NE and in-camera panorama remain unimplemented or unaccepted; see [TODO](docs/TODO.md). Native video N-Log is not a new project feature. Video recording emulation remains unverified on main.
+> Looking for the camera-side **Fenestra menu, `.wlm` loadable modules, and Live Photo (`V62`) firmware**? See the companion repository: **[fenestra-z8](https://github.com/YCX81/fenestra-z8)**.
 
-## November source experiments and usage
+---
 
-The default branch also contains the archived Wave5/Live-audio overlay and patches, CFexpress hotplug model and harnesses, and EXMCU/host-wake experiments. Their original prepared source trees, private MAIN/EX inputs and laboratory helpers remain prerequisites. The [usage guide](docs/features-and-usage.zh-CN.md) maps every feature to its entry point, explains baseline builds and menu controls, and separates runnable baseline workflows from archived experiments. The firmware-side Live menu and V62 checkpoint are documented in [Fenestra Z8](https://github.com/YCX81/fenestra-z8/blob/z8-c311/docs/features-and-usage.zh-CN.md).
+## Deployment & Build Guide
 
-## Worktree cleanup / 工作树清理（2026-11-15）
+### 1. System Requirements
 
-本次仅核对源码归档、Git 历史、构建路径引用和运行进程，未重新编译、运行测试或启动 QEMU。
+- **OS**: Linux (Ubuntu 22.04/24.04 recommended) or **Windows 11 with WSL2 (`Ubuntu`)**.
+  - *Tip*: Always keep the QEMU build directory and virtual card images on the **native Linux ext4 filesystem** (e.g., `$HOME/.local/share/nikon-z8-qemu/`), not on `/mnt/c/...`, to avoid severe I/O slowdowns.
+  - Native Windows builds without WSL and native macOS QEMU builds are not supported (macOS can still hold source archives and run pure-Python offline checks).
+- **Packages**: Python `3.12+`, `gcc`/`clang`, `ninja-build`, `patch`, `pkg-config`, `exfatprogs`, and development headers for `glib-2.0`, `pixman-1`, `zlib`, `libfdt`, and `libjpeg`.
 
-| 工作树或源码副本 | 处理 | 依据 |
-|---|---|---|
-| Mac `z8-portrait-menu` | 完整备份及 Git bundle 后删除；分支保留 | 布局和直方图源码从 V50 起集成并沿用到 V62；原 `8357634` 分支现已合入 QEMU `main`，不再需要独立工作树 |
-| WSL `v37hevc-src`、`v37src`、`v39src`、`v40src` | 含 Git 历史及本地改动的备份完成后删除 | 共同 V37 基线已合并；所有有效本地改动均能逐文件匹配当前源码归档，V62 构建链及运行进程不再引用这些目录 |
-| WSL `v41src`、`v43src`–`v45src`、`v46src`、`v46rsrc`、`v47src`–`v50src` | 保留 | 含尚未逐字归档的历史实现；不能仅按旧版本号认定其内容都可删除 |
-| WSL `v51src` | 保留 | V52/V53 构建器仍直接引用其中的构建工具，V62 延用这条前置链 |
-| WSL QEMU `merged/tree`、`z8-he-history-20261017` | 保留 | 前者有 11 个已跟踪文件改动，后者是独立 HE/RAW 研究；均未证明被 V62 覆盖 |
-| 其他仓库主工作目录 | 保留 | 上游工具、密钥工具、其他机型和独立研究仓库不属于可删除的 V62 重复工作树 |
-
-本次 Mac 备份位于工作区 `worktree-backups/portrait-before-removal-20261115/`，含完整工作文件与 `portrait-history.bundle`。WSL 备份位于 `$HOME/worktree-backups/v62-covered-sources-20261115/`，每个目录分别保存 `.tar.gz`、文件数及 SHA256 收据。删除前均核对归档内容；恢复时解包到原路径，portrait 分支也可重新创建工作树。备份包含未提交内容，保留本地，不上传 GitHub。
-
-此前清理的 Mac `fenestra-z8-v37` 和 WSL `v37cs` 的备份继续保留；当前 V62 源码、交付包和实验室构建输入未因本次清理而移动。
-
-## Public branches
-
-The table above describes `main`. Topic branches hold unmerged experiments and checkpoints. Their results belong to those branches, are not part of main, and each keeps its own incomplete acceptance boundaries. Each branch's source regression result is listed in the [publication progress](docs/publication-progress-20261015.md).
-
-| Branch | Purpose |
-|---|---|
-| [`main`](https://github.com/YCX81/z8-qemu/tree/main) | Reviewed base: Z8 bring-up, menu and live-view runs, C32/C64 slots, ordinary NEF capture, per-photo audit and F0, plus the retained Z9 reference tools; November experiments archived separately under `experiments/20261111/` |
-| [`codex/z8-integration`](https://github.com/YCX81/z8-qemu/tree/codex/z8-integration) | Combined RAW, video and orientation integration experiment |
-| [`codex/raw-precapture-shared146`](https://github.com/YCX81/z8-qemu/tree/codex/raw-precapture-shared146) | RAW history transport for pre-release capture, with the dual 1540/153c encoders |
-| [`codex/z8-he-history-20261017`](https://github.com/YCX81/z8-qemu/tree/codex/z8-he-history-20261017) | Lifecycle tests for a third-party HE precapture hook, replay of a real HE sample, and the native model gaps found |
-| [`codex/z8-r4-lifecycle`](https://github.com/YCX81/z8-qemu/tree/codex/z8-r4-lifecycle) | Extended-slot NP3 preflight, liveview labels and native card-input fallback experiments; copy-page expansion default off |
-| [`codex/e7-neural-research`](https://github.com/YCX81/z8-qemu/tree/codex/e7-neural-research) | Authored E7 parsers, candidate CPU replay, quantization and research contracts; external E7-bird arithmetic kept separate |
-| [`codex/z8-heif-1602`](https://github.com/YCX81/z8-qemu/tree/codex/z8-heif-1602) | HLG/HEIF still pipeline through the 1602 still encoder, plus bounded recovery probes |
-| [`codex/z8-video-c1`](https://github.com/YCX81/z8-qemu/tree/codex/z8-video-c1) | C1 video transport, codec and MCU experiments |
-| [`codex/z8-orientation`](https://github.com/YCX81/z8-qemu/tree/codex/z8-orientation) | Video orientation and video data path experiments |
-| [`codex/z8-live-photo`](https://github.com/YCX81/z8-qemu/tree/codex/z8-live-photo) | Host-only Live Photo frame retention model |
-| [`codex/z8-live-photo-video`](https://github.com/YCX81/z8-qemu/tree/codex/z8-live-photo-video) | Live Photo video inputs and pair audit research |
-| [`codex/z8-af-lockon`](https://github.com/YCX81/z8-qemu/tree/codex/z8-af-lockon) | AF resource tracing and occlusion response probes |
-| [`archive/z8-raw-precapture-20261013`](https://github.com/YCX81/z8-qemu/tree/archive/z8-raw-precapture-20261013) | Archive: earlier RAW precapture transport experiment |
-| [`archive/z8-internal-stream-20261012`](https://github.com/YCX81/z8-qemu/tree/archive/z8-internal-stream-20261012) | Archive: earlier internal stream notes, kept for provenance |
-| [`archive/z8-capture-evidence-20261012`](https://github.com/YCX81/z8-qemu/tree/archive/z8-capture-evidence-20261012) | Archive: earlier capture evidence notes, kept for provenance |
-| [`archive/z8-merge-rehearsal-20261014`](https://github.com/YCX81/z8-qemu/tree/archive/z8-merge-rehearsal-20261014) | Archive: unresolved merge rehearsal; deliberately not buildable |
-
-## Firmware input
-
-The Z8 launcher is `tools/z8_run.py`; its machine is `nikon-z8-bringup`. Legacy `tools/run.py`, `tools/boot.py` and `nikon-z9-lab` remain Z9 references.
-
-| Input | Required identity |
-|---|---|
-| Original update container | `Z_8_0311.bin`, 99,051,117 bytes |
-| Container SHA-256 | `d67413c2ede6b9ce8887175f20700bd9fbad2a973a4820968c45503d15d80d96` |
-| EG module | `eg2070_0311b0.bi`, body offset 581844; 81,807,711 bytes including CRC |
-| MAIN | 81,807,709 bytes after removing the final two CRC bytes |
-| MAIN SHA-256 | `2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853` |
-| Load / entry | `0x40160000`, inherited mapping assumption used in bounded execution |
-
-Supply a compatible local MAIN at `.local/firmware/z8-c311-main.bin` for the Windows wrappers. An update container cannot substitute for MAIN; other versions require separate bindings and validation. See [identity profile](profiles/z8-c311.json) and [firmware preparation](docs/firmware.md).
-
-Original input is read-only. Slot-expansion and format-policy experiments use separately identified derived programs; their results do not describe the unmodified default launch. Firmware, keys, derived images, dumps, screenshots and runtime artifacts stay local. See the [publication boundary and known history residual](docs/publication.md).
-
-## Derived firmware experiments
-
-The slot generators publish reusable A64 patch recipes, not just emulator settings. They create a separately identified local MAIN; this is different from the original-program launch. Generated MAIN, owned-region images and patch receipts may contain material copied from the user's firmware. They are local experiment artifacts, **not camera update files, and must not be written to a camera**. No repacking or physical-device validation is provided.
-
-The current tree also contains small instruction guards and test literals derived from the original program; the earlier entry-prefix removal did not remove all such material. See the [publication categories and remaining review](docs/publication.md), [technical source/reproduction review](docs/z8-public-review-20261013.md) and [experiment assumptions with counterfactuals](docs/z8-experiment-assumptions.md). Passing the inventory audit is not provenance or legal clearance.
-
-## Build and test
-
-Use Linux / WSL, Python 3.12+ and the dependencies in [build instructions](docs/build.md): GCC/Clang, Ninja, patch, pkg-config, GLib, Pixman, zlib, libfdt and libjpeg development headers. Capture work additionally needs exfatprogs and `requirements-capture.txt`; slot experiments use `requirements-c10.txt`.
-
-From the repository directory in Linux / WSL:
+On Ubuntu / WSL2:
 
 ```bash
-python3 -m venv "$HOME/.local/share/nikon-z8-qemu/venv"
-. "$HOME/.local/share/nikon-z8-qemu/venv/bin/activate"
-python -m pip install -r requirements.txt
-python -m pip install -r requirements-capture.txt
-python tools/build.py --work-dir "$HOME/.local/share/nikon-z8-qemu/work" --jobs 2
-python tools/make_cmos.py
-sh tests/run.sh
-python tests/check_z8_machine.py --qemu "$HOME/.local/share/nikon-z8-qemu/work/build/qemu-system-aarch64"
+sudo apt-get update
+sudo apt-get install -y build-essential ccache ninja-build patch pkg-config \
+  libglib2.0-dev libpixman-1-dev zlib1g-dev libfdt-dev libjpeg-dev exfatprogs \
+  python3-venv exiftool
 ```
 
-The builder pins QEMU 10.2.4 and verifies the archive SHA-256; use `--archive` for an existing archive. Prefer a Linux filesystem for builds and long runs. Synthetic tests and firmware-free QTests validate model boundaries, not original-firmware or physical-camera acceptance. Explicit model tests are documented alongside each feature.
+### 2. Build QEMU and Synthetic Sensor Input
 
-## Local menu and live-view run
+Clone the repository inside Linux / WSL and build the pinned QEMU `10.2.4` binary:
 
-PowerShell wrappers currently select WSL **Ubuntu**, resolve that user's home automatically and use the environment above. From the repository root:
+```bash
+git clone --branch main https://github.com/YCX81/z8-qemu.git
+cd z8-qemu
+
+python3 -m venv "$HOME/.local/share/nikon-z8-qemu/venv"
+source "$HOME/.local/share/nikon-z8-qemu/venv/bin/activate"
+
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-capture.txt
+python -m pip install -r requirements-c10.txt
+
+# Downloads official QEMU 10.2.4, verifies SHA-256, applies the Z8 board overlay, and compiles
+python tools/build.py --work-dir "$HOME/.local/share/nikon-z8-qemu/work" --jobs 4
+
+# Generates the synthetic Bayer sensor frame at .local/input.raw
+python tools/make_cmos.py
+```
+
+- If you already downloaded `qemu-10.2.4.tar.xz` (`SHA-256: 821b545b92f165e57dddccac5077d76d4d436a226595b8813ad59306bbfd0746`), pass `--archive /path/to/qemu-10.2.4.tar.xz` to `tools/build.py`.
+- Verify the build without needing any Nikon firmware:
+
+```bash
+sh tests/run.sh
+python tests/check_z8_machine.py \
+  --qemu "$HOME/.local/share/nikon-z8-qemu/work/build/qemu-system-aarch64"
+```
+
+### 3. Prepare the Nikon Z8 C3.11 `MAIN` Image
+
+`z8-qemu` requires the **decrypted, uncompressed `MAIN` payload** extracted from Nikon's official Z8 firmware `C3.11` update file (`Z_8_0311.bin`), placed at:
+
+```text
+.local/firmware/z8-c311-main.bin
+```
+
+| File | Exact Byte Size | SHA-256 | Notes |
+| :--- | :--- | :--- | :--- |
+| `Z_8_0311.bin` | `99,051,117` | `d67413c2ede6b9ce8887175f20700bd9fbad2a973a4820968c45503d15d80d96` | Official encrypted update container (**cannot** be passed directly to QEMU). |
+| `z8-c311-main.bin` | `81,807,709` | `2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853` | Extracted from module `eg2070_0311b0.bi` after stripping the trailing 2-byte CRC. |
+
+See [docs/firmware.md](docs/firmware.md) for details. Every launcher verifies the exact length and SHA-256 before booting and opens the original file **read-only**.
+
+---
+
+## Feature Usage Guide
+
+### 1. Interactive Browser Console, Menus & Live View
+
+#### On Windows (PowerShell wrappers calling WSL `Ubuntu`)
 
 ```powershell
-.\Test-Z8.ps1
-.\Test-Z8.ps1 -BootstrapFixture -BusWindowFixture -SerialFixture -NandFixture
+# Launch interactive mode with browser UI at http://127.0.0.1:8788/
 .\Start-Z8.ps1
+
+# Run automated headless check (3 MENU <-> Live View cycles + pixel verification)
 .\Start-Z8.ps1 -Headless -Seconds 360 -MenuTest -RequireLiveView
 ```
 
-`Test-Z8.ps1` is bounded strict bring-up: fixtures default off and unknown hardware accesses stop execution. Optional bootstrap/bus/serial/NAND fixtures are explicit experimental assumptions, not proof of bare-model full boot.
+#### On Linux / WSL Directly
 
-`Start-Z8.ps1` displays the original QEMU framebuffer at `http://127.0.0.1:8788/` and accepts MENU / half-press through the MCU path. Allow time for initial live view. MENU opens the menu; half-press returns to live view. Stop with the page's stop button or Ctrl+C in the launch terminal. Runs use fresh output directories on the WSL Linux disk. The headless command requires three menu-return cycles and independent pixel checks; diagnostic exit code zero alone does not mean camera acceptance. Inspect `result.json`.
+```bash
+source "$HOME/.local/share/nikon-z8-qemu/venv/bin/activate"
 
-This wrapper does not enable slot expansion or provide complete RAW pre-release acceptance. For ordinary NEF use the separate [capture probe and public C12 recipe](docs/z8-capture-probe.md), including its input, card, menu and audit prerequisites.
+python tools/z8_run.py \
+  --firmware .local/firmware/z8-c311-main.bin \
+  --qemu "$HOME/.local/share/nikon-z8-qemu/work/build/qemu-system-aarch64" \
+  --raw .local/input.raw \
+  --output "$HOME/.local/share/nikon-z8-qemu/runs/demo-01" \
+  --port 8788
+```
 
-## Research documentation
+**How to use the web console (`http://127.0.0.1:8788/`):**
+1. Open `http://127.0.0.1:8788/` in your browser and wait ~15–25 seconds for initial boot and synthetic Live View color bars to appear.
+2. Click **`MENU`** to open the Nikon Z8 main menu (`PHOTO SHOOTING MENU`).
+3. Click **`半按快门` (Half-Press)** followed by **`释放快门` (Release)** to exit the menu and return to Live View.
+4. Click **`停止仿真` (Stop)** on the web page or press `Ctrl+C` in the terminal to cleanly shut down QEMU. Check `<output>/result.json` for structured run diagnostics.
 
-- [Feature TODO](docs/TODO.md), [implementation history](docs/z8-status.md), [engineering progress](docs/research-progress.md), [parameter provenance](docs/z8-parameters.md).
-- [C10](docs/z8-c10.md), [C32/C64 slots](docs/z8-c32.md), [persistent media](docs/z8-persistent-media.md).
-- [RAW runtime](docs/z8-raw-runtime.md), [explicit capture resources](docs/z8-capture-resources.md), [capture evidence](docs/z8-capture-evidence.md), [writer observer](docs/z8-writer-observer.md), [NVMe evidence](docs/z8-nvme-evidence.md).
-- [Internal FIFO start](docs/z8-d980-internal.md), [F04F stop](docs/z8-primary-f04f-stop.md), [C0 stop](docs/z8-1543-c0-stop.md), [producer journal](docs/z8-producer-journal.md), [multi-frame audit](docs/z8-precapture-audit.md).
-- [Per-photo audit, output ownership and F0](docs/z8-photo-audit.md), [topic-branch publication progress](docs/publication-progress-20261015.md).
+---
 
-REA/Ghidra uses explicitly marked analysis ELF containers made from local firmware slices, not original Nikon ELF files. `REA.ps1` calls an already-installed WSL backend; historical CLI use does not imply global Codex MCP registration. See the [implementation record](docs/z8-status.md).
+### 2. Strict Hardware Bring-Up Check
 
-Inherited CPU/GIC, memory windows, virtual timing and synthetic Bayer/ISP/JPEG paths are functional research models. Real CMOS, calibration, complete peripheral protocols, Nikon image processing and physical timing remain unverified. `BoundaryPeer`'s 33 is a diagnostic interval in milliseconds, not measured camera FPS.
+Use `Test-Z8.ps1` (or `tools/z8_bringup.py`) when modifying QEMU peripheral models and testing how far stock firmware boots before hitting an unmodeled hardware register:
 
-## Referenced repositories and sources
+```powershell
+# Strict mode: zero synthetic fixtures; stops on the first unknown MMIO access
+.\Test-Z8.ps1
 
-Used by `main`:
+# Enable explicit bootstrap, bus-window, serial, and NAND test fixtures
+.\Test-Z8.ps1 -BootstrapFixture -BusWindowFixture -SerialFixture -NandFixture
+```
 
-- [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu): upstream fork base (`27498735…`), providing the shared model and the Z9 reference tools. The F0 lossless14 encoder `qemu/nikon-expeed-lossless.h` comes from this upstream and keeps its RdWing copyright and GPL notice.
-- [QEMU](https://www.qemu.org/) 10.2.4: pinned and SHA-256-checked by the builder; upstream licensing retained.
-- [LibRaw/LibRaw](https://github.com/LibRaw/LibRaw): the format reference for the F0 encoder (`nikon_load_raw`), and the independent NEF decoder used by the audits through rawpy.
-- [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool): decrypts and checks the local update container (pinned commit `33426e8…`).
+---
 
-Also referenced by topic branches:
+### 3. Single-Shot RAW (`.NEF`) Capture & `F0` Lossless14 Audit
 
-- [WonderLantern/zr-qemu](https://github.com/WonderLantern/zr-qemu) `f9cc5d1`: the input-pair and video-processing models are adapted from it (video C1, orientation, integration).
-- [WonderLantern/wonder-lantern-z30](https://github.com/WonderLantern/wonder-lantern-z30) `video-rot`: design reference for locking video orientation at record start (orientation, integration, video C1).
-- [XinmiaoZhao/NikonFirmwarePatch](https://github.com/XinmiaoZhao/NikonFirmwarePatch) v0.1.0 toolkit and [Ivan-mato/nikon-z8-halfpress-raw-precapture](https://github.com/Ivan-mato/nikon-z8-halfpress-raw-precapture) `205fd05`: third-party precapture projects whose code and samples were tested or reviewed. [raw.pixls.us](https://raw.pixls.us/) record 6616 supplies the real Z8 HE sample (he-history).
-- [WonderLantern/e7-bird-network](https://github.com/WonderLantern/e7-bird-network/tree/8ced43b19edb845baef39a80c45d40be0b49efba) `8ced43b`: separately supplied resource744 arithmetic and procedural reference fixtures (e7-neural-research).
-- [videolan/x265](https://github.com/videolan/x265) for Main10 still encoding, [strukturag/libheif](https://github.com/strukturag/libheif) for container rules, and [exiftool/exiftool](https://github.com/exiftool/exiftool) for tag definitions (HEIF).
-- [LimitPoint/LivePhoto](https://github.com/LimitPoint/LivePhoto), [minutechreview/livephoto-maker](https://github.com/minutechreview/livephoto-maker) and ExifTool: references for Live Photo pairing (Live Photo video).
+`Start-Z8.ps1` only wires `MENU` and half-press shutter. To format/mount a virtual CFexpress card, navigate camera quality settings, trigger a full shutter release, and export `.NEF` files, use `tools/z8_capture_probe.py`.
 
-Where a branch pins a commit or version, its documents record it. A reference link does not grant rights to that project's material or to Nikon firmware.
+| RAW Recording Menu Setup | Virtual Card Photo Playback |
+| :---: | :---: |
+| ![RAW Recording Menu](docs/images/raw-recording.png) | ![Photo Playback Screen](docs/images/playback-photo.png) |
 
-Upstream GPL-2.0-or-later licensing and attribution are retained. See [NOTICE](NOTICE.md) and [contribution guidelines](CONTRIBUTING.md). Contributions should identify camera/firmware, synthetic inputs, commands, structured results and uncovered scope.
+#### Capture an Uncompressed / Packed14 NEF
+
+```bash
+python tools/z8_capture_probe.py \
+  --firmware .local/firmware/z8-c311-main.bin \
+  --qemu "$HOME/.local/share/nikon-z8-qemu/work/build/qemu-system-aarch64" \
+  --raw .local/input.raw \
+  --output "$HOME/.local/share/nikon-z8-qemu/runs/capture-packed14" \
+  --seconds 600 --settle 10 \
+  --capture-properties profiles/z8-capture-properties.json \
+  --card --gpio --rtc-status --capture-selector \
+  --tagged-input --capture-pixels --skip-cseq-repeat --wait-capture-work \
+  --menu-actions menu,down,down,down,down,down,down,down,down,right,right,up,up,up,up,j,left,down,down,right,up,j
+```
+
+#### Capture a Lossless Compressed (`F0` 14-bit) NEF & Verify Pixels
+
+Swap `--capture-properties` to `profiles/z8-lossless14-properties.json` (which enables `engine1540-lossless14-model=on` and `output-buffer-ownership-model=on`), then export and audit the captured `.NEF`:
+
+```bash
+RUN_DIR="$HOME/.local/share/nikon-z8-qemu/runs/capture-lossless14"
+
+# 1. Export .NEF files from the virtual exFAT card image
+python tools/z8_export_nefs.py \
+  --run "$RUN_DIR" \
+  --firmware .local/firmware/z8-c311-main.bin \
+  --output "$RUN_DIR/nef-export"
+
+# 2. Verify decoded LibRaw samples against the emulator's 151 producer RAM snapshot
+python tools/z8_photo_audit.py \
+  --manifest "$RUN_DIR/photo-audit-input.json" \
+  --output "$RUN_DIR/photo-audit-result.json"
+```
+
+- Add `--nvme-trace` (requires `--card`) if you also want complete NVMe queue/completion logs in `nvme-evidence.json`.
+- Note: Use `j` (not `ok`) for confirmation in `--menu-actions` with `z8_capture_probe.py`. Always use a **non-existent `--output` directory** for every run.
+
+---
+
+### 4. Custom Picture Control Slot Expansion (`C32` / `C64`)
+
+Stock Z8 firmware provides 9 custom Picture Control slots (`C-1`–`C-9`). `tools/z8_slots_acceptance.py` generates a local QEMU-only derived `MAIN` that expands Photo and Video custom slots to **32 (`C-1`–`C-32`)** or **64 (`C-1`–`C-64`)** with persistent virtual NAND storage.
+
+| Main Menu Showing `C-64` Active | Expanded `Set Picture Control` List |
+| :---: | :---: |
+| ![Set Picture Control C-64 Summary](docs/images/c64-summary.png) | ![Set Picture Control C-60 to C-64](docs/images/c64-slot-list.png) |
+
+```bash
+WORK="$HOME/.local/share/nikon-z8-qemu/runs/c64-demo"
+mkdir -p "$WORK"
+
+# Phase 1: Create virtual NAND, import 64 Photo + 64 Video .NP3 presets, select C-64 in menu, and save
+python tools/z8_slots_acceptance.py --slots 64 --phase create --gui photo \
+  --firmware .local/firmware/z8-c311-main.bin \
+  --qemu "$HOME/.local/share/nikon-z8-qemu/work/build/qemu-system-aarch64" \
+  --raw .local/input.raw \
+  --output "$WORK/01-photo-create" \
+  --media "$WORK/c64-nand.img"
+
+# Phase 2: Cold-boot a new QEMU process from the saved NAND image and verify all 128 records restore
+python tools/z8_slots_acceptance.py --slots 64 --phase restore --gui photo \
+  --firmware .local/firmware/z8-c311-main.bin \
+  --qemu "$HOME/.local/share/nikon-z8-qemu/work/build/qemu-system-aarch64" \
+  --raw .local/input.raw \
+  --output "$WORK/02-photo-restore" \
+  --media "$WORK/c64-nand.img" \
+  --expected "$WORK/01-photo-create/expected-records.json"
+```
+
+- Change `--slots 64` to `--slots 32` for 32-slot mode.
+- For independent video slot testing, copy `c64-nand.img` to a new file and run `--phase restore --gui video`, followed by `--phase restore --gui video-cold`.
+
+---
+
+### 5. Portrait Video HUD, EVF Viewfinder & Archived Lab Experiments
+
+Additional hardware and UI models used alongside Fenestra Z8 development are archived under `experiments/`:
+
+| Portrait Video Recording HUD (`90°` Upright) | Electronic Viewfinder (`EVF` Output 4, `1280×960`) |
+| :---: | :---: |
+| ![Portrait Video Recording HUD](docs/images/portrait-video-rec.png) | ![EVF Viewfinder Simulation](docs/images/evf-viewfinder.png) |
+
+- **`experiments/20261114/portrait-full/` — Portrait Video Layout & Histogram Fix**: Aligns vertical video shooting status icons (`REC`, timecode, resolution, codec, exposure row) and the live histogram to the native vertical photo layout (`build_overlay.py`).
+- **`experiments/20261111/wave5/` — Wave5 Video Encoder & Live Audio Overlay**: QEMU source overlay and patches for rolling H.264/HEVC encoding and LPCM audio used during Live Photo firmware testing.
+- **`experiments/20261111/card-hotplug/` — CFexpress Hotplug Harness**: Card presence/link properties, swap runners (`run_pull.py`, `swaprun.py`), and IRQ/MMIO/power-cut trace plugins.
+- **`experiments/20261111/exmcu/` — Native EXMCU & Host-Wake**: Runs the camera's secondary `EX` microcontroller firmware directly over virtual SPI/GPIO (`native_run.py`; requires private `EX` firmware input).
+- **`REA.ps1` — Reverse-Engineering CLI Wrapper**: Optional Windows wrapper invoking a local WSL Ghidra / REA installation on analysis ELF slices.
+
+> **How to inspect experiment patches safely:** The default `tools/build.py` intentionally builds only the clean baseline `qemu/` overlay. Do **not** blindly apply every patch in `experiments/20261111/` onto a single QEMU source tree—several patches target different prepared baselines. Always test applicability on a separate copy first (e.g., `patch --dry-run -p1 < patchfile`).
+
+---
+
+## Precautions & Gotchas
+
+1. **Never flash derived `MAIN` files**: Files generated by `z8_slots_acceptance.py` or `portrait-full/build_overlay.py` are unencrypted QEMU memory images, not camera firmware updates.
+2. **Container vs. `MAIN`**: Passing the `99 MB` `Z_8_0311.bin` update container to `--firmware` will be rejected; extract the `81,807,709`-byte `MAIN` image first.
+3. **Always use fresh `--output` directories**: Runners refuse to overwrite existing output directories or virtual card images so previous test evidence is never silently clobbered.
+4. **Do not mix C32 and C64 NAND images**: Virtual NAND media (`--media`) is bound to its slot capacity (`32` vs `64`). Create a new NAND image when switching capacities.
+5. **Check `result.json`, not just exit code `0`**: A process exit code of `0` only means the diagnostic harness exited cleanly; inspect `result.json` (e.g., `liveview_verified`, `menu_verified`, `slots_complete`, `pixels_verified`) to confirm feature checks passed.
+6. **Keep proprietary files out of Git**: Firmware binaries, keys, virtual cards, memory dumps, and personal media must stay in `.local/` or outside the repo. Run `python -B tools/audit_publication.py` before committing to verify the tracked file inventory.
+
+---
+
+## Further Documentation & Credits
+
+- **Guides & References**: [Build Details](docs/build.md) · [Firmware Input](docs/firmware.md) · [C32/C64 Slots](docs/z8-c32.md) · [RAW Capture Probe](docs/z8-capture-probe.md) · [Per-Photo & F0 Audit](docs/z8-photo-audit.md) · [Publication Policy](docs/publication.md) · [TODO](docs/TODO.md)
+- **Topic Branches**: Experimental branches (`codex/raw-precapture-shared146`, `codex/z8-video-c1`, `codex/z8-orientation`, `codex/z8-heif-1602`, `codex/e7-neural-research`, etc.) hold standalone prototypes with separate boundaries; see [Topic Branch Overview](docs/publication-progress-20261015.md).
+- **Upstream & Attribution**: Forked from [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu) (providing the shared Expeed board model and RdWing's `nikon-expeed-lossless.h` `F0` encoder), building against [QEMU 10.2.4](https://www.qemu.org/), and using [LibRaw](https://github.com/LibRaw/LibRaw) for independent `.NEF` verification.
+- **License**: `GPL-2.0-or-later`. See [COPYING](COPYING), [NOTICE.md](NOTICE.md), and [CONTRIBUTING.md](CONTRIBUTING.md).

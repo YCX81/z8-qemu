@@ -10,6 +10,7 @@ __pycache__/
 *.NEF
 *.ppm
 *.png
+!docs/images/*.png
 *.jpg
 *.jpeg
 *.zip

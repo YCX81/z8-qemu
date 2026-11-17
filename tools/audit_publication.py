@@ -118,6 +118,18 @@ FILES.update(["experiments/20261111/v36/README.md","experiments/20261111/v36/bui
 # Source-only C64/portrait helpers for stock-to-v36 reconstruction.
 FILES.update(["experiments/20261111/v36/from-stock-reconstruction.json","experiments/20261111/v36/from-stock/README.md","experiments/20261111/v36/from-stock/video_track_orientation.py","experiments/20261111/v36/from-stock/z8_orientation.py","experiments/20261111/v36/from-stock/z8_orientation_unlock.py","experiments/20261111/v36/from-stock/z8_slots_core.py","experiments/20261111/v36/from-stock/z8_slots_image.py","experiments/20261111/v36/from-stock/z8_slots_imenu.py","experiments/20261111/v36/from-stock/z8_slots_labels.py","experiments/20261111/v36/from-stock/z8_slots_layout.py","experiments/20261111/v36/from-stock/z8_slots_main_menu.py","experiments/20261111/v36/from-stock/z8_video.py","experiments/20261111/v36/from-stock/z8_video_file_rotation.py","experiments/20261111/v36/from-stock/z8_video_layout.py"])
 FILES.update(['experiments/20261114/portrait-full/README.md', 'experiments/20261114/portrait-full/build_overlay.py', 'experiments/20261114/portrait-full/check_blank_zone.py', 'experiments/20261114/portrait-full/check_overlaps.py', 'experiments/20261114/portrait-full/driver_hist_patch.py', 'experiments/20261114/portrait-full/driver_interactive_patch.py', 'experiments/20261114/portrait-full/histogram_portrait_fix.py', 'experiments/20261114/portrait-full/qemu_histogram_lab.py', 'experiments/20261114/portrait-full/video_layout_v2.py'])
+DOC_IMAGES = {
+    'docs/images/c64-slot-list.png',
+    'docs/images/c64-summary.png',
+    'docs/images/evf-viewfinder.png',
+    'docs/images/liveview-lcd.png',
+    'docs/images/menu-photo.png',
+    'docs/images/playback-photo.png',
+    'docs/images/portrait-video-rec.png',
+    'docs/images/raw-recording.png',
+    'docs/images/web-console.png',
+}
+FILES.update(DOC_IMAGES)
 SECRET_PATTERNS = [
     re.compile(r'gh[opusr]_[A-Za-z0-9]{30,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{30,}'),
@@ -125,6 +137,10 @@ SECRET_PATTERNS = [
 ]
 
 def validate(path, data):
+    if path in DOC_IMAGES:
+        if len(data) > 512 * 1024 or not data.startswith(b'\x89PNG\r\n\x1a\n'):
+            raise ValueError('Invalid reviewed documentation PNG: ' + path)
+        return hashlib.sha256(data).hexdigest()
     # Hash canonical Git text without rewriting CRLF source working copies.
     data = data.replace(b'\r\n', b'\n')
     if path not in FILES | {MANIFEST}: raise ValueError('Unreviewed public path: '+path)

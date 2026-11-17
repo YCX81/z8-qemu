@@ -1,151 +1,272 @@
-# Nikon Z8 固件仿真研究
+# Nikon Z8 固件模拟器 (`z8-qemu`)
 
-剩余工作树已按 V62 源码归档及依赖检查清理；删除项、保留原因和本地备份位置见 [工作树清理记录](README.md#worktree-cleanup--工作树清理2026-11-15)。本次没有重复编译测试。
+[English](README.md) | **简体中文**
 
-2026-11-15 · [V62 Live 源码与构建环境](https://github.com/YCX81/fenestra-z8/blob/z8-c311/research/z8-live/build-tools/livediag/feat-onemov/RELEASE-v62.md): 实际构建/整机 QEMU 在 Windows 的 WSL Linux 运行，Mac 保存归档及交付副本。V62 包含 Log 文字与 Live 快门声修复，保留 V61 RAW 跨卡回放；用户已确认编译、测试和实机验证完成，本次发布不重复执行。V62 的音频模型实验保留在该源码检查点，不自动加入本仓库默认构建。
+`z8-qemu` 是面向 **Nikon Z8（固件版本 C3.11）** 的实验性硬件模拟器（机器名 `nikon-z8-bringup`），基于 [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu) 移植并固定使用上游 QEMU `10.2.4`。
 
-[English](README.md) · [完整功能与使用指南](docs/features-and-usage.zh-CN.md)
+你可以在电脑（Linux 或 Windows WSL2）上直接启动提取出的 Z8 原厂 `MAIN` 固件，在浏览器里操作相机菜单、查看模拟实时取景与电子取景器（EVF）画面、将单张 14-bit RAW（`.NEF`）照片写入虚拟存储卡，并在不接触真机的前提下测试各类固件扩展实验（例如 32/64 个自定义优化校准槽位、竖屏视频界面重排等）。
 
-文档更新：**2026-11-11**。本工作区基于 [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu) 开展 Nikon Z8 C3.11 移植，上游起点为 `27498735e3ed202052dfc6306ded6b867af70a58`。共享 Z9 参考工具保留，Z8 的固件身份、MCU 绑定、资源和验收基线独立定义。
+> [!IMPORTANT]
+> **仅供电脑端仿真研究——严禁将派生文件刷入真机**
+> - 本项目完全在电脑本地运行，**不会**连接实体相机，更不会执行任何刷机操作。
+> - 仓库不包含尼康固件、密钥或真机传感器数据，你需要自行从官方升级包 `Z_8_0311.bin` 提取 `MAIN`。
+> - 槽位扩容、竖屏重排等脚本生成的派生 `MAIN` 只是给 QEMU 加载的内存镜像，**不是相机升级包，严禁写入实体相机**。
 
-**辅助启动下的原厂菜单、模拟取景及普通触发后 NEF（packed14 与 F0 无损各一张）已有本地 QEMU 验收记录；RAW 预拍摄仍未完成。** 本项目是实验性模拟器，不是可安装到相机的固件，不会连接或刷写实体相机。
+---
 
-以下基础运行证据于2026-10-19按 main `a140c42` 及其文档记录核对。11月进展现已合入 `experiments/20261111/`，保留 Wave5/Live-audio、CFexpress 热插拔与 EXMCU/host-wake 实验源码；没有替换默认 `qemu/` 构建模型，也没有据此扩大基础运行验收范围。本次文档更新没有重跑固件、验证当前二进制或测试实体硬件；历史结果只适用于记录的输入、源码与二进制。详细研究文档多数为中文，完整进度见[功能 TODO](docs/TODO.md)与[实施记录](docs/z8-status.md)。
+## 界面一览
 
-## 当前成果与边界
+| 浏览器交互控制台 (`127.0.0.1:8788`) | LCD 模拟实时取景画面 |
+| :---: | :---: |
+| ![浏览器交互控制台](docs/images/web-console.png) | ![LCD 模拟实时取景](docs/images/liveview-lcd.png) |
+| **原厂照片拍摄菜单** | **C64 自定义优化校准槽位扩容** |
+| ![照片拍摄菜单](docs/images/menu-photo.png) | ![C64 优化校准槽位](docs/images/c64-slot-list.png) |
 
-| 项目 | 已记录证据 | 剩余边界 |
-|---|---|---|
-| 菜单与模拟取景 | 三轮 MENU → 半按返回取景，五次独立解码扫描输出检查。历史运行 RAW 1,743 帧、LCD 2,547 帧，其中 731 帧含取景；未知 MMIO 为零。 | 依赖外部 MCU 对端与显式虚拟资源。菜单哈希仅作回归，未与真机图像对照；裸模型完整启动未验。 |
-| C32/C64 优化校准槽位 | 照片、视频各32槽及各64槽分别通过四阶段验收：导入、原生选择、guest NAND 保存与新进程恢复。 | 显式实验使用派生 MAIN 和主动原厂函数调用。真实尼康云创文件、最终色彩输出及实体相机未验；64是已测试容量，不是硬件上限。 |
-| 普通 NEF | C11/C12 导出一张 80,790,528 字节 NEF。LibRaw 解码全部 45,705,600 个 RAW 样本，与实际 producer RAM 零差异；完整 packed 字节一致，三个内嵌 JPEG 可解码。C12 使用公开 CLI 配方。 | 仅一帧触发后周期流，单帧传感器模型请求仍为零。这张 NEF 是带行填充的 packed14 拷贝，不是压缩。不代表预拍，也不证明真实传感器或 ISP 还原。 |
-| 逐照片审计与 F0 lossless14（2026-10-14） | 候选 QEMU `d39e1fd5…` 上，原厂 C3.11 单张拍摄写出卡内 NEF 35,111,661 字节（`d211e239…`）。LibRaw 完整解码 45,705,600 个样本，与 151 producer 快照零差异。F0 strip 为 34,339,053 字节，排除了 80,017,920 字节的 packed fallback；预测器元数据经 exiftool 独立核对。三个内嵌 JPEG 可解码。 | 需显式开启：`engine1540-lossless14-model` 与 `output-buffer-ownership-model` 默认关闭，运行使用 `profiles/z8-lossless14-properties.json`。编码器取自上游、保留署名，是功能性 F0 格式；不执行尼康压缩微码，也不含 HE/HE*。审核结论为 `pixels_verified`，不是 `native_accepted`。JPEG 作业字节匹配、多照片界面恢复、完整原生 writer 生命周期、历史 RAW 及实体设备未验。详见[逐照片审计](docs/z8-photo-audit.md)。 |
-| 原厂 writer 关联 | C16 将原文件对象、ID/路径、九次写入、最终长度、cleanup、返回及结果回写关联至导出 NEF；文件范围有 NVMe 写入完成覆盖。 | C16 使用私有观察器；公开观察器接入有合成测试，尚无等价公开运行验收。完整缓冲寿命、原生分配代次及实体介质持久化未验。 |
-| RAW 预拍研究 | HALF20在显式资源与wide控制模型下进入原C120/PRE画面、getter4及state2/handler3。 | D980/RAW输出为零，没有可验收历史RAW/NEF。释放期间因诊断器跨域同时命中停止，未出现原固件异常或未知MMIO。HALF21仅准备中。 |
-| producer 代次记录 | 默认关闭，记录实际 D980→151 NV16/RAW→1540 RAM 输出的完整 SHA-256、虚拟时间、模型写入代次和父帧关系。已记录七项无固件真实 QTest 与八项辅助测试通过。 | 64条元数据不是64帧像素缓存。原 latest-source 限制保留；CPU/其它 DMA 写入、原生所有权和历史保留未验。 |
+---
 
-数值收据：[槽位验收](docs/verification/slots-20261012.json)、[普通 NEF / C12 / C16](docs/verification/raw-single-20261012.json)。NVMe 完成不能单独证明 NEF 验收或介质持久化；文件导出、解码与 RAM 比对是独立检查。
+## 功能总览
 
-RAW 预拍验收至少需要**两帧不同的触发前保留帧和一帧拍后帧**，触发前帧的DMA及入队须早于所有启用路线的最早FULL请求，拍后帧DMA须晚于最晚的已验证原厂FULL消费者，全部使用同一虚拟钟，并闭合队列、缓冲寿命、文件集合与完整像素证据。增加预览计数或导出重复帧不足以验收。详见[运行对照](docs/z8-raw-runtime.md)与[多帧审核器](docs/z8-precapture-audit.md)。
+| 功能模块 | 启动入口 | 目前能做什么 | 当前限制说明 |
+| :--- | :--- | :--- | :--- |
+| **浏览器菜单与模拟取景** | `Start-Z8.ps1`（Windows）<br>`tools/z8_run.py`（Linux/WSL） | 启动原厂 C3.11 进入模拟彩条取景；网页按钮触发 `MENU` 进入菜单、半按快门返回取景；支持无界面自动往返测试。 | 依赖宿主侧虚拟 MCU 与合成 Bayer 图像，并非还原真实 CMOS/ISP 硬件画质。 |
+| **严格启动硬件探针** | `Test-Z8.ps1`<br>`tools/z8_bringup.py` | 检查固件冷启动进度，一旦访问未建模的硬件寄存器（未知 MMIO）立即停机报错，便于补齐外设模型。 | 可选开启的 bootstrap/bus/serial/NAND 参数仅作测试假设，不代表裸机已完整驱动。 |
+| **单张拍照与 NEF 导出** | `tools/z8_capture_probe.py`<br>`tools/z8_export_nefs.py` | 在虚拟 exFAT 卡上拍摄导出全尺寸 `8280×5520` 14-bit `.NEF`（支持未压缩 packed14 或手动开启 `F0` 无损压缩），并用 LibRaw 逐像素比对内存快照。 | 目前仅支持快门触发后的单张拍摄，**RAW 预拍摄（历史帧缓存）尚未完成**；`F0` 为功能性编码器，不含尼康 `HE`/`HE*` 压缩微码。 |
+| **C32 / C64 优化校准槽位** | `tools/z8_slots_acceptance.py` | 将照片与视频自定义优化校准槽位从 9 个扩充至 **32 个或 64 个**（`C-1`–`C-64`），支持 `.NP3` 导入、菜单选择、虚拟 NAND 保存与重启恢复。 | 运行于单独生成的派生 `MAIN` 镜像；默认 `Start-Z8.ps1` 不会自动开启扩容。 |
+| **竖屏界面、EVF 与扩展实验** | `experiments/20261114/`<br>`experiments/20261111/` | 收录竖屏视频 OSD 与直方图对齐补丁、Wave5 视频编码与 Live 音频模型、CFexpress 热插拔测试台、以及原生 EXMCU 唤醒源码。 | 作为独立实验补丁归档，默认 `tools/build.py` **不会**自动打入主构建。 |
 
-Open Gate 视频、AF 增强、尼康云创在线接入、完整胶片模拟、照片 Log、RED Log3G10/R3D NE 和机内全景仍未实现或未验收，详见 [TODO](docs/TODO.md)。原厂视频 N-Log 不计为项目新增功能，main 上的录像仿真仍未验收。
+> 如果你想找相机端的 **Fenestra 扩展菜单、`.wlm` 模块开发 SDK 以及 Live Photo（实况照片 `V62`）固件源码**，请前往配套仓库：**[fenestra-z8](https://github.com/YCX81/fenestra-z8)**。
 
-## 新合入的源码与使用入口
+---
 
-[完整功能与使用指南](docs/features-and-usage.zh-CN.md) 按功能列出入口、环境、私有输入、构建与测试命令、菜单/取景操作，以及独立的槽位、NEF、F0 配方。`experiments/20261111/` 保存 Wave5、热插拔及 EXMCU 研究材料；默认构建不会自动应用这些补丁，部分 runner 仍需未发布的原实验快照和 helper。Live 拍照、音频、REC 预览、图标和 C64 标签操作见[Fenestra Z8 指南](https://github.com/YCX81/fenestra-z8/blob/z8-c311/docs/features-and-usage.zh-CN.md)。已合并的临时进展分支已从本地和 GitHub 删除。
+## 环境部署与编译
 
-## 公开分支
+### 1. 环境要求
 
-上表只描述 `main`。主题分支保存尚未合并的实验和检查点，其结果属于各自分支，不属于 main，各分支保留自己未完成的验收边界。各分支的源码回归结果见[发布进度](docs/publication-progress-20261015.md)。
+- **操作系统**：Linux（推荐 Ubuntu 22.04 / 24.04）或 **Windows 11 + WSL2（`Ubuntu` 发行版）**。
+  - **强烈建议**：把编译工作目录和虚拟存储卡放在 **WSL/Linux 原生 ext4 文件系统**下（如 `$HOME/.local/share/nikon-z8-qemu/`），不要放在 `/mnt/c/...` 挂载盘上，否则大量小文件读写会非常慢。
+  - 不支持原生 Windows（非 WSL）或 macOS 直接编译整机 QEMU（macOS 可用于代码归档与离线脚本检查）。
+- **系统依赖**：Python `3.12+`、`gcc`/`clang`、`ninja-build`、`patch`、`pkg-config`、`exfatprogs`、`exiftool`，以及 `glib-2.0`、`pixman-1`、`zlib`、`libfdt`、`libjpeg` 开发头文件。
 
-| 分支 | 用途 |
-|---|---|
-| [`main`](https://github.com/YCX81/z8-qemu/tree/main) | 已审核的基线：Z8 启动、菜单与取景运行、C32/C64 槽位、普通 NEF 拍摄、逐照片审计与 F0，以及保留的 Z9 参考工具；11月实验另行归档于 `experiments/20261111/` |
-| [`codex/z8-integration`](https://github.com/YCX81/z8-qemu/tree/codex/z8-integration) | RAW、录像与方向的合并集成实验 |
-| [`codex/raw-precapture-shared146`](https://github.com/YCX81/z8-qemu/tree/codex/raw-precapture-shared146) | 预拍用的 RAW 历史帧传输，以及 1540/153c 双编码器 |
-| [`codex/z8-he-history-20261017`](https://github.com/YCX81/z8-qemu/tree/codex/z8-he-history-20261017) | 第三方 HE 预拍钩子的生命周期测试、真实 HE 样本回放，以及发现的原生模型缺口 |
-| [`codex/z8-r4-lifecycle`](https://github.com/YCX81/z8-qemu/tree/codex/z8-r4-lifecycle) | 扩展槽位 NP3 预检、取景槽号提示与原生卡片输入回退实验；复制页扩展默认关闭 |
-| [`codex/e7-neural-research`](https://github.com/YCX81/z8-qemu/tree/codex/e7-neural-research) | 自写 E7 解析器、候选 CPU 回放、量化与研究合同；外部 E7-bird 算术单独提供 |
-| [`codex/z8-heif-1602`](https://github.com/YCX81/z8-qemu/tree/codex/z8-heif-1602) | 经 1602 静态照片编码器的 HLG/HEIF 照片管线，以及有界恢复探针 |
-| [`codex/z8-video-c1`](https://github.com/YCX81/z8-qemu/tree/codex/z8-video-c1) | C1 视频传输、编码与 MCU 实验 |
-| [`codex/z8-orientation`](https://github.com/YCX81/z8-qemu/tree/codex/z8-orientation) | 录像方向与视频数据路径实验 |
-| [`codex/z8-live-photo`](https://github.com/YCX81/z8-qemu/tree/codex/z8-live-photo) | 仅宿主侧的 Live 图帧保留模型 |
-| [`codex/z8-live-photo-video`](https://github.com/YCX81/z8-qemu/tree/codex/z8-live-photo-video) | Live 图的视频输入与配对审核研究 |
-| [`codex/z8-af-lockon`](https://github.com/YCX81/z8-qemu/tree/codex/z8-af-lockon) | AF 资源追踪与遮挡响应探针 |
-| [`archive/z8-raw-precapture-20261013`](https://github.com/YCX81/z8-qemu/tree/archive/z8-raw-precapture-20261013) | 归档：早期 RAW 预拍传输实验 |
-| [`archive/z8-internal-stream-20261012`](https://github.com/YCX81/z8-qemu/tree/archive/z8-internal-stream-20261012) | 归档：早期内部流记录，为溯源保留 |
-| [`archive/z8-capture-evidence-20261012`](https://github.com/YCX81/z8-qemu/tree/archive/z8-capture-evidence-20261012) | 归档：早期拍摄证据记录，为溯源保留 |
-| [`archive/z8-merge-rehearsal-20261014`](https://github.com/YCX81/z8-qemu/tree/archive/z8-merge-rehearsal-20261014) | 归档：未解决冲突的合并演练，有意保持不可构建 |
-
-## 固件输入
-
-Z8 启动入口为 `tools/z8_run.py`，机器名为 `nikon-z8-bringup`。旧 `tools/run.py`、`tools/boot.py` 与 `nikon-z9-lab` 保留作 Z9 参考。
-
-| 输入 | 固定身份 |
-|---|---|
-| 原厂升级容器 | `Z_8_0311.bin`，99,051,117 字节 |
-| 容器 SHA-256 | `d67413c2ede6b9ce8887175f20700bd9fbad2a973a4820968c45503d15d80d96` |
-| EG 模块 | `eg2070_0311b0.bi`，body offset 581844；含 CRC 为 81,807,711 字节 |
-| MAIN | 移除末尾两字节 CRC 后为 81,807,709 字节 |
-| MAIN SHA-256 | `2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853` |
-| load / entry | `0x40160000`，继承的映射假设，已用于有界执行 |
-
-Windows 包装脚本要求用户自行将兼容 MAIN 放在 `.local/firmware/z8-c311-main.bin`。升级容器不能代替 MAIN；其他版本需要独立绑定和验证。详见[身份配置](profiles/z8-c311.json)和[固件准备](docs/firmware.md)。
-
-原始输入只读。槽位扩容与格式政策实验使用单独标识的派生程序，不能将结果记为未修改固件的默认启动成果。固件、密钥、派生镜像、内存快照、截图和运行材料留在本地。详见[发布边界与已知历史残留](docs/publication.md)。
-
-## 派生固件实验
-
-槽位生成器公开了可复用的A64补丁配方，并不只是模拟器参数。它生成另行标识的本地MAIN，区别于原程序启动。派生MAIN、owned-region镜像和补丁收据可能含有从用户固件读取的原内容，属于本地实验材料，**不是相机更新文件，不得写入相机**；未提供重打包或实体设备验证。
-
-当前树仍有源自原程序的小段指令守卫和测试literal，移除旧入口前缀并没有清除全部此类内容。详见[发布分类与待审项](docs/publication.md)、[来源及复现技术复核](docs/z8-public-review-20261013.md)、[实验输入与反例清单](docs/z8-experiment-assumptions.md)。清单审计通过不等于来源或法律审查通过。
-
-## 构建与测试
-
-使用 Linux / WSL、Python 3.12+ 及[构建说明](docs/build.md)所列依赖：GCC/Clang、Ninja、patch、pkg-config，以及 GLib、Pixman、zlib、libfdt、libjpeg 开发头文件。拍摄实验另需 exfatprogs 和 `requirements-capture.txt`；槽位实验使用 `requirements-c10.txt`。
-
-在 Linux / WSL 的仓库目录执行：
+在 Ubuntu / WSL2 中一次性安装依赖：
 
 ```bash
-python3 -m venv "$HOME/.local/share/nikon-z8-qemu/venv"
-. "$HOME/.local/share/nikon-z8-qemu/venv/bin/activate"
-python -m pip install -r requirements.txt
-python -m pip install -r requirements-capture.txt
-python tools/build.py --work-dir "$HOME/.local/share/nikon-z8-qemu/work" --jobs 2
-python tools/make_cmos.py
-sh tests/run.sh
-python tests/check_z8_machine.py --qemu "$HOME/.local/share/nikon-z8-qemu/work/build/qemu-system-aarch64"
+sudo apt-get update
+sudo apt-get install -y build-essential ccache ninja-build patch pkg-config \
+  libglib2.0-dev libpixman-1-dev zlib1g-dev libfdt-dev libjpeg-dev exfatprogs \
+  python3-venv exiftool
 ```
 
-构建器固定 QEMU 10.2.4 并校验归档 SHA-256，已有归档可用 `--archive` 指定。构建和长时间运行优先使用 Linux 文件系统。合成测试和无固件 QTest 验证模型边界，不替代原厂固件或实体相机验收；显式模型测试见对应功能文档。
+### 2. 编译 QEMU 与生成模拟传感器输入
 
-## 本机菜单与取景运行
+在 Linux / WSL2 终端中克隆仓库并执行构建：
 
-PowerShell 包装脚本当前选择 WSL **Ubuntu**，自动读取对应用户的 home，并使用上述环境。从仓库根目录运行：
+```bash
+git clone --branch main https://github.com/YCX81/z8-qemu.git
+cd z8-qemu
+
+python3 -m venv "$HOME/.local/share/nikon-z8-qemu/venv"
+source "$HOME/.local/share/nikon-z8-qemu/venv/bin/activate"
+
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-capture.txt
+python -m pip install -r requirements-c10.txt
+
+# 自动下载官方 QEMU 10.2.4 源码包并校验 SHA-256，打入 Z8 板级模型后编译
+python tools/build.py --work-dir "$HOME/.local/share/nikon-z8-qemu/work" --jobs 4
+
+# 在 .local/input.raw 生成合成 Bayer 传感器输入图像
+python tools/make_cmos.py
+```
+
+- 如果本地已提前下载好 `qemu-10.2.4.tar.xz`（`SHA-256: 821b545b92f165e57dddccac5077d76d4d436a226595b8813ad59306bbfd0746`），可通过 `--archive /path/to/qemu-10.2.4.tar.xz` 直接指定，省去下载步骤。
+- 编译完成后，可以先跑一遍无需尼康固件的自检：
+
+```bash
+sh tests/run.sh
+python tests/check_z8_machine.py \
+  --qemu "$HOME/.local/share/nikon-z8-qemu/work/build/qemu-system-aarch64"
+```
+
+### 3. 准备私有 Z8 C3.11 `MAIN` 固件
+
+模拟器需要你自行从官方 Z8 `C3.11` 升级包（`Z_8_0311.bin`）中解密提取出 **`MAIN` 主程序镜像**，并放置在仓库下的：
+
+```text
+.local/firmware/z8-c311-main.bin
+```
+
+| 文件名 | 精确字节数 | SHA-256 校验值 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Z_8_0311.bin` | `99,051,117` | `d67413c2ede6b9ce8887175f20700bd9fbad2a973a4820968c45503d15d80d96` | 尼康官方升级包容器（加密封装，**不能**直接喂给模拟器）。 |
+| `z8-c311-main.bin` | `81,807,709` | `2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853` | 从 `eg2070_0311b0.bi` 模块提取并去掉末尾 2 字节 CRC 后的 `MAIN` 镜像。 |
+
+详见 [docs/firmware.md](docs/firmware.md)。所有启动脚本都会严格核对字节长度和 SHA-256，并以**只读方式**打开原始文件。
+
+---
+
+## 各功能详细使用说明
+
+### 1. 浏览器交互控制台、原厂菜单与模拟取景
+
+#### Windows 用户（PowerShell 一键调用 WSL `Ubuntu`）
 
 ```powershell
-.\Test-Z8.ps1
-.\Test-Z8.ps1 -BootstrapFixture -BusWindowFixture -SerialFixture -NandFixture
+# 启动网页交互模式，浏览器打开 http://127.0.0.1:8788/
 .\Start-Z8.ps1
+
+# 无界面自动化测试（自动执行 3 轮“进入菜单 -> 半按返回取景”并校验画面像素）
 .\Start-Z8.ps1 -Headless -Seconds 360 -MenuTest -RequireLiveView
 ```
 
-`Test-Z8.ps1` 为有界严格启动诊断，默认 fixture 关闭，未知硬件访问停机。bootstrap、bus、serial、NAND 等可选 fixture 是显式实验假设，不能证明裸模型完整启动。
+#### Linux / WSL2 命令行直接启动
 
-`Start-Z8.ps1` 在 `http://127.0.0.1:8788/` 显示 QEMU 原厂帧缓冲，通过 MCU 路径接受 MENU / 半按输入。初次取景需等待；MENU 进入菜单，半按返回取景。网页“停止仿真”或启动终端 Ctrl+C 清理自身进程。输出使用 WSL Linux 磁盘上的新目录。headless 命令要求三轮菜单往返和独立像素检查；诊断退出码零本身不代表相机验收，请核对 `result.json`。
+```bash
+source "$HOME/.local/share/nikon-z8-qemu/venv/bin/activate"
 
-这个包装脚本不启用槽位扩容，也不提供完整 RAW 预拍验收。普通 NEF 使用独立[拍摄诊断驱动与公开 C12 配方](docs/z8-capture-probe.md)，须满足其输入、虚拟卡、菜单与审核前提。
+python tools/z8_run.py \
+  --firmware .local/firmware/z8-c311-main.bin \
+  --qemu "$HOME/.local/share/nikon-z8-qemu/work/build/qemu-system-aarch64" \
+  --raw .local/input.raw \
+  --output "$HOME/.local/share/nikon-z8-qemu/runs/demo-01" \
+  --port 8788
+```
 
-## 研究文档
+**操作方法：**
+1. 在浏览器访问 `http://127.0.0.1:8788/`，首次启动需等待约 15–25 秒，画面会显示模拟彩条实时取景与曝光状态栏。
+2. 点击网页上的 **`MENU`** 按钮即可打开原厂菜单（`PHOTO SHOOTING MENU`）。
+3. 依次点击 **`半按快门`** 和 **`释放快门`** 即可退出菜单回到实时取景。
+4. 结束时点击网页上的 **`停止仿真`** 或在终端按 `Ctrl+C`，运行日志与自检结果保存在输出目录的 `result.json` 中。
 
-- [功能 TODO](docs/TODO.md)、[实施历史](docs/z8-status.md)、[工程进展](docs/research-progress.md)、[参数来源](docs/z8-parameters.md)。
-- [C10](docs/z8-c10.md)、[C32/C64 槽位](docs/z8-c32.md)、[持久化介质](docs/z8-persistent-media.md)。
-- [RAW 运行对照](docs/z8-raw-runtime.md)、[显式拍摄资源](docs/z8-capture-resources.md)、[拍摄证据](docs/z8-capture-evidence.md)、[writer 观察器](docs/z8-writer-observer.md)、[NVMe 取证](docs/z8-nvme-evidence.md)。
-- [内部 FIFO 启动](docs/z8-d980-internal.md)、[F04F 停止](docs/z8-primary-f04f-stop.md)、[C0 停止](docs/z8-1543-c0-stop.md)、[帧代次记录](docs/z8-producer-journal.md)、[多帧审核](docs/z8-precapture-audit.md)。
-- [逐照片审计、输出所有权与 F0](docs/z8-photo-audit.md)、[主题分支发布进度](docs/publication-progress-20261015.md)。
+---
 
-REA/Ghidra 使用从本地固件切片制作、明确标注的分析 ELF 容器，不是原厂 Nikon ELF。`REA.ps1` 调用已安装的 WSL 后端；历史 CLI 使用不代表全局 Codex MCP 注册。详见[实施记录](docs/z8-status.md)。
+### 2. 严格硬件启动诊断（`Test-Z8`）
 
-继承的 CPU/GIC、内存窗口、虚拟时序及模拟 Bayer/ISP/JPEG 路径属于功能研究模型。真实 CMOS、机身校准、完整外设协议、尼康成像处理和物理时序未验。`BoundaryPeer` 的33是诊断间隔毫秒数，不是测得的相机 FPS。
+当你修改底层外设模型、想检查原厂固件在无外部辅助时能跑到哪一步时使用：
 
-## 引用的仓库与来源
+```powershell
+# 默认严格模式：不开启任何假设性外设，遇到第一个未建模寄存器读写即停机
+.\Test-Z8.ps1
 
-main 使用：
+# 显式开启引导、总线窗口、串口与 NAND 辅助夹具进行有界诊断
+.\Test-Z8.ps1 -BootstrapFixture -BusWindowFixture -SerialFixture -NandFixture
+```
 
-- [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu)：上游分叉起点（`27498735…`），提供共享模型和 Z9 参考工具。F0 lossless14 编码器 `qemu/nikon-expeed-lossless.h` 取自该上游，保留 RdWing 版权与 GPL 声明。
-- [QEMU](https://www.qemu.org/) 10.2.4：构建器固定版本并校验 SHA-256，保留上游许可。
-- [LibRaw/LibRaw](https://github.com/LibRaw/LibRaw)：F0 编码器的格式参考（`nikon_load_raw`），也是审计经 rawpy 使用的独立 NEF 解码器。
-- [WonderLantern/nikon-fw-key-tool](https://github.com/WonderLantern/nikon-fw-key-tool)：解密并校验本地升级容器（固定提交 `33426e8…`）。
+---
 
-主题分支另外引用：
+### 3. 单张 RAW（`.NEF`）拍照导出与 `F0` 无损压缩校验
 
-- [WonderLantern/zr-qemu](https://github.com/WonderLantern/zr-qemu) `f9cc5d1`：输入配对与视频处理模型由此改编（视频 C1、方向、集成）。
-- [WonderLantern/wonder-lantern-z30](https://github.com/WonderLantern/wonder-lantern-z30) 的 `video-rot`：录制开始时锁定视频方向的设计参考（方向、集成、视频 C1）。
-- [XinmiaoZhao/NikonFirmwarePatch](https://github.com/XinmiaoZhao/NikonFirmwarePatch) v0.1.0 工具包与 [Ivan-mato/nikon-z8-halfpress-raw-precapture](https://github.com/Ivan-mato/nikon-z8-halfpress-raw-precapture) `205fd05`：被测试或复核其代码与样本的第三方预拍项目。[raw.pixls.us](https://raw.pixls.us/) 第 6616 号记录提供真实的 Z8 HE 样本（he-history）。
-- [WonderLantern/e7-bird-network](https://github.com/WonderLantern/e7-bird-network/tree/8ced43b19edb845baef39a80c45d40be0b49efba) `8ced43b`：单独提供的 resource744 算术及过程生成参考夹具（e7-neural-research）；不把其 ZR 验证当作本项目 Z8 验证。
-- [videolan/x265](https://github.com/videolan/x265) 用于 Main10 静态照片编码，[strukturag/libheif](https://github.com/strukturag/libheif) 作容器规则参考，[exiftool/exiftool](https://github.com/exiftool/exiftool) 作标签定义参考（HEIF）。
-- [LimitPoint/LivePhoto](https://github.com/LimitPoint/LivePhoto)、[minutechreview/livephoto-maker](https://github.com/minutechreview/livephoto-maker) 与 ExifTool：Live 图配对的参考（Live 图视频）。
+`Start-Z8.ps1` 只接了 `MENU` 和半按快门；若要挂载虚拟存储卡、修改画质菜单并全按快门拍出 `.NEF` 文件，请使用 `tools/z8_capture_probe.py`。
 
-分支固定了提交或版本时，其文档会记录下来。引用链接不授予对应项目材料或尼康固件的任何权利。
+| 菜单中开启 RAW 记录 | 虚拟卡拍摄后的回放界面 |
+| :---: | :---: |
+| ![RAW 记录菜单设置](docs/images/raw-recording.png) | ![照片回放画面](docs/images/playback-photo.png) |
 
-保留上游 GPL-2.0-or-later 许可与作者信息，详见 [NOTICE](NOTICE.md) 与[贡献约定](CONTRIBUTING.md)。贡献需记录机型/固件、合成输入、命令、结构化结果和未覆盖范围。
+#### 拍摄普通未压缩（Packed14）NEF
+
+```bash
+python tools/z8_capture_probe.py \
+  --firmware .local/firmware/z8-c311-main.bin \
+  --qemu "$HOME/.local/share/nikon-z8-qemu/work/build/qemu-system-aarch64" \
+  --raw .local/input.raw \
+  --output "$HOME/.local/share/nikon-z8-qemu/runs/capture-packed14" \
+  --seconds 600 --settle 10 \
+  --capture-properties profiles/z8-capture-properties.json \
+  --card --gpio --rtc-status --capture-selector \
+  --tagged-input --capture-pixels --skip-cseq-repeat --wait-capture-work \
+  --menu-actions menu,down,down,down,down,down,down,down,down,right,right,up,up,up,up,j,left,down,down,right,up,j
+```
+
+#### 拍摄 14-bit 无损压缩（`F0`）NEF 并逐像素校验
+
+只需将 `--capture-properties` 换成 `profiles/z8-lossless14-properties.json`（开启 `engine1540-lossless14-model` 与输出缓冲所有权检查），跑完后导出并审计 `.NEF`：
+
+```bash
+RUN_DIR="$HOME/.local/share/nikon-z8-qemu/runs/capture-lossless14"
+
+# 1. 从虚拟 exFAT 存储卡镜像中导出 .NEF 照片
+python tools/z8_export_nefs.py \
+  --run "$RUN_DIR" \
+  --firmware .local/firmware/z8-c311-main.bin \
+  --output "$RUN_DIR/nef-export"
+
+# 2. 用 LibRaw 解码 .NEF，与模拟器内部 151 单元 RAM 原始像素逐样本比对
+python tools/z8_photo_audit.py \
+  --manifest "$RUN_DIR/photo-audit-input.json" \
+  --output "$RUN_DIR/photo-audit-result.json"
+```
+
+- 如需同时记录底层 NVMe 队列和写卡完成日志，可在拍摄命令中加 `--nvme-trace`（必须配合 `--card`）。
+- 注意：`z8_capture_probe.py` 的 `--menu-actions` 中确认键写为 `j`（不接受 `ok` 别名），且每次运行的 `--output` 必须是**尚未存在的新目录**。
+
+---
+
+### 4. 自定义优化校准槽位扩容（`C32` / `C64`）
+
+Z8 原厂仅提供 `C-1`–`C-9` 共 9 个自定义优化校准槽位。`tools/z8_slots_acceptance.py` 会在本地生成派生的仿真 `MAIN`，将照片和视频槽位分别扩容到 **32 个（`C-1`–`C-32`）** 或 **64 个（`C-1`–`C-64`）**，并把导入的 `.NP3` 参数持久化保存到虚拟 NAND。
+
+| 主菜单显示当前已选 `C-64` | 展开后的 `C-60`–`C-64` 槽位列表 |
+| :---: | :---: |
+| ![主菜单 C-64 状态](docs/images/c64-summary.png) | ![C-60 至 C-64 槽位列表](docs/images/c64-slot-list.png) |
+
+```bash
+WORK="$HOME/.local/share/nikon-z8-qemu/runs/c64-demo"
+mkdir -p "$WORK"
+
+# 阶段 1：新建虚拟 NAND 介质，导入照片+视频各 64 个 .NP3 预设，在菜单中选中 C-64 并保存
+python tools/z8_slots_acceptance.py --slots 64 --phase create --gui photo \
+  --firmware .local/firmware/z8-c311-main.bin \
+  --qemu "$HOME/.local/share/nikon-z8-qemu/work/build/qemu-system-aarch64" \
+  --raw .local/input.raw \
+  --output "$WORK/01-photo-create" \
+  --media "$WORK/c64-nand.img"
+
+# 阶段 2：冷启动全新 QEMU 进程，验证从虚拟 NAND 完整恢复全部 128 条记录及选中状态
+python tools/z8_slots_acceptance.py --slots 64 --phase restore --gui photo \
+  --firmware .local/firmware/z8-c311-main.bin \
+  --qemu "$HOME/.local/share/nikon-z8-qemu/work/build/qemu-system-aarch64" \
+  --raw .local/input.raw \
+  --output "$WORK/02-photo-restore" \
+  --media "$WORK/c64-nand.img" \
+  --expected "$WORK/01-photo-create/expected-records.json"
+```
+
+- 如需测试 32 槽位，把 `--slots 64` 改为 `--slots 32` 即可。
+- 如需继续测试视频独立槽位，先复制一份保存好的 `c64-nand.img`，再依次运行 `--phase restore --gui video` 与 `--phase restore --gui video-cold`。
+
+---
+
+### 5. 竖屏视频布局、EVF 电子取景器与归档实验（`experiments/`）
+
+配合 Fenestra Z8 开发的扩展外设与界面实验归档在 `experiments/` 目录下：
+
+| 竖屏视频录制界面（旋转竖看效果） | EVF 电子取景器界面（Output 4，`1280×960`） |
+| :---: | :---: |
+| ![竖屏视频录制界面](docs/images/portrait-video-rec.png) | ![EVF 电子取景器界面](docs/images/evf-viewfinder.png) |
+
+- **`experiments/20261114/portrait-full/` —— 竖屏视频布局与直方图修复**：把竖拍视频时的录制状态（`REC`、时间码、分辨率、编码格式、底部曝光栏）和实时直方图对齐到原生竖屏拍照坐标（`build_overlay.py`），解决原厂 16:9 竖屏直方图溢出问题。
+- **`experiments/20261111/wave5/` —— Wave5 硬件编码器与 Live 音频模型**：用于 Live Photo（实况照片）仿真的 H.264/HEVC 循环编码与 LPCM 音频补丁。
+- **`experiments/20261111/card-hotplug/` —— CFexpress 存储卡热插拔诊断**：模拟拔插卡、换卡测试脚本（`run_pull.py`、`swaprun.py`）以及中断/断电观察插件。
+- **`experiments/20261111/exmcu/` —— 原生 EX 副控芯片与电源唤醒研究**：在 QEMU 中直接运行副控芯片 `EX` 固件进行开机与待机唤醒交互（需自行准备私有 `EX` 固件输入）。
+- **`REA.ps1` —— 逆向分析辅助脚本**：Windows 下调用 WSL 内已安装的 Ghidra / REA 工具链分析本地固件切片。
+
+> **实验补丁使用提示**：默认 `tools/build.py` 只编译根目录稳定的 `qemu/` 模型，**不会**自动打入 `experiments/` 下的补丁。不同实验补丁针对各自的源码基线，请勿在同一份工作树里把所有 `.patch` 顺序硬打；使用前先在独立副本中执行 `patch --dry-run -p1 < 补丁文件` 检查上下文。
+
+---
+
+## 注意事项与常见坑
+
+1. **严禁拿派生 `MAIN` 刷机**：`z8_slots_acceptance.py`、`portrait-full` 等生成的 `.main` 只是模拟器内存加载文件，绝对不能写入实体相机。
+2. **区分升级包容器与 `MAIN`**：`99 MB` 的 `Z_8_0311.bin` 是外层加密容器，直接传给 `--firmware` 会报错拒绝，必须先解出 `81,807,709` 字节的 `z8-c311-main.bin`。
+3. **每次运行使用全新 `--output` 目录**：为了防止误删覆盖之前的测试产物，所有运行脚本遇到已存在的输出目录或卡镜像都会主动报错退出。
+4. **C32 与 C64 虚拟 NAND 不能混用**：`--media` 指定的 NAND 镜像与槽位容量（`32` 或 `64`）严格绑定，没有原地升降级转换工具，切换容量请新建介质文件。
+5. **不要只看退出码 `0`**：命令行返回 `0` 仅代表诊断进程正常走完，具体功能是否通过请打开输出目录下的 `result.json` 核对（如 `liveview_verified`、`menu_verified`、`slots_complete`、`pixels_verified` 等字段）。
+6. **切勿向 Git 提交私有文件**：原厂固件、密钥、生成的 `.main`、虚拟卡镜像、内存转储与私人素材必须留在 `.local/` 或仓库外。提交代码前请运行 `python -B tools/audit_publication.py` 校验发布清单。
+
+---
+
+## 延伸阅读与致谢
+
+- **专题技术文档**：[编译细节](docs/build.md) · [固件准备](docs/firmware.md) · [C32/C64 槽位设计](docs/z8-c32.md) · [RAW 拍摄诊断](docs/z8-capture-probe.md) · [逐照片与 F0 审计](docs/z8-photo-audit.md) · [发布边界说明](docs/publication.md) · [功能待办 TODO](docs/TODO.md)
+- **其他研究分支**：RAW 预拍历史帧（`codex/raw-precapture-shared146`）、视频 C1（`codex/z8-video-c1`）、视频方向（`codex/z8-orientation`）、HEIF 静态编码（`codex/z8-heif-1602`）、E7 神经网络解析（`codex/e7-neural-research`）等独立原型保存在各自的 Git 分支中，详见[分支进度概览](docs/publication-progress-20261015.md)。
+- **上游与参考来源**：分叉自 [WonderLantern/z9-qemu](https://github.com/WonderLantern/z9-qemu)（提供共享板级模型及保留 RdWing 署名的 `nikon-expeed-lossless.h` `F0` 无损编码器），固定构建上游 [QEMU 10.2.4](https://www.qemu.org/)，并使用 [LibRaw](https://github.com/LibRaw/LibRaw) 独立校验 `.NEF` 解码结果。
+- **开源许可**：沿用上游 `GPL-2.0-or-later` 许可，详见 [COPYING](COPYING)、[NOTICE.md](NOTICE.md) 与 [CONTRIBUTING.md](CONTRIBUTING.md)。
