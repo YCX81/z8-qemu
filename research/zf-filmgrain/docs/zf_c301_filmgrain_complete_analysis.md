@@ -1,6 +1,6 @@
 # Nikon Zf C3.01 胶片颗粒（`FilmGrain.cpp`）CEVA-XM6 指令级完整精解报告
 
-基于研究者返回的 [zf_filmgrain_details_v2.json](../zf_filmgrain_details_v2.json)（`189,856` B）、同源固件 `z8-c311-main.bin` 以及 `xm6asmsrv.dll` + 128-bit PMSS 取指行字节序还原得到的 **1,377 个零误差 VLIW 指令包反汇编**，尼康 Zf C3.01 胶片颗粒 DSP 算子本体（`17,084` B）与 ARM64↔DSP 桥接机制已实现 **100% 指令级闭合**。
+基于研究者返回的 [zf_filmgrain_details_v2.json](../zf_filmgrain_details_v2.json)（`189,856` B）、同源固件 z8-c311-main.bin 以及 `xm6asmsrv.dll` + 128-bit PMSS 取指行字节序还原得到的 **1,377 个零误差 VLIW 指令包反汇编** zf_filmgrain_xm6_clean.s，尼康 Zf C3.01 胶片颗粒 DSP 算子本体（`17,084` B）与 ARM64↔DSP 桥接机制已实现 **100% 指令级闭合**。
 
 > [!IMPORTANT]
 > **对早期交接摘要的三项核心纠偏（均由 CEVA-XM6 汇编逐指令实锤）**：
@@ -53,7 +53,7 @@ flowchart TD
 
 ### 2.2 `TFilmGrainInputParam`（DSP 入口 `r0 -> r16`）完整偏移表
 
-| 偏移 | 位宽 / 类型 | 字段名 | DSP 指令证据 | 精确行为与物理意义 |
+| 偏移 | 位宽 / 类型 | 字段名 | DSP 指令证据（zf_filmgrain_xm6_clean.s） | 精确行为与物理意义 |
 | :--- | :---: | :--- | :--- | :--- |
 | `+0x00` | `u32` (+4B pad) | `src.plane_addr[0]` | `0x41876274`: `LS0.ld (r16.ui).di+#0, r21.di` | 源图像 Plane 0（8-bit 亮度 `Y`）首地址；**DSP 全程不访问 `plane[1..2]` 或 `+0x34 format`** |
 | `+0x20` | `int32_t` | `src.width` ($W$) | `0x4187625e`: `LS0.ld (#32+r16.ui).di2+#0, r13.di, r0.di` | 图像行宽（像素数 = DMA 行传输字节数） |
@@ -120,11 +120,34 @@ Clang `SwitchToLookupTable` 将针对 `idx = in->blur_kernel_size`（`in + 0x51`
 
 ---
 
-## 五、ARM64 侧闭合核验与本地引擎对齐验证
+## 五、ARM64 侧全链路闭合（`v3` Ghidra 反编译实锤）与本地引擎对齐验证
 
-- **`slot 39` vs `slot 40` 唯一差异**：TX Marshaller `FUN_40c92798` 末尾掩码 `0x14c00000100UL`（位 `{8, 34, 35, 38, 40}`）控制是否在算子启动前调用 `FUN_40c93094(0, 0)` 将 Group-3 硬件共享 SRAM Bank 切换给 XM6 Core 0（`slot 39` 切换，`slot 40` 跳过）。
-- **ARM64 唯一新增包装入口**：Z8（22 处）与 Zf（23 处）同步 RPC 调用点 1:1 对照锁定 `DspFrameworkWrapper` 新增函数 **`0x40e44bec..0x40e44e98`**（内含 `BL 0x40c91ba4` @ `0x40e44e4c`）；原 JSON 中 `matches_target_slot: true` 的 `FUN_40fad3f8` / `FUN_40fadbb4` 实为 Core 2 动物/车辆检测（`slot 31/32`）的 D-Cache 长度 `0x28` 假阳性。
-- **两项历史悬案闭合**：
-  1. `+0x7c / +0x80` 10 处命中仅 `0x410db388`（XMP 写入器 `FUN_410d9d8c`）为真，其余 9 处分属白平衡开尔文色温编码（`FUN_41093bcc` / `FUN_41093d50`）、蓝牙协议栈 `me.c` / `mesec.c` 等。
-  2. `0x44a50bc0` / `0xa02981bc0` 为 `21 + 313 = 334` 项两段式 PTP 属性工厂指针表（`0xd310` 位于总表 index `320` / 子表 B index `299`），之所以位于可写 `.data` RAM 是因为启动时 `FUN_4082a110` 会对其原地选择排序以供 `FUN_4082aa60` 二分查找。
-- **本地参考实现更新与自测**：已将完整硬件结构、卷积核与级联表合入 [expeed7_flexible_color_tables.json](../expeed7_flexible_color_tables.json) 与 [nikon_zf_film_engine.py](../nikon_zf_film_engine.py)（新增逐比特精确算子 `nikon_zf_filmgrain_dsp_bitexact` 及 `BlurLineRing`），`--self-test` **28/28 项检查全部 PASS**（实测 lag-1 空间自相关 `S1 = -0.003 < S2 = 0.665 < S3 = 0.781`，与硬件理论真值 `0.000 / 0.667 / 0.780` 完全吻合）。
+基于 `zf_filmgrain_arm64_maps_v3.json`（SHA-256 `c1b878c4...d8625`）返回的 `FUN_40e44bec` 及其全部 6 个调用者与 4 个 `FUN_410234xx` 基底图访问器，ARM64 侧参数构造链路已 **100% 闭合**：
+
+### 5.1 `FUN_40e44bec`（`0x40e44bec..0x40e44e7b`，656 B）与 6 处 ISP 调用者
+- **`slot 39`（`0x27`）vs `slot 40`（`0x28`）真实分工**：
+  - `*(uint8_t *)(param_1 + 0x10) == 0` $\to$ **`slot 39`**（TX Marshaller `FUN_40c92798` 启动前切 Group-3 SRAM Bank 给 XM6 Core 0）：静态拍摄主链 `FUN_40e6f440`、二次/RAW 机内处理 `FUN_40e71620` / `FUN_40e71cc0`、回放/润饰 `FUN_40e7276c`、缩略图/缩放 JPEG `FUN_40e78eec`（均读取 `job + 0x1a0c` 使能、`+0x1a10` 强度 `0..5`、`+0x1a14` 大小 `0..2`，仅在 `enable == 1 && *job != 2` 时将中间 YUV 落地 DRAM 后原地加颗粒再编码）。
+  - `*(uint8_t *)(param_1 + 0x10) == 1` $\to$ **`slot 40`**（不切 SRAM Bank）：LiveView / 视频实时流 `FUN_40e5d5b4`（读取 `job + 0x908 / +0x90c / +0x910`）。
+- **固定硬编码标量（写入共享结构体 `0xa1be9ebe0`, `sizeof = 0x80`，原地写回 `0xa1be9ec60`, `sizeof = 0x38`）**：
+  - `in+0x34 format = 0x10`（单通道 8-bit `Y`）；`in+0x4c bypass_flag = 0`；
+  - `in+0x52 map_dim = 0x53`（**$M = 83$**，质数！`in+0x68` / `in+0x78` 同步写入 `0x53`）；
+  - `in+0x53 tile_period = 5`（**$P = 5$**，质数！）；`in+0x54 tile_step = 0x17`（**$S = 23$**，质数！三质数配合提供 $5 \times 83 = 415$ 像素无重复错位周期）；
+  - `in+0x55 tone_knee_lo = 0x20`（**`32`**）；`in+0x56 tone_knee_hi = 0xdf`（**`223`**，严格关于 `127.5` 对称）；
+  - `in+0x58 prng_seed`：每帧调用 `FUN_40c7d584(&local_48)`，指令级实为 `low32(umulh(CNTPCT_EL0, 0xAAAAAAAAAAAAAAAA) >> 4)`（即 24 MHz ARM 通用定时器周期计数器 `CNTPCT_EL0 / 24` 的微秒计数低 32 位，非墙上时钟；复现时需固定该种子）；
+  - `in+0x60 / +0x70` 缓冲布局与 D-Cache 维护：ROM 中 Map 0 与 Map 1 严格相接差 `0x35d2`（`13,778` B），但运行期 DMA 缓冲按 64 字节对齐相距 `align_up(0x35d2, 64) = 0x35e0`（`13,792` B），且 `mapB` **始终全零填充**（`memset(mapB, 0, 0x35d2)`）；提交 RPC 前调用 `FUN_40d30e58`（`dc CIVAC`）依次刷清 `mapA`、`mapB`、`in`（`0xa1be9ebe0`, `0x80` B）与 `out`（`0xa1be9ec60`, `0x38` B）。
+
+### 5.2 真正的 EXPEED 7 DSP 标量查表（`0xa02aec1f8..0xa02aec209`，18 B）与两张实机 `83×83` `int16_t` 基底图（`v4` 闭合）
+- **18×3 表 `0xa02acdd2b` 身份盖棺**：仅用于 `FUN_410d9d8c` 写入 Adobe XMP（`crd:GrainAmount/Size/Frequency`），其随 `Size 1→2→3` 递减的 `GrainAmount`（如 4 档 `82 : 65 : 45 = 1.00 : 0.79 : 0.55`）正是为了在 Lightroom 中拟合硬件 `3×3 / 5×5 / 9×9` 模糊带来的 RMS 衰减比（实测 `1.00 : 0.77 : 0.56`）。
+- **真 DSP 参数查表（共 18 B，位于 `.data` RAM `0xa02aec1f8` / ROM `0x44bbb1f8` / 文件偏移 `0x4a5b1f8`）**：
+  - **全分辨率模式**（`*(u8*)(param_1 + 0x11) == 0`，正常静态照片与视频）：
+    - `in+0x50` Q4 权重 `w`（`0xa02aec201`, 6 B）：**`[2, 3, 7, 11, 16, 16]`**（对应菜单强度 `1..6`，0 基下标 `0..5`）
+    - `in+0x51` 模糊核直径（`0xa02aec207`, 3 B）：**`[3, 5, 9]`**（大小 1 $\to 3\times 3$，大小 2 $\to 5\times 5$，大小 3 $\to 5\times 5 \circ 5\times 5$ 等效 $9\times 9$）
+  - **低分辨率/缩略图模式**（`*(u8*)(param_1 + 0x11) == 1`，`FUN_40e78eec` 中 `param_1[0x19d4] == 0`）：
+    - `in+0x50` Q4 权重 `w`（`0xa02aec1f8`, 6 B）：**`[2, 2, 3, 4, 6, 9]`**
+    - `in+0x51` 模糊核直径（`0xa02aec1fe`, 3 B）：**`[3, 3, 3]`**（三档大小均钳位至 $3\times 3$ 且恒用 Map 0）
+- **两张完整实机 `83 × 83` `int16_t` 基底图（[zf_filmgrain_maps_83x83_v4.json](../zf_filmgrain_maps_83x83_v4.json)，`29,403` B，SHA-256 `05efd2be...59714`；`FUN_41023444` 起始已是浮点函数，确认全固件仅此两张表）**：
+  - **Map 0（标准基底图，`FUN_4102341c`）**：RAM `0xa02b7237c` / ROM `0x44c4137c` / 文件偏移 `0x4ae137c`，`13,778` B，SHA-256 `d36cfcbfa644599818260d74eeb02f4ff2775bc94b8c529be7c9e66add8e161e`；全表 `min = -267`, `max = 269`, `mean = +0.2546`, **`std = 63.7841`**（$\approx 64$）, `kurtosis = 3.0516`, `lag1_H = +0.0007`, `lag1_V = +0.0006`（标准独立同分布高斯白噪声 $\mathcal{N}(0, 64^2)$ 量化）。
+  - **Map 1（高幅基底图，`FUN_41023430`）**：RAM `0xa02b7594e` / ROM `0x44c4494e` / 文件偏移 `0x4ae494e`，`13,778` B，SHA-256 `0d50aedb83a3b4488c0fa9dabdf28b228bea0fa072122104120d0907eb1cfd41`；全表 `min = -342`, `max = 334`, `mean = +1.1603`, **`std = 95.9047`**（$\approx 96 = 1.5 \times 64$）, `kurtosis = 3.0547`, `lag1_H = +0.0013`, `lag1_V = -0.0076`, 与 Map 0 相关系数 `r = +0.0207`（完全独立采样实现的 $\mathcal{N}(0, 96^2)$，仅在全分辨率且强度 `6` 时切入）。
+
+### 5.3 本地参考实现更新与真 ROM 表 100% 闭环自测
+- 已将 [zf_filmgrain_maps_83x83_v4.json](../zf_filmgrain_maps_83x83_v4.json)（真 ROM 双 `83×83` 表）与全部 ARM64 + CEVA-XM6 参数表合入 [expeed7_flexible_color_tables.json](../expeed7_flexible_color_tables.json) 与 [nikon_zf_film_engine.py](../nikon_zf_film_engine.py)，执行 `--self-test` **29/29 项全量 PASS**（含两张实机 `83×83` 表 SHA-256 逐字节校验与全 18 档颗粒单调/宽度验证）。

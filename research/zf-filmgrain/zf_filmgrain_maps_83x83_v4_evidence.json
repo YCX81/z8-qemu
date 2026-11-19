@@ -1,0 +1,305 @@
+{
+  "schema": "zf-c301-filmgrain-maps-83x83-receipt-v4",
+  "generated_local": "2026-11-19T13:47:54",
+  "firmware": {
+    "name": "Zf C3.01 complete EG",
+    "bytes": 79144343,
+    "sha256": "0b53631396314e17e5b5a46a6758a35ae521c1e8bddc2fb59b61bcf72e4889f8"
+  },
+  "address_model": {
+    "arm64_base": 1075183616,
+    "ram_to_rom_delta": 41841528832,
+    "formula": "rom_va = ram_va - 0x9BDF31000 ; file_offset = rom_va - 0x40160000"
+  },
+  "dsp_scalar_lut_18b": {
+    "ram_va": "0xa02aec1f8",
+    "rom_va": "0x44bbb1f8",
+    "file_offset": "0x4a5b1f8",
+    "hex": "0202030406090303030203070b1010030509",
+    "reduced_res_blend_w_6": [
+      2,
+      2,
+      3,
+      4,
+      6,
+      9
+    ],
+    "reduced_res_blur_kernel_3": [
+      3,
+      3,
+      3
+    ],
+    "full_res_blend_w_6": [
+      2,
+      3,
+      7,
+      11,
+      16,
+      16
+    ],
+    "full_res_blur_kernel_3": [
+      3,
+      5,
+      9
+    ],
+    "note": "该 18 B 表只被 EXPEED7 DSP 参数装配使用；18x3 预设表 0xa02acdd2b 只服务 XMP 写入器 FUN_410d9d8c"
+  },
+  "maps_83x83_s16": {
+    "map0_std": {
+      "getter_fn": "0x4102341c",
+      "ram_va": "0xa02b7237c",
+      "rom_va": "0x44c4137c",
+      "file_offset": "0x4ae137c",
+      "bytes": 13778,
+      "shape": [
+        83,
+        83
+      ],
+      "dtype": "int16_le",
+      "sha256": "d36cfcbfa644599818260d74eeb02f4ff2775bc94b8c529be7c9e66add8e161e",
+      "head8_int16": [
+        0,
+        -6,
+        -42,
+        -62,
+        -36,
+        52,
+        -109,
+        -91
+      ],
+      "head8_matches_collaborator": true,
+      "tail8_int16": [
+        86,
+        -5,
+        -23,
+        121,
+        55,
+        34,
+        6,
+        47
+      ],
+      "stats": {
+        "count": 6889,
+        "min": -267,
+        "max": 269,
+        "mean": 0.254609,
+        "std": 63.784149,
+        "mean_abs": 50.627377,
+        "zero_count": 94,
+        "neg_count": 3397,
+        "pos_count": 3398
+      },
+      "first64_std": 56.6123,
+      "first64_mean": 6.625
+    },
+    "map1_hi": {
+      "getter_fn": "0x41023430",
+      "ram_va": "0xa02b7594e",
+      "rom_va": "0x44c4494e",
+      "file_offset": "0x4ae494e",
+      "bytes": 13778,
+      "shape": [
+        83,
+        83
+      ],
+      "dtype": "int16_le",
+      "sha256": "0d50aedb83a3b4488c0fa9dabdf28b228bea0fa072122104120d0907eb1cfd41",
+      "head8_int16": [
+        -7,
+        116,
+        -25,
+        -78,
+        59,
+        -82,
+        -192,
+        135
+      ],
+      "head8_matches_collaborator": true,
+      "tail8_int16": [
+        25,
+        45,
+        -38,
+        -70,
+        111,
+        50,
+        4,
+        10
+      ],
+      "stats": {
+        "count": 6889,
+        "min": -342,
+        "max": 334,
+        "mean": 1.160255,
+        "std": 95.904651,
+        "mean_abs": 76.43417,
+        "zero_count": 67,
+        "neg_count": 3371,
+        "pos_count": 3451
+      },
+      "first64_std": 89.6369,
+      "first64_mean": 10.8281
+    }
+  },
+  "maps_contiguity": {
+    "map1_off_minus_map0_off": "0x35d2",
+    "equals_0x35d2": true,
+    "pre_map0_32b_hex": "0000000000000000000000000000803f00000000000000000000803f00000000",
+    "post_map1_32b_hex": "f000000001000000010000000100000001000000010000000100000001000000",
+    "note": "ROM 内两张表首尾相接；运行期缓冲 mapA/mapB 之间是 align_up(0x35d2, 64) = 0x35e0 的对齐间隔"
+  },
+  "getters": {
+    "FUN_41023414": {
+      "va": "0x41023414",
+      "body_bytes": 8,
+      "instruction": "mov w0,#0x35d2 ; ret",
+      "returns": "0x35d2 (13778 = 83*83*2)",
+      "raw_hex": "40ba8652c0035fd6"
+    },
+    "FUN_4102341c": {
+      "va": "0x4102341c",
+      "body_bytes": 20,
+      "instruction": "mov x0,#0x237c ; movk x0,#0x2b7,LSL#16 ; movk x0,#0xa,LSL#32 ; ret",
+      "returns": "0xa02b7237c (Map 0 静态表)",
+      "raw_hex": "806f84d2e056a0f24001c0f20000e0f2c0035fd6"
+    },
+    "FUN_41023430": {
+      "va": "0x41023430",
+      "body_bytes": 20,
+      "instruction": "mov x0,#0x594e ; movk x0,#0x2b7,LSL#16 ; movk x0,#0xa,LSL#32 ; ret",
+      "returns": "0xa02b7594e (Map 1 静态表)",
+      "raw_hex": "c0298bd2e056a0f24001c0f20000e0f2c0035fd6"
+    },
+    "block_128b_hex": "fc8b40f9ff430591c0035fd6e0030032c0035fd640ba8652c0035fd6806f84d2e056a0f24001c0f20000e0f2c0035fd6c0298bd2e056a0f24001c0f20000e0f2c0035fd6e923bb6df96301a9f75b02a9f55303a9f37b04a9f40300aaf30301aa141c00b4f31b00b4881e40b91f31007163000054e8031e32881e00b98a2240b9"
+  },
+  "arm64_wrapper": {
+    "fn": "FUN_40e44bec",
+    "va": "0x40e44bec",
+    "body_bytes": 656,
+    "body_sha256": "9f027ff01cfa4d9c35b85259b277884a9b0f31ba71b9a0f58ae627ce085093e4",
+    "in_struct_ram": "0xa01be9ebe0",
+    "out_struct_ram": "0xa01be9ec60",
+    "node_state_ram": "0xa03c73820",
+    "out_struct_bytes": 56,
+    "in_struct_bytes": 128,
+    "slot_field": {
+      "offset": "node_state_ram + 0x430",
+      "value": "param_1[0x10] != 0 ? 40 : 39"
+    },
+    "resolution_mode": {
+      "byte_offset": 17,
+      "full_res_when": "param_1[0x11] == 0",
+      "reduced_res_when": "param_1[0x11] != 0"
+    },
+    "blend_weight": {
+      "field": "in + 0x50",
+      "index_source": "*(uint32*)(param_1[1] + 4)  (0 基强度档 0..5)",
+      "full_res_table": "0xa02aec201 [2,3,7,11,16,16]",
+      "reduced_res_table": "0xa02aec1f8 [2,2,3,4,6,9]"
+    },
+    "blur_kernel": {
+      "field": "in + 0x51",
+      "index_source": "*(uint32*)(param_1[1] + 8)  (0 基大小档 0..2)",
+      "full_res_table": "0xa02aec207 [3,5,9]",
+      "reduced_res_table": "0xa02aec1fe [3,3,3]"
+    },
+    "fixed_fields": {
+      "in + 0x52 (map_dim)": 83,
+      "in + 0x53 (tile_period P)": 5,
+      "in + 0x54 (tile_step S)": 23,
+      "in + 0x55 (tone_knee_lo)": 32,
+      "in + 0x56 (tone_knee_hi)": 223,
+      "in + 0x34 (format)": "0x10",
+      "in + 0x4c (bypass)": 0
+    },
+    "map_selection": {
+      "rule": "(param_1[0x11] == 0) && (*(uint32*)(param_1[1]+4) > 4) ? Map 1 : Map 0",
+      "index_base": "0 基，> 4 只等于 5，即 UI 第 6 档强度",
+      "copy": "memcpy(mapA_runtime, source_map, 0x35d2)",
+      "mapb": "memset(mapB_runtime, 0, 0x35d2)  (每次调用都清零)"
+    },
+    "runtime_buffers": {
+      "map_a": "align64(param_1[3])",
+      "map_b": "align64(map_a + 0x35d2)  (间隔 0x35e0)"
+    },
+    "prng_seed": {
+      "field": "in + 0x58",
+      "source": "FUN_40c7d584()",
+      "implementation": "umulh(CNTPCT_EL0, 0xAAAAAAAAAAAAAAAA) >> 4，取低 32 位",
+      "note": "ARM 通用定时器周期计数器乘移散列，不是墙上时钟"
+    },
+    "cache_flush": {
+      "fn": "FUN_40d30e58 -> FUN_40d30e74",
+      "action": "dc CIVAC 区间清（clean + invalidate data cache）",
+      "max_bytes": 524288,
+      "applied_to": [
+        "mapA (0x35d2)",
+        "mapB (0x35d2)",
+        "in struct (0x80)",
+        "out struct (0x38)"
+      ],
+      "note": "DSP 直读 ARM RAM，提交前必须把缓存写回"
+    },
+    "dsp_submit": {
+      "fn": "FUN_40c91ba4",
+      "args": "(&node_state_ram+0x428, 3000)",
+      "status": "回读 node_state_ram+0x458，0 才算成功"
+    }
+  },
+  "callers": [
+    {
+      "caller": "FUN_40e5d5b4",
+      "call_site": "0x40e5d6a0",
+      "slot": 40,
+      "param_byte_0x10": 1,
+      "param_byte_0x11": 0,
+      "grain_substruct": "*(param_1+0x10 + 0xaa8) + 0x908"
+    },
+    {
+      "caller": "FUN_40e6f440",
+      "call_site": "0x40e6fa88",
+      "slot": 39,
+      "param_byte_0x10": 0,
+      "param_byte_0x11": 0,
+      "grain_substruct": "*(param_1+6 + 0x710) + 0x1a0c"
+    },
+    {
+      "caller": "FUN_40e71620",
+      "call_site": "0x40e71b24",
+      "slot": 39,
+      "param_byte_0x10": 0,
+      "param_byte_0x11": 0,
+      "grain_substruct": "*(param_1+6 + 0x710) + 0x1a0c"
+    },
+    {
+      "caller": "FUN_40e71cc0",
+      "call_site": "0x40e721b0",
+      "slot": 39,
+      "param_byte_0x10": 0,
+      "param_byte_0x11": 0,
+      "grain_substruct": "*(param_1+6 + 0x710) + 0x1a0c"
+    },
+    {
+      "caller": "FUN_40e7276c",
+      "call_site": "0x40e72cfc",
+      "slot": 39,
+      "param_byte_0x10": 0,
+      "param_byte_0x11": 0,
+      "grain_substruct": "*(param_1+6 + 0x710) + 0x1a0c"
+    },
+    {
+      "caller": "FUN_40e78eec",
+      "call_site": "0x40e793a0",
+      "slot": 39,
+      "param_byte_0x10": 0,
+      "param_byte_0x11": "param_1[0x19d4] XOR 1",
+      "grain_substruct": "*(param_1+6 + 0x710) + 0x1a0c"
+    }
+  ],
+  "corrections_to_collaborator": [
+    "协作方称 prng_seed 来自「实时时钟」；指令级实为 CNTPCT_EL0 周期计数器经 0xAAAAAAAAAAAAAAAA 乘移散列。",
+    "协作方称 ROM 内两张表首尾相接差 0x35d2 —— 已确证；但运行期 mapA/mapB 两块缓冲之间是 align_up(0x35d2,64)=0x35e0。",
+    "「强度 = 6 才用 Map 1」在指令级是 intensity_idx > 4；该下标为 0 基，故只命中第 6 档，协作方结论成立。",
+    "低分辨率分支恒用 Map 0；Map 1 需要同时满足全分辨率且强度第 6 档。"
+  ],
+  "boundary": "offline read-only; no camera access, no flashing, no device state change"
+}

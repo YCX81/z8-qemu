@@ -13,8 +13,8 @@ import os
 import struct
 from typing import Any, Dict, List
 
-DEFAULT_Z8_FW = r"C:\Users\ycx\Desktop\Nikon\z8-qemu\.local\firmware\z8-c311-main.bin"
-DEFAULT_OUT = r"C:\Users\ycx\Desktop\Nikon\.local-zf-film-analysis\expeed7_flexible_color_tables.json"
+DEFAULT_Z8_FW = os.path.join(".local", "firmware", "z8-c311-main.bin")
+DEFAULT_OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "expeed7_flexible_color_tables.json")
 Z8_BASE_VA = 0x40160000
 
 ZF_GRAIN_HEX = (

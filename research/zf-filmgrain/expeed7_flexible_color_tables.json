@@ -9071,19 +9071,22 @@
       ]
     },
     "TFilmGrainInputParam": {
+      "size_bytes": 128,
       "fields": [
         {"offset": "0x00..0x37", "size": 56, "type": "tagDSPImageParam", "name": "src", "dsp_reads": ["+0x00 plane_addr[0]", "+0x20 width", "+0x24 height", "+0x28 stride[0]"]},
-        {"offset": "0x4c", "size": 4, "type": "int32_t", "name": "bypass_flag", "note": "if == 1, immediate return 0"},
-        {"offset": "0x50", "size": 1, "type": "uint8_t", "name": "map_blend_weight", "note": "Q4 blend weight w in [0..16]: ((w*mapA + (16-w)*mapB) >> 4)"},
-        {"offset": "0x51", "size": 1, "type": "uint8_t", "name": "blur_kernel_size", "note": "allowed {0, 3, 5, 7, 9} via mask 0x2a9"},
-        {"offset": "0x52", "size": 1, "type": "uint8_t", "name": "map_dim", "note": "M <= 128, square base map side length (int16_t[M][M])"},
-        {"offset": "0x53", "size": 1, "type": "uint8_t", "name": "tile_period", "note": "P > 0, staggered index period: ((k // P) * S + (k % P)) % M"},
-        {"offset": "0x54", "size": 1, "type": "uint8_t", "name": "tile_step", "note": "S, staggered phase step per period P"},
-        {"offset": "0x55", "size": 1, "type": "uint8_t", "name": "tone_knee_lo", "note": "shadow ramp knee: Y < knee_lo -> (64 * Y) // knee_lo"},
-        {"offset": "0x56", "size": 1, "type": "uint8_t", "name": "tone_knee_hi", "note": "highlight ramp knee: Y > knee_hi -> (64 * (255 - Y)) // (255 - knee_hi)"},
-        {"offset": "0x58", "size": 4, "type": "uint32_t", "name": "prng_seed", "note": "Marsaglia xorshift32 seed (0 replaced with 0x12345678)"},
-        {"offset": "0x60", "size": 8, "type_arm64": "const int16_t*", "type_dsp": "uint32_t addr + 4B pad", "name": "mapA_addr"},
-        {"offset": "0x70", "size": 8, "type_arm64": "const int16_t*", "type_dsp": "uint32_t addr + 4B pad", "name": "mapB_addr"}
+        {"offset": "0x4c", "size": 4, "type": "int32_t", "name": "bypass_flag", "note": "if == 1, immediate return 0 (ARM64 wrapper sets 0)"},
+        {"offset": "0x50", "size": 1, "type": "uint8_t", "name": "map_blend_weight", "note": "Q4 blend weight w in [0..16]: ((w*mapA + (16-w)*mapB) >> 4); full-res LUT 0xa02aec201=[2,3,7,11,16,16], small-res LUT 0xa02aec1f8=[2,2,3,4,6,9]"},
+        {"offset": "0x51", "size": 1, "type": "uint8_t", "name": "blur_kernel_size", "note": "allowed {0, 3, 5, 7, 9} via mask 0x2a9; full-res LUT 0xa02aec207=[3,5,9], small-res LUT 0xa02aec1fe=[3,3,3]"},
+        {"offset": "0x52", "size": 1, "type": "uint8_t", "name": "map_dim", "note": "M <= 128; ARM64 FUN_40e44bec hardcodes 0x53 = 83 (83x83x2 = 13,778 B = 0x35d2)"},
+        {"offset": "0x53", "size": 1, "type": "uint8_t", "name": "tile_period", "note": "P > 0; ARM64 FUN_40e44bec hardcodes 5"},
+        {"offset": "0x54", "size": 1, "type": "uint8_t", "name": "tile_step", "note": "S; ARM64 FUN_40e44bec hardcodes 0x17 = 23 (prime stride mod 83 -> 415x415 aperiodic tiling)"},
+        {"offset": "0x55", "size": 1, "type": "uint8_t", "name": "tone_knee_lo", "note": "shadow ramp knee; ARM64 FUN_40e44bec hardcodes 0x20 = 32"},
+        {"offset": "0x56", "size": 1, "type": "uint8_t", "name": "tone_knee_hi", "note": "highlight ramp knee; ARM64 FUN_40e44bec hardcodes 0xdf = 223"},
+        {"offset": "0x58", "size": 4, "type": "uint32_t", "name": "prng_seed", "note": "Marsaglia xorshift32 seed from FUN_40c7d584 monotonic timer (0 replaced with 0x12345678)"},
+        {"offset": "0x60", "size": 8, "type_arm64": "const int16_t*", "type_dsp": "uint32_t addr + 4B pad", "name": "mapA_addr", "note": "64B-aligned DMA copy of Map0 (0xa02b7237c) or Map1 (0xa02b7594e for full-res intensity 6)"},
+        {"offset": "0x68", "size": 1, "type": "uint8_t", "name": "mapA_dim", "note": "ARM64 FUN_40e44bec writes 0x53 = 83"},
+        {"offset": "0x70", "size": 8, "type_arm64": "const int16_t*", "type_dsp": "uint32_t addr + 4B pad", "name": "mapB_addr", "note": "64B-aligned DMA buffer, always zero-filled (memset 0, 0x35d2) by FUN_40e44bec"},
+        {"offset": "0x78", "size": 1, "type": "uint8_t", "name": "mapB_dim", "note": "ARM64 FUN_40e44bec writes 0x53 = 83"}
       ]
     },
     "TFilmGrainOutputParam": {
@@ -9116,5 +9119,128 @@
       {"symbol": "_ZN3scs4fgsf10initializeEPPhPfS3_iiif", "dsp_va": "0x418814e0", "size_bytes": 3696},
       {"symbol": "_ZN3scs4fgsf6filterEPKhPhPKfS5_PfS6_iiiffjh", "dsp_va": "0x41882360", "size_bytes": 10072}
     ]
+  },
+  "zf_c301_arm64_filmgrain_dispatch": {
+    "source_receipt": "zf-c301-filmgrain-arm64-maps-receipt-v3",
+    "receipt_sha256": "c1b878c40949e8139a3f426421ccf65866ae252df5241fb8b395b22a854d8625",
+    "firmware_sha256": "0b53631396314e17e5b5a46a6758a35ae521c1e8bddc2fb59b61bcf72e4889f8",
+    "ram_to_rom_delta": "0x9bdf31000",
+    "wrapper_fn_va": "0x40e44bec",
+    "wrapper_fn_bytes": 656,
+    "wrapper_fn_sha256": "9f027ff01cfa4d9c35b85259b277884a9b0f31ba71b9a0f58ae627ce085093e4",
+    "scratch_size_fn_va": "0x40e44e7c",
+    "scratch_buffer_bytes": 27712,
+    "rpc_sync_submit_va": "0x40c91ba4",
+    "rpc_timeout_ms": 3000,
+    "callers": {
+      "slot_39_still_and_retouch": [
+        {"fn_va": "0x40e6f440", "bl_va": "0x40e6fa88", "slot": 39, "reduced_res_flag": 0, "role": "Main capture ISP pipeline"},
+        {"fn_va": "0x40e71620", "bl_va": "0x40e71b24", "slot": 39, "reduced_res_flag": 0, "role": "Secondary/RAW develop ISP pipeline"},
+        {"fn_va": "0x40e71cc0", "bl_va": "0x40e721b0", "slot": 39, "reduced_res_flag": 0, "role": "Capture/retouch ISP pipeline"},
+        {"fn_va": "0x40e7276c", "bl_va": "0x40e72cfc", "slot": 39, "reduced_res_flag": 0, "role": "Playback/display ISP pipeline"},
+        {"fn_va": "0x40e78eec", "bl_va": "0x40e793a0", "slot": 39, "reduced_res_flag": "1 when param_1[0x19d4]==0 else 0", "role": "Resized/thumbnail/NEF-develop ISP pipeline"}
+      ],
+      "slot_40_liveview_video": [
+        {"fn_va": "0x40e5d5b4", "bl_va": "0x40e5d6a0", "slot": 40, "reduced_res_flag": 0, "role": "LiveView/Video ISP pipeline (job+0x908)"}
+      ]
+    },
+    "fixed_input_scalars": {
+      "format_u32": 16,
+      "bypass_flag_i32": 0,
+      "map_dim_u8": 83,
+      "tile_period_u8": 5,
+      "tile_step_u8": 23,
+      "tone_knee_lo_u8": 32,
+      "tone_knee_hi_u8": 223,
+      "mapA_dim_u8": 83,
+      "mapB_dim_u8": 83,
+      "mapB_zero_filled": true,
+      "map_version_id_fn_va": "0x4102340c",
+      "map_version_id": 1,
+      "map_bytes_fn_va": "0x41023414",
+      "map_bytes": 13778,
+      "runtime_map_stride_aligned64": 13792,
+      "prng_seed_fn_va": "0x40c7d584",
+      "prng_seed_formula": "low32(umulh(CNTPCT_EL0, 0xAAAAAAAAAAAAAAAA) >> 4) == (uint32_t)(CNTPCT_EL0 / 24)",
+      "cache_clean_invalidate_fn_va": "0x40d30e58",
+      "cache_clean_invalidate_op": "dc CIVAC on mapA(0x35d2), mapB(0x35d2), in_struct(0x80 @ 0xa1be9ebe0), out_struct(0x38 @ 0xa1be9ec60)",
+      "in_place_y_plane": true
+    },
+    "full_res_tables": {
+      "blend_weight_q4_6": {
+        "ram_va": "0xa02aec201",
+        "rom_va": "0x44bbb201",
+        "file_offset": "0x4a5b201",
+        "values": [2, 3, 7, 11, 16, 16]
+      },
+      "blur_kernel_size_3": {
+        "ram_va": "0xa02aec207",
+        "rom_va": "0x44bbb207",
+        "file_offset": "0x4a5b207",
+        "values": [3, 5, 9]
+      },
+      "map_select_rule": "intensity_idx <= 4 (Intensity 1..5) -> map0_std (0xa02b7237c); intensity_idx > 4 (Intensity 6) -> map1_hi (0xa02b7594e)"
+    },
+    "reduced_res_tables": {
+      "blend_weight_q4_6": {
+        "ram_va": "0xa02aec1f8",
+        "rom_va": "0x44bbb1f8",
+        "file_offset": "0x4a5b1f8",
+        "values": [2, 2, 3, 4, 6, 9]
+      },
+      "blur_kernel_size_3": {
+        "ram_va": "0xa02aec1fe",
+        "rom_va": "0x44bbb1fe",
+        "file_offset": "0x4a5b1fe",
+        "values": [3, 3, 3]
+      },
+      "map_select_rule": "always map0_std (0xa02b7237c)"
+    },
+    "rom_base_maps_83x83_s16": {
+      "v4_receipt_file": "zf_filmgrain_maps_83x83_v4.json",
+      "v4_receipt_sha256": "05efd2bed01efe5d9ddee49044a79d37582de85e2eda80dc4e742d2f95c59714",
+      "map0_std": {
+        "getter_fn_va": "0x4102341c",
+        "ram_va": "0xa02b7237c",
+        "rom_va": "0x44c4137c",
+        "file_offset": "0x4ae137c",
+        "bytes": 13778,
+        "shape": [83, 83],
+        "dtype": "int16_le",
+        "sha256": "d36cfcbfa644599818260d74eeb02f4ff2775bc94b8c529be7c9e66add8e161e",
+        "min": -267,
+        "max": 269,
+        "mean": 0.254609,
+        "std": 63.784149,
+        "kurtosis": 3.0516,
+        "lag1_autocorr_h": 0.0007,
+        "lag1_autocorr_v": 0.0006,
+        "head_8_s16": [0, -6, -42, -62, -36, 52, -109, -91],
+        "tail_8_s16": [86, -5, -23, 121, 55, 34, 6, 47],
+        "full_payload_verified_v4": true
+      },
+      "map1_hi": {
+        "getter_fn_va": "0x41023430",
+        "ram_va": "0xa02b7594e",
+        "rom_va": "0x44c4494e",
+        "file_offset": "0x4ae494e",
+        "bytes": 13778,
+        "shape": [83, 83],
+        "dtype": "int16_le",
+        "sha256": "0d50aedb83a3b4488c0fa9dabdf28b228bea0fa072122104120d0907eb1cfd41",
+        "min": -342,
+        "max": 334,
+        "mean": 1.160255,
+        "std": 95.904651,
+        "kurtosis": 3.0547,
+        "lag1_autocorr_h": 0.0013,
+        "lag1_autocorr_v": -0.0076,
+        "corr_with_map0": 0.0207,
+        "std_ratio_to_map0": 1.5036,
+        "head_8_s16": [-7, 116, -25, -78, 59, -82, -192, 135],
+        "tail_8_s16": [25, 45, -38, -70, 111, 50, 4, 10],
+        "full_payload_verified_v4": true
+      }
+    }
   }
 }

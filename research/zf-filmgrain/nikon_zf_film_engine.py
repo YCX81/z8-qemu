@@ -13,9 +13,14 @@ Combines:
    - 65-node 12-bit RGB Color Grading LUT (0x4111eff4, ROM 0x441a56a0, 0x441a4dae, 0x441a561e)
    - Global Saturation + optional Clarity / Sharpening + 3D .cube LUT export.
 3. Nikon Zf C3.01 18-level Film Grain engine (Size 1..3 x Intensity 1..6):
-   - Exact 18x3 preset table @ RAM 0xa02acdd2b (EG file offset 0x4a3cd2b) & XMP crd: writer
+   - Adobe XMP 18x3 preset table @ RAM 0xa02acdd2b (EG file offset 0x4a3cd2b) & XMP crd: writer
+   - ARM64 DspFrameworkWrapper::FilmGrain (FUN_40e44bec @ 0x40e44bec, 656 B):
+     * 18 B EXPEED 7 DSP scalar LUTs @ RAM 0xa02aec1f8 / ROM 0x44bbb1f8:
+       full-res w=[2,3,7,11,16,16], blur=[3,5,9]; reduced-res w=[2,2,3,4,6,9], blur=[3,3,3]
+     * Hardcoded scalars: M=83, P=5, S=23, tone_knee_lo=32, tone_knee_hi=223, format=0x10, mapB=0
+     * Dual 83x83 int16_t ROM base maps: Map 0 @ 0xa02b7237c (std=63.7841) & Map 1 @ 0xa02b7594e (std=95.9047)
    - Instruction-verified CEVA-XM6 FilmGrain.cpp DSP pipeline (0x418761e0, 17,084 B):
-     * Dual 128x128 int16 base map Q4 blend + staggered divstep tiling LUT + Q6 tone_lut[Y]
+     * Q4 blend + online IDM 0x2d720 divstep tiling LUT + online Q6 tone_lut[Y]
      * ApplyMaptoImageLine: per-32px Marsaglia xorshift32 +-1 sign flip + >>6 shift + [0,255] vst{satu}
      * BlurLineRing two-stage cascade (0x38ee0..0x38f70, mask 0x2a9 -> {0,3,5,7,9}) with
        UpdateBlurLine_1 (1x1), UpdateBlurLine_3 (.LCPI2_0 3x3 /16), and UpdateBlurLine_5
@@ -34,19 +39,33 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-# Auto-attach vendored numpy / Pillow from workspace if not installed globally
-_VENDOR_DIR = Path(r"C:\Users\ycx\Desktop\Nikon\third-party-20261029\nikon-fuji-film-lab\.vendor")
-if _VENDOR_DIR.is_dir() and str(_VENDOR_DIR) not in sys.path:
-    sys.path.insert(0, str(_VENDOR_DIR))
+# Optionally attach a caller-supplied vendor directory if numpy/Pillow are not installed globally
+_VENDOR_ENV = os.environ.get("NIKON_VENDOR_DIR")
+if _VENDOR_ENV and Path(_VENDOR_ENV).is_dir() and _VENDOR_ENV not in sys.path:
+    sys.path.insert(0, _VENDOR_ENV)
 
 import numpy as np  # noqa: E402
 from PIL import Image  # noqa: E402
 
 THIS_DIR = Path(__file__).resolve().parent
 DEFAULT_TABLES_JSON = THIS_DIR / "expeed7_flexible_color_tables.json"
-DEFAULT_CALIBRATION_JSON = Path(
-    r"C:\Users\ycx\Desktop\Nikon\third-party-20261029\nikon-fuji-film-lab\configs\lab-calibration.json"
+DEFAULT_CALIBRATION_JSON = (
+    Path(os.environ["NIKON_LAB_CALIBRATION_JSON"])
+    if "NIKON_LAB_CALIBRATION_JSON" in os.environ
+    else None
 )
+
+BUILTIN_CALIBRATION_PROFILES: List[Dict[str, Any]] = [
+    {"id": "neutral", "name": "LAB_NEUTRAL", "options": {}},
+    {"id": "saturation_p20", "name": "LAB_SAT_P20", "options": {"saturation": 20}},
+    {"id": "contrast_p20", "name": "LAB_CON_P20", "options": {"contrast": 20}},
+    {"id": "blue_hue_p20", "name": "LAB_BLUE_H20", "options": {"colorBlender": {"blue": {"hue": 20}}}},
+    {"id": "blue_chroma_m20", "name": "LAB_BLUE_Cm20", "options": {"colorBlender": {"blue": {"chroma": -20}}}},
+    {"id": "blue_brightness_p20", "name": "LAB_BLUE_B20", "options": {"colorBlender": {"blue": {"brightness": 20}}}},
+    {"id": "warm_highlights", "name": "LAB_HI_WARM", "options": {"colorGrading": {"highlights": {"hue": 45, "chroma": 10}}}},
+    {"id": "cool_shadows", "name": "LAB_SH_COOL", "options": {"colorGrading": {"shadows": {"hue": 220, "chroma": 10}}}},
+    {"id": "identity_curve", "name": "LAB_CURVE_ID", "options": {"identityToneCurve": True}},
+]
 
 # ============================================================================
 # Part 1: Pure-Python .NP3 (0310 Flexible Color) Binary Container Codec
@@ -1202,44 +1221,93 @@ def nikon_zf_filmgrain_dsp_bitexact(
     return dispatch_blur_cascade(noisy, blur_size=blur_size, round_bias_3=0, round_bias_5=0, border_mode="reflect")
 
 
-def _synthesize_zf_base_grain_maps_s16(
-    size_level: int,
-    crd_amount: int,
-    crd_frequency: int,
-    seed: int,
-    blur_size: int,
-    map_dim: int = 128,
+# ARM64 DspFrameworkWrapper::FilmGrain (FUN_40e44bec) verified dispatch tables & constants
+ZF_GRAIN_MAP_DIM = 83
+ZF_GRAIN_TILE_PERIOD = 5
+ZF_GRAIN_TILE_STEP = 23
+ZF_GRAIN_KNEE_LO = 32
+ZF_GRAIN_KNEE_HI = 223
+
+# RAM 0xa02aec201 / 0xa02aec207 (full-res still & video) and 0xa02aec1f8 / 0xa02aec1fe (reduced-res)
+ZF_GRAIN_FULL_WEIGHTS_Q4: Tuple[int, ...] = (2, 3, 7, 11, 16, 16)
+ZF_GRAIN_FULL_BLUR_SIZES: Tuple[int, ...] = (3, 5, 9)
+ZF_GRAIN_SMALL_WEIGHTS_Q4: Tuple[int, ...] = (2, 2, 3, 4, 6, 9)
+ZF_GRAIN_SMALL_BLUR_SIZES: Tuple[int, ...] = (3, 3, 3)
+
+# Full-map empirical std & SHA-256 of ROM 83x83 int16_t maps (Map0 @ 0xa02b7237c, Map1 @ 0xa02b7594e)
+ZF_GRAIN_MAP0_STD_EST = 63.784149
+ZF_GRAIN_MAP1_STD_EST = 95.904651
+ZF_GRAIN_MAP0_SHA256 = "d36cfcbfa644599818260d74eeb02f4ff2775bc94b8c529be7c9e66add8e161e"
+ZF_GRAIN_MAP1_SHA256 = "0d50aedb83a3b4488c0fa9dabdf28b228bea0fa072122104120d0907eb1cfd41"
+
+_CACHED_ROM_MAPS: Optional[Tuple[np.ndarray, np.ndarray]] = None
+
+
+def load_zf_rom_grain_maps_83x83(
+    maps_json_path: Optional[Path] = None,
+) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    """Load exact 83x83 int16_t ROM maps (map0_std, map1_hi) from v4 JSON receipt if present."""
+    global _CACHED_ROM_MAPS
+    if maps_json_path is None and _CACHED_ROM_MAPS is not None:
+        return _CACHED_ROM_MAPS
+    cand = (
+        Path(maps_json_path)
+        if maps_json_path is not None
+        else Path(__file__).resolve().parent / "zf_filmgrain_maps_83x83_v4.json"
+    )
+    if not cand.is_file():
+        return None
+    import base64
+    import zlib
+
+    with open(cand, "r", encoding="utf-8") as fh:
+        doc = json.load(fh)
+    maps = doc.get("maps_83x83_s16") or {}
+    if "map0_std" not in maps or "map1_hi" not in maps:
+        return None
+    raw0 = zlib.decompress(base64.b64decode(maps["map0_std"]["zlib_base64"]))
+    raw1 = zlib.decompress(base64.b64decode(maps["map1_hi"]["zlib_base64"]))
+    if len(raw0) != ZF_GRAIN_MAP_DIM * ZF_GRAIN_MAP_DIM * 2 or len(raw1) != ZF_GRAIN_MAP_DIM * ZF_GRAIN_MAP_DIM * 2:
+        return None
+    m0 = np.frombuffer(raw0, dtype="<i2").reshape(ZF_GRAIN_MAP_DIM, ZF_GRAIN_MAP_DIM).copy()
+    m1 = np.frombuffer(raw1, dtype="<i2").reshape(ZF_GRAIN_MAP_DIM, ZF_GRAIN_MAP_DIM).copy()
+    if maps_json_path is None:
+        _CACHED_ROM_MAPS = (m0, m1)
+    return m0, m1
+
+
+def _get_zf_base_grain_maps_s16(
+    intensity_level: int,
+    reduced_res: bool = False,
+    seed: int = 20260301,
+    rom_maps_json: Optional[Path] = None,
 ) -> Tuple[np.ndarray, np.ndarray, int]:
-    """Build dual 128x128 int16 pre-blur grain maps (mapA, mapB) + Q4 blend_w for XM6 FilmGrain.
+    """Return `(mapA, mapB, blend_w)` matching ARM64 `FUN_40e44bec` (0x40e44bec):
 
-    Because `ApplyMaptoImageLine` applies per-pixel `xorshift32` +-1 polarity flips (making pre-blur
-    samples spatially uncorrelated) and `UpdateBlurLine_{1,3,5}` subsequently applies the 1x1 / 3x3 /
-    5x5 / 7x7 / 9x9 low-pass filter, pre-blur `int16` map amplitudes compensate for the spatial filter's
-    white-noise RMS attenuation (`1.000` for `0`, `0.375` for `3`, `0.289` for `5`, `0.181` for `7`, `0.148` for `9`).
+    - `blend_w` (`in+0x50`): full-res `[2, 3, 7, 11, 16, 16]` @ `0xa02aec201`;
+      reduced-res `[2, 2, 3, 4, 6, 9]` @ `0xa02aec1f8`.
+    - `mapA` (`in+0x60`): `83x83 int16_t` — `Map1` (`0xa02b7594e`) only when
+      `(not reduced_res) and intensity_level == 6`, otherwise `Map0` (`0xa02b7237c`).
+    - `mapB` (`in+0x70`): ALWAYS zero-filled (`memset(mapB, 0, 13778)`).
+    Uses exact ROM maps when `zf_filmgrain_maps_83x83_v4.json` is available, else
+    head-64-calibrated `83x83` zero-mean Gaussian stand-ins (`std=56.61` / `89.64`).
     """
-    rng = np.random.default_rng(seed)
-    # Half-normal / folded-Gaussian magnitude carrier (since xorshift32 supplies the +-1 sign per pixel)
-    mag_b = np.abs(rng.standard_normal((map_dim, map_dim), dtype=np.float32))
-    mag_a = np.abs(rng.standard_normal((map_dim, map_dim), dtype=np.float32))
-    # Normalize so E[mag^2] == 1.0 (which standard_normal already satisfies: E[|Z|^2] = E[Z^2] = 1.0)
-    rms_b = max(float(np.sqrt(np.mean(mag_b * mag_b))), 1e-6)
-    rms_a = max(float(np.sqrt(np.mean(mag_a * mag_a))), 1e-6)
-    mag_b = mag_b / rms_b
-    mag_a = mag_a / rms_a
+    idx = int(_clamp_num(intensity_level, 1, 6)) - 1
+    blend_w = ZF_GRAIN_SMALL_WEIGHTS_Q4[idx] if reduced_res else ZF_GRAIN_FULL_WEIGHTS_Q4[idx]
+    use_map1 = (not reduced_res) and (idx > 4)
 
-    # Map crd_grain_frequency [80..100] -> Q4 blend_w [0..16] (in + 0x50):
-    # Separates (Size 1, Int 5: amt=100, freq=89 -> w=7) from (Size 1, Int 6: amt=100, freq=100 -> w=16)
-    blend_w = int(_clamp_num(round((crd_frequency - 80) * 16.0 / 20.0), 0, 16))
+    rom_pair = load_zf_rom_grain_maps_83x83(rom_maps_json)
+    if rom_pair is not None:
+        map_a = rom_pair[1] if use_map1 else rom_pair[0]
+    else:
+        rng = np.random.default_rng((int(seed) ^ (0x9E3779B9 if use_map1 else 0x13572468)) & 0xFFFFFFFF)
+        target_std = ZF_GRAIN_MAP1_STD_EST if use_map1 else ZF_GRAIN_MAP0_STD_EST
+        raw = rng.standard_normal((ZF_GRAIN_MAP_DIM, ZF_GRAIN_MAP_DIM), dtype=np.float32)
+        raw = raw - float(np.mean(raw))
+        cur_std = max(float(np.std(raw)), 1e-6)
+        map_a = np.clip(np.round(raw * (target_std / cur_std)), -32767, 32767).astype(np.int16)
 
-    # Compensate pre-blur int16 amplitude for post-blur UpdateBlurLine_{1,3,5} white-noise RMS gain
-    rms_attenuation = {0: 1.0000, 3: 0.3750, 5: 0.2890, 7: 0.1815, 9: 0.1476}[blur_size]
-    size_visual_boost = {1: 1.00, 2: 1.15, 3: 1.35}[size_level]
-    target_post_rms_lsb = (16.5 * (crd_amount / 100.0) * size_visual_boost) + 0.6
-    pre_rms_b = target_post_rms_lsb / rms_attenuation
-    pre_rms_a = pre_rms_b * 1.18
-
-    map_b = np.clip(np.round(mag_b * pre_rms_b), -32767, 32767).astype(np.int16)
-    map_a = np.clip(np.round(mag_a * pre_rms_a), -32767, 32767).astype(np.int16)
+    map_b = np.zeros((ZF_GRAIN_MAP_DIM, ZF_GRAIN_MAP_DIM), dtype=np.int16)
     return map_a, map_b, blend_w
 
 
@@ -1250,31 +1318,37 @@ def apply_zf_film_grain(
     video_mode: bool = False,
     seed: int = 20260301,
     *,
+    reduced_res: bool = False,
     dsp_post_blur_size: Optional[int] = None,
-    knee_lo: int = 20,
-    knee_hi: int = 240,
+    knee_lo: int = ZF_GRAIN_KNEE_LO,
+    knee_hi: int = ZF_GRAIN_KNEE_HI,
+    rom_maps_json: Optional[Path] = None,
 ) -> np.ndarray:
-    """Apply Nikon Zf C3.01 Film Grain via the instruction-verified CEVA-XM6 DSP pipeline:
-    - Maps `size_level` {1: Small, 2: Medium, 3: Large} -> `in->blur_kernel_size` {0: 1x1, 3: 3x3, 5: 5x5}.
-    - Executes `nikon_zf_filmgrain_dsp_bitexact` on 8-bit Luma `Y` (`plane_addr[0]`):
-      1) Q4 blend of `mapA` / `mapB` (`in+0x50`, driven by `crd_grain_frequency`)
-      2) Staggered `divstep` coordinate LUT (`P=127, S=37, M=128`)
-      3) Marsaglia `xorshift32` per-32px `+-1` sign flip + Q6 `tone_lut[Y] >> 6` + `[0, 255]` `vst{satu}`
-      4) Two-stage `BlurLineRing` spatial filter (`UpdateBlurLine_1` / `.LCPI2_0` `_3` / `.LCPI3_0` `_5`),
-         leaving Chroma `Cb, Cr` untouched (authentic monochrome silver-halide grain).
+    """Apply Nikon Zf C3.01 Film Grain via the instruction-verified ARM64 (`FUN_40e44bec`) + CEVA-XM6 (`0x418761e0`) pipeline:
+    - ARM64 LUT `0xa02aec207` maps `size_level` {1, 2, 3} -> `in->blur_kernel_size` {3, 5, 9}
+      (or `[3, 3, 3]` @ `0xa02aec1fe` when `reduced_res=True`).
+    - ARM64 LUT `0xa02aec201` maps `intensity_level` 1..6 -> Q4 `blend_w` `[2, 3, 7, 11, 16, 16]`
+      (or `[2, 2, 3, 4, 6, 9]` @ `0xa02aec1f8` when `reduced_res=True`); `mapB` is zero-filled and
+      full-res intensity 6 switches `mapA` from `Map0` (`0xa02b7237c`) to `Map1` (`0xa02b7594e`).
+    - Hardcoded ARM64 scalars: `M=83`, `P=5`, `S=23`, `knee_lo=32`, `knee_hi=223`, `format=0x10`.
+    - Executes `nikon_zf_filmgrain_dsp_bitexact` in-place on 8-bit Luma `Y` (`plane_addr[0]`),
+      leaving Chroma `Cb, Cr` untouched.
     """
     preset = lookup_zf_grain_preset(size_level, intensity_level, video_mode=video_mode)
     if not preset["enabled"]:
         return rgb_srgb.copy()
 
-    blur_sz = {1: 0, 2: 3, 3: 5}[size_level] if dsp_post_blur_size is None else int(dsp_post_blur_size)
-    map_a, map_b, blend_w = _synthesize_zf_base_grain_maps_s16(
-        size_level=size_level,
-        crd_amount=preset["crd_grain_amount"],
-        crd_frequency=preset["crd_grain_frequency"],
+    sz_idx = int(_clamp_num(size_level, 1, 3)) - 1
+    if dsp_post_blur_size is None:
+        blur_sz = ZF_GRAIN_SMALL_BLUR_SIZES[sz_idx] if reduced_res else ZF_GRAIN_FULL_BLUR_SIZES[sz_idx]
+    else:
+        blur_sz = int(dsp_post_blur_size)
+
+    map_a, map_b, blend_w = _get_zf_base_grain_maps_s16(
+        intensity_level=intensity_level,
+        reduced_res=reduced_res,
         seed=seed,
-        blur_size=blur_sz,
-        map_dim=128,
+        rom_maps_json=rom_maps_json,
     )
 
     x = np.clip(rgb_srgb.astype(np.float32), 0.0, 1.0)
@@ -1295,9 +1369,9 @@ def apply_zf_film_grain(
         bypass_flag=0,
         blend_w=blend_w,
         blur_size=blur_sz,
-        map_dim=128,
-        tile_period=127,
-        tile_step=37,
+        map_dim=ZF_GRAIN_MAP_DIM,
+        tile_period=ZF_GRAIN_TILE_PERIOD,
+        tile_step=ZF_GRAIN_TILE_STEP,
         knee_lo=knee_lo,
         knee_hi=knee_hi,
         prng_seed=prng_seed,
@@ -1428,9 +1502,12 @@ def run_self_test(out_dir: Optional[Path] = None) -> Dict[str, Any]:
     def record(name: str, ok: bool, detail: str) -> None:
         checks.append({"check": name, "ok": bool(ok), "detail": detail})
 
-    # 1. Verify .NP3 round-trip & container structure on all 9 lab-calibration.json profiles
-    with open(DEFAULT_CALIBRATION_JSON, "r", encoding="utf-8") as fh:
-        cal = json.load(fh)
+    # 1. Verify .NP3 round-trip & container structure on all 9 calibration profiles
+    if DEFAULT_CALIBRATION_JSON is not None and DEFAULT_CALIBRATION_JSON.is_file():
+        with open(DEFAULT_CALIBRATION_JSON, "r", encoding="utf-8") as fh:
+            cal = json.load(fh)
+    else:
+        cal = {"profiles": BUILTIN_CALIBRATION_PROFILES}
 
     rendered_profiles: Dict[str, np.ndarray] = {}
     chart = build_synthetic_test_chart(240, 360)
@@ -1656,6 +1733,23 @@ def run_self_test(out_dir: Optional[Path] = None) -> Dict[str, Any]:
         dsp_op_ok,
         f"bypass_eq={np.array_equal(byp, test_y)}, black0_locked={bool(np.all(act0[:,0]==0))}, white255_locked={bool(np.all(act0[:,4]==255))}",
     )
+
+    rom_pair = load_zf_rom_grain_maps_83x83()
+    if rom_pair is not None:
+        rm0, rm1 = rom_pair
+        h0 = hashlib.sha256(rm0.astype("<i2").tobytes()).hexdigest()
+        h1 = hashlib.sha256(rm1.astype("<i2").tobytes()).hexdigest()
+        rom_ok = (
+            rm0.shape == (83, 83)
+            and rm1.shape == (83, 83)
+            and h0 == ZF_GRAIN_MAP0_SHA256
+            and h1 == ZF_GRAIN_MAP1_SHA256
+        )
+        record(
+            "Zf C3.01 ROM 83x83 int16_t base maps loaded & SHA-256 verified (v4)",
+            rom_ok,
+            f"map0={h0[:12]}(std={float(np.std(rm0)):.2f}), map1={h1[:12]}(std={float(np.std(rm1)):.2f})",
+        )
 
     # 5. Export sample previews, .NP3, .cube LUT & XMP if out_dir provided
     artifacts_written: List[str] = []
