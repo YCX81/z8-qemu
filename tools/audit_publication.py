@@ -112,7 +112,7 @@ FILES.update({'docs/publication-checkpoint-20261015.md'})
 FILES.add('docs/publication-progress-20261015.md')
 # Explicit source snapshot inventory for the November development checkpoint.
 FILES.update({'experiments/20261111/wave5/source/nikon-z9-pixels.h', 'experiments/20261111/wave5/source/nikon-z8-hsfc153c.h', 'experiments/20261111/wave5/source/nikon-buffer-ownership.h', 'experiments/20261111/wave5/source/nikon-z8-bank0-d980.h', 'experiments/20261111/card-hotplug/run_pull.py', 'experiments/20261111/wave5/source/nikon-z8-hlg-thumbnail.h', 'experiments/20261111/wave5/merged-prepared.patch', 'experiments/20261111/wave5/source/nikon-z8-still-hevc-codec.h', 'experiments/20261111/exmcu/native_run.py', 'experiments/20261111/wave5/source/nikon-z9-pcie.h', 'experiments/20261111/wave5/source/nikon-z8-video-ring.h', 'experiments/20261111/wave5/source/nvme-completion-trace.patch', 'experiments/20261111/wave5/source/nikon-z8-still-hevc-backend.h', 'experiments/20261111/card-hotplug/evlog.c', 'experiments/20261111/wave5/wave5.patch', 'experiments/20261111/wave5/source/nikon-bayer-packet.h', 'experiments/20261111/wave5/source/nikon-z8-input-pair.h', 'experiments/20261111/wave5/source/arm-service-events.patch', 'experiments/20261111/wave5/source/nikon-z8-hlg-pipeline-profile.h', 'experiments/20261111/wave5/source/nikon-z8-1534-reference-qemu.h', 'experiments/20261111/exmcu/host-wake.patch', 'experiments/20261111/wave5/source/nikon-z8-hlg-c1-rearm.h', 'experiments/20261111/wave5/source/nikon-z9-lab.c', 'experiments/20261111/card-hotplug/powercut.c', 'experiments/20261111/wave5/source/nikon-z8-cadence.h', 'experiments/20261111/wave5/source/nikon-z8-video-nr-empty-reset.h', 'experiments/20261111/wave5/source/nikon-z8-hevc-sps.h', 'experiments/20261111/wave5/source/nikon-z8-frame-period.h', 'experiments/20261111/wave5/source/nikon-z8-1534-reference.h', 'experiments/20261111/wave5/source/nikon-z8-lossless-u16.h', 'experiments/20261111/wave5/source/nikon-z8-still-hevc-qemu.h', 'experiments/20261111/wave5/source/nikon-z8-secondary-stop.h', 'docs/progress-20261111.md', 'experiments/20261111/wave5/source/nikon-z9-thumbnail-nv16.h', 'experiments/20261111/wave5/wave5-prepared.patch', 'experiments/20261111/wave5/source/nikon-z8-wave5-headers.h', 'experiments/20261111/wave5/source/nikon-raw-pixels.h', 'experiments/20261111/wave5/source/nikon-z8-still-hevc.h', 'experiments/20261111/wave5/source/nikon-z9-d980.h', 'experiments/20261111/wave5/source/nikon-z8-yuv-dma.h', 'experiments/20261111/wave5/source/nikon-z8-jpeg.h', 'experiments/20261111/wave5/source/nikon-persistent-media.h', 'experiments/20261111/wave5/source/nikon-z8-heif-menu-stop.h', 'experiments/20261111/wave5/source/nikon-z8-video-data.h', 'experiments/20261111/wave5/source/nikon-z8-1534-addresses.h', 'experiments/20261111/card-hotplug/chains.py', 'experiments/20261111/wave5/source/nikon-z8-photo-menu-stop.h', 'experiments/20261111/wave5/source/nikon-z8-hlg-pipeline.h', 'experiments/20261111/wave5/source/nikon-z8-yuv-wave5.h', 'experiments/20261111/wave5/source/nikon-z8-lpcm-audio.h', 'experiments/20261111/wave5/source/nikon-z8-hlg-pixels.h', 'experiments/20261111/wave5/source/nikon-sensor-tag.h', 'experiments/20261111/wave5/source/nikon-z8-hsfc-encode.h', 'experiments/20261111/card-hotplug/mmiolog.c', 'experiments/20261111/wave5/source/nikon-z8-still-hevc-pixels.h', 'experiments/20261111/wave5/source/nikon-z9-capture-nv16.h', 'experiments/20261111/wave5/source/nikon-z8-wave5.h', 'experiments/20261111/wave5/source/nikon-z9-jpeg.h', 'experiments/20261111/wave5/source/designware-dma.patch', 'experiments/20261111/wave5/source/nikon-z8-video-processing.h', 'experiments/20261111/wave5/source/nikon-z8-yuv-single.h', 'experiments/20261111/wave5/source/nikon-z9-wave5.h', 'experiments/20261111/wave5/source/nikon-z8-hsfc-pixels.h', 'experiments/20261111/wave5/source/prepare_source.py', 'experiments/20261111/card-hotplug/cfexpress-hotplug.patch', 'experiments/20261111/wave5/source/nikon-z8-packet.h', 'experiments/20261111/wave5/source/nikon-expeed-lossless.h', 'experiments/20261111/wave5/source/nikon-producer-journal-qemu.h', 'experiments/20261111/wave5/source/nikon-z8-hlg-capture.h', 'experiments/20261111/wave5/source/nikon-z8-hlg-thumbnail-pixels.h', 'experiments/20261111/wave5/source/nikon-z8-jpeg-types.h', 'experiments/20261111/wave5/source/nikon-z8-nr-properties.h', 'experiments/20261111/wave5/source/nikon-z8-photo-menu-stop-qemu.h', 'experiments/20261111/wave5/source/nikon-z8-still-hevc-photo2.h', 'experiments/20261111/card-hotplug/swaprun.py', 'experiments/20261111/exmcu/exmcu-port.patch', 'experiments/20261111/wave5/source/nikon-z8-pcie-config.h', 'experiments/20261111/wave5/source/nikon-z8-still-hevc-profile.h', 'experiments/20261111/wave5/source/nikon-z8-hsfc-decode.h', 'experiments/20261111/wave5/source/nikon-z8-video-admission.h', 'experiments/20261111/wave5/source/nikon-producer-journal.h', 'experiments/20261111/wave5/source/nikon-z8-yuv.h', 'experiments/20261111/wave5/source/nikon-z8-jpeg-sources.h', 'experiments/20261111/wave5/source/nvme-audit-state.patch', 'experiments/20261111/wave5/source/nikon-z8-nr-identity-properties.h', 'experiments/20261111/wave5/source/nikon-wave5-codec.h', 'experiments/20261111/wave5/source/nikon-z8-heif-menu-stop-qemu.h', 'experiments/20261111/export-manifest.json', 'experiments/20261111/wave5/source/nikon-z8-hlg-pipeline-pixels.h', 'experiments/20261111/card-hotplug/irqmap.c', 'experiments/20261111/wave5/source/nikon-z8-hlg-jpeg-bank1.h'})
-FILES.add('docs/features-and-usage.zh-CN.md')
+FILES.update({'docs/features-and-usage.md', 'docs/features-and-usage.zh-CN.md'})
 # v36 offline reconstruction evidence and local identity verifier.
 FILES.update(["experiments/20261111/v36/README.md","experiments/20261111/v36/build-v36.log","experiments/20261111/v36/chain-v36.log","experiments/20261111/v36/identities.json","experiments/20261111/v36/reproduction-check.json","experiments/20261111/v36/verification.json","experiments/20261111/v36/verify_local.py"])
 # Source-only C64/portrait helpers for stock-to-v36 reconstruction.
@@ -127,6 +127,35 @@ DOC_IMAGES = {
     'docs/images/playback-photo.png',
     'docs/images/portrait-video-rec.png',
     'docs/images/raw-recording.png',
+    'docs/images/v71-filmsim-4case-proof.png',
+    'docs/images/v71-filmsim-bottom-en.png',
+    'docs/images/v71-filmsim-bottom-zh.png',
+    'docs/images/v71-filmsim-hdf-picker-en.png',
+    'docs/images/v71-filmsim-hdf-picker-zh.png',
+    'docs/images/v71-filmsim-style-picker-en.png',
+    'docs/images/v71-filmsim-style-picker-zh.png',
+    'docs/images/v71-filmsim-top-en.png',
+    'docs/images/v71-filmsim-top-zh.png',
+    'docs/images/v71-plugin-manager-en.png',
+    'docs/images/v71-plugin-manager-zh.png',
+    'docs/images/v71-portrait-wlm-en.png',
+    'docs/images/v71-portrait-wlm-zh.png',
+    'docs/images/v71-setup-plugin-manager-en.png',
+    'docs/images/v71-setup-plugin-manager-zh.png',
+    'docs/images/v71-slotcard-en.png',
+    'docs/images/v71-slotcard-zh.png',
+    'docs/images/v717-fenestra-home-zh.png',
+    'docs/images/v717-filmsim-debug-zh.png',
+    'docs/images/v717-filmsim-root-zh.png',
+    'docs/images/v717-livephoto-root-zh.png',
+    'docs/images/v717-lut-categories-zh.png',
+    'docs/images/v717-lut-list-zh.png',
+    'docs/images/v717-lut-liveview-active.png',
+    'docs/images/v717-lut-loaded-zh.png',
+    'docs/images/v717-lut-photo-menu-zh.png',
+    'docs/images/v717-lut-plugin-root-zh.png',
+    'docs/images/v717-plugin-manager-5wlm-zh.png',
+    'docs/images/v717-xm6-diag-zh.png',
     'docs/images/web-console.png',
 }
 FILES.update(DOC_IMAGES)
