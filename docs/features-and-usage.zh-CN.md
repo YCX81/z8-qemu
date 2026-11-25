@@ -1,126 +1,102 @@
-# Z8 QEMU 功能与使用指南
+# Z8 QEMU 详细功能与 `V71.7-r7` 仿真验证手册
 
-2026-11-15 · [V62 Live 源码与构建环境](https://github.com/YCX81/fenestra-z8/blob/z8-c311/research/z8-live/build-tools/livediag/feat-onemov/RELEASE-v62.md): 实际构建/整机 QEMU 在 Windows 的 WSL Linux 运行，Mac 保存归档及交付副本。V62 包含 Log 文字与 Live 快门声修复，保留 V61 RAW 跨卡回放；用户已确认编译、测试和实机验证完成，本次发布不重复执行。V62 的音频模型实验保留在该源码检查点，不自动加入本仓库默认构建。
+[English](features-and-usage.md) | **简体中文** | [返回 README](../README.zh-CN.md)
 
-更新日期：2026-11-11。默认分支为 `main`，11 月 Live/Wave5 进展已合并到 `experiments/20261111/`；原临时进展分支已删除。合并保留了实验源码，默认 `tools/build.py` 仍使用根目录 `qemu/` 模型，不会自动应用实验目录下的补丁。
+> **定位与边界说明**
+> - 本仓库默认分支为 `main`，固定构建上游 **QEMU `10.2.4`**（机器名 `nikon-z8-bringup`）。默认 `tools/build.py` **只编译根目录稳定的 `qemu/` 模型，不会自动应用 `experiments/` 目录下的任何实验补丁**。
+> - 本手册同步涵盖 **`z8-qemu` 核心硬件仿真工作流** 与 **配套 [`fenestra-z8`](https://github.com/YCX81/fenestra-z8) `V71.7-r7`（`Z8-v71.7r7-LutPreview-362ee2a5`，内部 `04.06.p0`，Bootguard `0x8394568f`）整机仿真验证及全部 5 款 `.wlm` 插件与照片菜单 3D LUT 参数参考**。
+> - 本仓库**不分发**尼康原厂/集成固件二进制、解密密钥、真机传感数据或提取资产（如 `ZF_GRAIN.BIN`）；所有派生 `.main` 镜像仅用于电脑端 QEMU 仿真，**严禁刷入实体相机**。
 
-## 当前提供什么
+---
 
-| 功能 | 使用入口 | 已记录状态与限制 |
-|---|---|---|
-| Z8 C3.11 辅助启动、原厂菜单、模拟取景 | `Start-Z8.ps1`、`Test-Z8.ps1`；底层 `tools/z8_run.py` | 有菜单往返与独立像素检查记录；依赖 MCU 对端、合成 Bayer 和显式资源，非真实 CMOS/ISP 还原 |
-| C32/C64 优化校准槽位 | `tools/z8_slots_acceptance.py --slots 32/64` | 照片/视频槽位的导入、选择、NAND 保存及新进程恢复有历史验收；默认启动器不启用扩容 |
-| 普通拍照与 NEF 导出 | `tools/z8_capture_probe.py` 及[公开 C12 配方](z8-capture-probe.md) | 单张 packed14 输出有逐像素核对；非 RAW 历史帧预拍 |
-| F0 lossless14 与逐照片审计 | `profiles/z8-lossless14-properties.json`、`tools/z8_photo_audit.py` | 默认关闭；单张无损 NEF 有像素记录，不能视为完整 native writer/连拍生命周期通过 |
-| writer / NVMe / producer 诊断 | writer 观察器、NVMe 完成跟踪、producer 代次日志 | 用于关联文件、传输与像素来源；NVMe 完成不单独证明相机介质持久化，64 条日志也不是 64 帧缓存 |
-| Wave5 与 Live/audio 模型源码 | `experiments/20261111/wave5/` | 保存 prepared overlay、Wave5 及 merged patch，独立于默认模型；需匹配原实验基线和资源 |
-| CFexpress 热插拔诊断 | `experiments/20261111/card-hotplug/` | 卡在位/link 属性、菜单/NP3/换卡 harness、事件/IRQ/MMIO/断电观察器源码；不等于真机热插拔保证 |
-| EXMCU 与主电源/唤醒研究 | `experiments/20261111/exmcu/` | EX 原始 MCU 驱动路线、host-wake 改动与 runner；需私有 EX 输入及配套完整研究环境 |
-| RAW 预拍、HE/HEIF、视频、方向、AF、E7 等专题 | README 的[公开分支列表](../README.zh-CN.md#公开分支) | 仍在各自主题分支，不能把归档进 main 理解为这些分支都已集成或完成验收 |
+## 一、当前提供什么
 
-Live 的拍照开关、音频短片、机内 LVP 回放、图标和 C64 标签属于配套[Fenestra 功能指南](https://github.com/YCX81/fenestra-z8/blob/z8-c311/docs/features-and-usage.zh-CN.md)，不是本仓库默认模拟器新增的相机菜单。Open Gate、完整 RAW 预拍、云创在线服务、完整胶片模拟和实体设备还原没有列为已完成功能。
+| 功能模块 | 使用入口 | 已记录状态与边界限制 |
+| :--- | :--- | :--- |
+| **Z8 C3.11 辅助启动、原厂菜单、模拟取景** | `Start-Z8.ps1`、`Test-Z8.ps1`；底层 `tools/z8_run.py` | 有菜单往返与像素检查记录；依赖宿主侧虚拟 MCU 与合成 Bayer 输入，非真实 CMOS/ISP 硬件画质。 |
+| **`V71.7-r7` 整机仿真与 5 插件验证（配套 `fenestra-z8`）** | 整机集成 `MAIN` + 虚拟 exFAT 卡（7 个核心文件） | 已通过整机 QEMU **`#19-r7`（14/14 PASS）** 与 **`#20-r7`（13/13 PASS）**，`z8_unk = 0`、`panic = 0`：纯净 7 行 `Fenestra`、全部 5 款三语 `.wlm` 插件、照片菜单第 47 项流式 `.cube` LUT + 528 KiB L2 预烘焙 LUT + Movie `0 B` 挂起 + 重启恢复/清除、XM6 自检/回退 UI、`0-diff` `.NEF` 与 EVF Pool #6 内存边界。`V71.7-r7` 标记为 **`physical_camera_verified = false`**。 |
+| **C32 / C64 优化校准槽位（NAND 验收）** | `tools/z8_slots_acceptance.py --slots 32/64` | 照片/视频槽位导入、菜单选择、虚拟 NAND 保存及冷重启恢复四阶段验收；默认 `Start-Z8.ps1` 不开启。 |
+| **单张 Packed14 与 `F0` 无损 `.NEF` 审计** | `tools/z8_capture_probe.py`、`tools/z8_photo_audit.py` | 单张 `8280×5520` 14-bit 输出有 LibRaw 逐像素比对；**RAW 历史帧预拍尚未完成**，不含 `HE`/`HE*` 压缩微码。 |
+| **竖屏 HUD、Wave5、热插拔与 EXMCU 归档实验** | `experiments/20261114/`、`experiments/20261111/` | 独立归档实验补丁，默认 `tools/build.py` 不自动打入。 |
 
-上表归纳的是源码与历史记录。详细证据日期、输入、计数和未覆盖项仍以 [README](../README.zh-CN.md)、[TODO](TODO.md) 和对应专题说明为准；本次文档更新未重新运行固件或实体相机。
+---
 
-## 准备构建环境
+## 二、`V71.7-r7`（`Z8-v71.7r7-LutPreview-362ee2a5`）整机仿真与全菜单参考
 
-使用 Linux 或 WSL、Python 3.12+。安装 GCC/Clang、Ninja、patch、pkg-config，以及 GLib、Pixman、zlib、libfdt、libjpeg 开发头文件；拍摄实验还需 exfatprogs 等[构建依赖](build.md)。将构建目录和大介质放到 Linux 文件系统，避免 Windows 挂载目录的性能问题。
+- **版本身份**：基于官方 Nikon Z8 `C3.11`，内部标识 `04.06.p0`，Bootguard Build ID `0x8394568f`，`MAIN` SHA-256 `362ee2a5491859a762b35ed8459cf22c212ae5babb38915daa15e3b801533c8a`（`81,807,709 B`）。
+- **虚拟 exFAT 存储卡 7 个核心交付文件（`FENESTRA/`）**：
+  - `STARTUP-Z8.0`（`64 B`）、`filmsim.wlm`（`32,540 B`）、`livephoto.wlm`（`15,860 B`）、`lut.wlm`（`15,624 B`）、`slotcard.wlm`（`56,552 B`）、`portrait.wlm`（`7,348 B`）、`ZF_GRAIN.BIN`（`27,588 B`，用户自备）。
+  - 可选 LUT：`FENESTRA/LUTS/<分类>/*.cube` 或 `FENESTRA/*.cube`（单文件 `<= 2 MiB`）。
+  - 自动维护双槽 CRC32 配置：`FXPHOTO0/1.CFG`、`FXLUT0/1.CFG`、`FLMSIM0/1.CFG`、`FLMREC0/1.CFG`、`SLTCARD0/1.CFG`、`SCSEL0/1.CFG`、`SC*.REC`、`live-z8.0/1`，以及按需导出的 `XM6_DIAG.LOG` / `LIVELOG.BIN`。
+
+### 2.1 纯净 7 行 `Fenestra` 主菜单与 5 款三语 `.wlm` 插件
+
+| 纯净 7 行 `Fenestra` 主菜单 | `插件管理`（全部 5 款 `.wlm` 插件） |
+| :---: | :---: |
+| ![Fenestra 主菜单](images/v717-fenestra-home-zh.png) | ![插件管理 5 插件](images/v717-plugin-manager-5wlm-zh.png) |
+
+`FontCJK-ZhUI` 在中文界面下自动挂载 `CJK_EXT_1` + `CJK_EXT_2`（3,755 简繁汉字，5 款插件 `0` 缺字）；全部 5 款插件每秒轮询 `SLOTS_LANG_GET`（op `15`）实现免重启热切换三语。
+
+### 2.2 原厂照片拍摄菜单第 47 项（`选择 LUT`）与 `lut.wlm`（13 项控件）
+
+| 照片菜单第 47 项（`选择 LUT`） | 分类列表 | `.cube` 文件列表 | 已载入状态 |
+| :---: | :---: | :---: | :---: |
+| ![照片菜单第 47 项](images/v717-lut-photo-menu-zh.png) | ![LUT 分类](images/v717-lut-categories-zh.png) | ![LUT 文件列表](images/v717-lut-list-zh.png) | ![LUT 已载入](images/v717-lut-loaded-zh.png) |
+| **实时取景 3D LUT 生效** | **`lut.wlm` 主菜单** | | |
+| ![取景 LUT 生效](images/v717-lut-liveview-active.png) | ![lut.wlm 主菜单](images/v717-lut-plugin-root-zh.png) | | |
+
+- **照片拍摄菜单第 47 项（`0x2DE7`）**：进入 23 行分页子菜单（`Page 0x5D6`），含 `无LUT`、20 项/页（`上一页` / `下一页`）、10 组内置中文分类（`01-Fuji-Film` 至 `10-Creative-Vintage`）+ 自定义目录 + `根目录 LUT`。使用 `V71.7-r7` **528 KiB L2 预烘焙 `64×64×33` YCbCr LUT**（零堆增长，Class `0x24` 冻结于 `0xE8C000`），录像模式 `pool_suspend`（`0 B`），冷重启自动恢复。
+- **`lut.wlm` 主页与调试子页**：
+  - 主页：`3D LUT 开关`（默认开）、`当前 LUT`、`取景实时预览`（默认开）、`照片 LUT`（默认开）、`实况照片 LUT`（默认开）、`清除当前 LUT`、`调试设置`。
+  - 调试子页：`管线与加速`、`图层 0 预览`、`健康与隔离`、`看门狗状态`、`重置预览工作区`。
+
+### 2.3 `filmsim.wlm`（16 项控件）与 EXPEED 7 CEVA-XM6 硬件 DSP 诊断
+
+| `filmsim.wlm` 主菜单 | `filmsim.wlm` 调试子页 | XM6 硬件自检读数 |
+| :---: | :---: | :---: |
+| ![胶片模拟主菜单](images/v717-filmsim-root-zh.png) | ![胶片模拟调试子页](images/v717-filmsim-debug-zh.png) | ![XM6 自检](images/v717-xm6-diag-zh.png) |
+
+- 主页：`生效模式`（`全局生效` / `按优化校准`，默认 `全局生效`）、`颗粒强度`（`关闭`, `1..6`）、`颗粒大小`（`1 小` / `2 中` / `3 大`，默认 `2 中`）、`颗粒质感`（`柔和 (Zf)` / **`清晰`** 默认）、`高光柔焦 HDF`（`关闭` / `弱 1/8` / `中 1/4` / `强 1/2`）、`实况照片联动`、`取景实时预览`、`绑定当前配方`、`清除当前配方`、`调试设置`。
+- 调试子页：`XM6 DSP 模式`（`自动` / `仅 CPU`，默认 `自动`）、`运行 XM6 自检`（导出 `FENESTRA/XM6_DIAG.LOG`）、`重置 XM6 熔断器`、`硬件与运行状态`、`恢复默认设置`。
+
+### 2.4 `livephoto.wlm`（11 项）、`slotcard.wlm`（7 项）与 `portrait.wlm`（5 项）
+
+| `livephoto.wlm` 主菜单 | `slotcard.wlm` 双卡 C64 | `portrait.wlm` 运行期开关 |
+| :---: | :---: | :---: |
+| ![实况照片主菜单](images/v717-livephoto-root-zh.png) | ![C64 滤镜槽](images/v71-slotcard-zh.png) | ![竖屏录像](images/v71-portrait-wlm-zh.png) |
+
+- **`livephoto.wlm`**：主页（`实况照片` 关/开、`快门声音` 开/关全双工 `0.0 ms` 断层、`回放按键` `REC 键`/关、`当前状态`、`调试设置`）；调试子页（`录制统计`、`Wave5 与音频`、`回放与双卡`、`关机保护与日志`、`导出诊断日志`）。
+- **`slotcard.wlm`**：主页（`滤镜槽容量` `C64`/`C32`、`存储卡` `自动`/`CFx (A)`/`SD (B)`、`调试设置`）；调试子页（`插槽状态`、`存储日志`、`卡槽引导` `CSL1:...`）。
+- **`portrait.wlm`**：主页（`竖屏录像` 开/关运行期即时切换、`调试设置`）；调试子页（`运行状态` `EL1 Gate:<0|1> slots.state:OK`、`说明`）。
+
+### 2.5 `V71.7-r7` 验证矩阵与 QEMU / 实体机边界
+
+| 核验维度 | `362ee2a5` 结果 | 仿真边界与实机要求 |
+| :--- | :---: | :--- |
+| **CEVA-XM6 `dcli.exe` 仿真与 0-Q-Spill** | **51/51 PASS · `0` spill** | GRAIN `25/25` + HDF `26/26` `0-diff`；`1,114` 函数全量审计。 |
+| **Host ASan+UBSan 与 6 套 ARM64/Unicorn** | **全通过** | 覆盖 `r7` 四项流畅度根修（XM6 锁前去竞争、反向 `Layer 0 → Live`、528 KiB L2 烘焙 LUT、快门后 45MP 顺延 `1.65 s` 上限）、FontCJK（5 插件 `0` 缺字）、Layer0（63 项）、XM6 Bridge（124 项）、FilmSim（70 项）与 HangFix。 |
+| **整机 QEMU `#19-r7` & `#20-r7`** | **14/14 & 13/13 PASS** | `z8_unk = 0`、`panic = 0`；覆盖 5 插件、Row 47 `.cube` LUT、Movie `0 B` 挂起与冷重启恢复/清除。 |
+| **物理 EVF、真实 XM6 硅片与 30fps 实拍** | **`physical_camera_verified = false`** | QEMU 无物理 `1280×960` EVF 面板与真实 XM6 硅片，取景约 24 fps 合成彩条且 Wave5 同步完成（`avg_wait = 0`）。`V71.1–V71.6` 真机实测驱动了 `r7`；**`V71.7-r7`（`362ee2a5`）待实体 Z8 刷写复测**。 |
+
+---
+
+## 三、构建环境、原厂固件输入与核心工作流
 
 ```sh
-git clone --branch main https://github.com/YCX81/z8-qemu.git
-cd z8-qemu
+# 1. 构建 QEMU 10.2.4 与合成 Bayer 输入（工作目录放 Linux 原生 ext4）
+git clone --branch main https://github.com/YCX81/z8-qemu.git && cd z8-qemu
 python3 -m venv "$HOME/.local/share/nikon-z8-qemu/venv"
 . "$HOME/.local/share/nikon-z8-qemu/venv/bin/activate"
-python -m pip install -r requirements.txt
-python -m pip install -r requirements-capture.txt
-python -m pip install -r requirements-c10.txt
-python tools/build.py --work-dir "$HOME/.local/share/nikon-z8-qemu/work" --jobs 2
+python -m pip install -r requirements.txt -r requirements-capture.txt -r requirements-c10.txt
+python tools/build.py --work-dir "$HOME/.local/share/nikon-z8-qemu/work" --jobs 4
 python tools/make_cmos.py
-```
-
-构建器固定 QEMU 10.2.4，校验源码归档身份；可用 `--archive` 提供已下载归档。它不会下载 Nikon 固件。`make_cmos.py` 生成合成输入，不是真实传感器数据。
-
-无需固件的测试入口：
-
-```sh
 sh tests/run.sh
 python tests/check_z8_machine.py \
   --qemu "$HOME/.local/share/nikon-z8-qemu/work/build/qemu-system-aarch64"
 ```
 
-这些测试验证模型/工具契约，不能替代运行固件或验收像素。构建结果的 SHA-256、配置与实验源码修订应一起保留。
-
-## 提供私有固件输入
-
-将自行准备的 MAIN 放到 `.local/firmware/z8-c311-main.bin`。公开源码不包含升级容器、解密材料或 MAIN：
-
-| 输入 | 精确身份 |
-|---|---|
-| 原厂容器 | `Z_8_0311.bin`，99,051,117 字节；SHA-256 `d67413c2ede6b9ce8887175f20700bd9fbad2a973a4820968c45503d15d80d96` |
-| MAIN | 81,807,709 字节；SHA-256 `2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853` |
-
-原厂容器不能直接代替 MAIN，其他版本需要独立 profile。准备方法见[固件说明](firmware.md)。槽位等派生实验要使用另行标识的输出，保留原输入。任何派生 MAIN 都不是本项目提供的相机更新文件。
-
-## 启动菜单与模拟取景
-
-Windows 的 PowerShell 包装脚本选择 WSL `Ubuntu`，使用上面的环境。在仓库根目录执行：
-
-```powershell
-.\Test-Z8.ps1
-.\Test-Z8.ps1 -BootstrapFixture -BusWindowFixture -SerialFixture -NandFixture
-.\Start-Z8.ps1
-```
-
-`Test-Z8.ps1` 是有界严格诊断；默认 fixture 关闭，遇到未知硬件访问停机。第二条显式启用假设资源，不能把其成功写成裸模型启动成功。
-
-`Start-Z8.ps1` 的交互入口为 `http://127.0.0.1:8788/`。等待模拟取景出现后，用 MENU 进入菜单，半按返回取景；按网页“停止仿真”或该终端 Ctrl+C 结束自己的进程。需要菜单/取景诊断时使用：
-
-```powershell
-.\Start-Z8.ps1 -Headless -Seconds 360 -MenuTest -RequireLiveView
-```
-
-核对运行目录中的 `result.json`、错误原因、菜单往返及像素检查，不能只看退出码。Linux 用户从 `tools/z8_run.py --help` 开始，结合[启动与资源说明](z8-status.md)选择显式 profile；旧 `tools/run.py` / `boot.py` 是 Z9 参考入口。
-
-## 槽位扩容、拍照和 F0
-
-这些是独立实验，不由 `Start-Z8.ps1` 一并开启。
-
-- **C32/C64：** 安装 `requirements-c10.txt`，按[C32/C64 四阶段配方](z8-c32.md)使用 `tools/z8_slots_acceptance.py`。依次执行 photo create、photo restore、video restore、video-cold；选择 64 时改为 `--slots 64`，使用独立新介质及输出目录。不要将 C32 介质直接作为 C64 介质；没有无损迁移工具。
-- **普通 NEF：** 使用[拍摄诊断与 C12 配方](z8-capture-probe.md)，准备匹配的固件、合成 RAW、虚拟卡与已构建 QEMU。检查导出文件、LibRaw 像素与实际 producer RAM；文件出现或 NVMe 有完成记录不足以判定通过。
-- **F0：** 按[逐照片审计](z8-photo-audit.md)显式选择 lossless14 与输出所有权模型。已有历史结果是 `pixels_verified`，不应改写为 `native_accepted`，也不提供 HE/HE* 微码执行。
-- **RAW 预拍：** 仍要求至少两张不同的触发前保留帧及一张拍后帧，闭合时间、队列、缓冲寿命和文件集合证据。普通拍照、Live 短片或重复预览帧都不能替代该验收。
-
-## 使用归档的 Wave5、热插拔和 EXMCU 源码
-
-先阅读[归档来源与边界](progress-20261111.md)。实验源码已在 main，但没有自动进入默认构建。不要在唯一的工作树上将所有 patch 顺序叠加；先恢复原实验对应的 prepared QEMU 树，在独立副本检查上下文。
-
-| 材料 | 目标与准备要求 |
-|---|---|
-| `wave5/source/` | 历史 prepared source overlay；保留相关 C/头文件与 prepare 脚本。它本身不包含原实验全部工具、profile、资源和运行介质 |
-| `wave5/wave5.patch`、`wave5-prepared.patch` | Wave5 版本的原始/准备后变体；不是要求连续应用两次的 patch 系列 |
-| `wave5/merged-prepared.patch` | 另一份 merged 基线的 prepared patch；路径以 QEMU 源码根为准，需看文件头确认目标 |
-| `card-hotplug/cfexpress-hotplug.patch` | 目标是匹配模型的 `hw/arm/nikon-z9-lab.c`；缺乏上下文时停止，不能强行应用到默认 overlay |
-| `exmcu/exmcu-port.patch` | 历史 `cardhp/qemu-10.2.4/` → `exmcu/qemu-10.2.4/` 的树差异，含较广的 Kconfig 变动 |
-| `exmcu/host-wake.patch` | 单个 `nikon-z9-lab.c` 的增量；不能当作仓库根级补丁直接应用 |
-
-例如，**仅当已恢复相同 cardhp 基线**时，在该 QEMU 源码根目录做不修改文件的上下文检查：
-
-```sh
-patch --dry-run -p1 < /absolute/path/to/z8-qemu/experiments/20261111/card-hotplug/cfexpress-hotplug.patch
-```
-
-此检查只说明上下文是否匹配，不证明编译或运行成功。EXMCU 树差异使用不同路径层级；先人工核对 `---` / `+++` 头，不能复用上面的 `-p1`。
-
-`card-hotplug/run_pull.py` 提供 `imenu`、`np3`、`keyprobe`、`idle`、`cardswap` 方案，参数定义在其 `--help`。它仍依赖原研究快照、Live driver、卡片工具及部分未发布 helper；含 `/path/to/user` 的路径需配置。`--unlock` / `--garbage` 是主动 guest 状态注入，不能标为被动观察。观察器 C 源码需按匹配 QEMU plugin ABI 单独编译。
-
-`exmcu/native_run.py` 提供 boot/standby 等实验计划，除 `--main`、`--qemu`、`--card-from` 外还依赖原 `live-regress/snap`、bundle recipe、合成输入、私有 EX 镜像和完整模型。EX 输入路径仍在脚本中定义，没有通用 EX 自动下载/提取命令。缺少这些依赖时，克隆仓库并不能直接运行。故这里提供源码入口和准备条件，不将历史 runner 包装成一键功能。
-
-## 日常更新与问题定位
-
-```sh
-git switch main
-git pull --ff-only
-python -B tools/audit_publication.py
-```
-
-审计检查精确文件清单、内容及当前历史中的 blob，不能代替来源、许可或硬件验证。记录提交、MAIN 与 QEMU 哈希、模型属性、动作顺序、虚拟时间、首个拒绝以及相关数字；把合成模型假设与实际观察分开。不要上传固件、EX、转储、原始运行 JSON 或私人素材。详细边界见[发布说明](publication.md)和[贡献约定](../CONTRIBUTING.md)。
+- 将自行提取的 `81,807,709` 字节原厂 Z8 `C3.11` `MAIN`（`SHA-256: 2b43a31c9de838f84b12416de4348a7004e65be07f853ec56ec2b10f3a8e3853`）放于 `.local/firmware/z8-c311-main.bin`（详见 [firmware.md](firmware.md)）。
+- **交互控制台与诊断**：Windows 运行 `.\Start-Z8.ps1` / `.\Test-Z8.ps1`；Linux/WSL 运行 `python tools/z8_run.py --help`。始终核对 `<output>/result.json`。
+- **单张 `.NEF` 与 C32/C64 NAND**：分别参考 [z8-capture-probe.md](z8-capture-probe.md)、[z8-photo-audit.md](z8-photo-audit.md) 与 [z8-c32.md](z8-c32.md)（C32 与 C64 NAND 不可混用）。
+- **归档实验补丁（`experiments/`）**：操作前先阅读 [progress-20261111.md](progress-20261111.md)，先恢复目标基线并用 `patch --dry-run -p1` 检查上下文。
+- **发布审计**：提交前运行 `python -B tools/audit_publication.py`，严禁提交固件、密钥、`ZF_GRAIN.BIN` 或私人素材。
