@@ -66,6 +66,7 @@
 - **虚拟 exFAT 卡 7 个核心交付文件**：`STARTUP-Z8.0`（`64 B`）、`filmsim.wlm`（`32,540 B`）、`livephoto.wlm`（`15,860 B`）、`lut.wlm`（`15,624 B`）、`slotcard.wlm`（`56,552 B`）、`portrait.wlm`（`7,348 B`）、`ZF_GRAIN.BIN`（`27,588 B`，用户自备），外加可选 `FENESTRA/LUTS/<分类>/*.cube` 或 `FENESTRA/*.cube`。
 - **`#19-r7`（14/14 PASS，`z8_unk = 0`，`panic = 0`）**：核验纯净 7 行 `Fenestra`、全部 5 款三语 `.wlm` 插件（0 缺字）及统一 `调试设置` 子页、XM6 自检/持久化/优雅回退 ARM NEON。
 - **`#20-r7`（13/13 PASS，`z8_unk = 0`，`panic = 0`）**：核验照片拍摄菜单第 47 项流式 `.cube` LUT 浏览与加载、Layer 0 **528 KiB L2 预烘焙 `64×64×33` YCbCr LUT**（零堆增长，Class `0x24` 冻结于 `0xE8C000`）、45.4MP JPEG 调色 + `0-diff` `.NEF`、视频模式 `pool_suspend`（`0 B`）以及冷重启自动恢复与清除。
+- **配套离线构建器（NFP `v0.5.1` 兼容 CLI + macOS App）**：配套仓库 [`YCX81/fenestra-z8`](https://github.com/YCX81/fenestra-z8) 的 `research/z8-live/nfp-builder/` 与 [`v71.7-r7` Release](https://github.com/YCX81/fenestra-z8/releases/tag/v71.7-r7) 现已提供兼容上游 NFP `v0.5.1` 的离线 **CLI 工具包**（`NikonFirmwarePatch-v71.7-r7-toolkit.zip`）与 **Apple 芯片 macOS App**（`NikonFirmwarePatch-v71.7-r7-macOS.dmg` / `Z8 Patch Builder`），可直接基于原厂 `Z_8_0311.bin` 构建上游 15 种组合或完整 `V71.7-r7`（`live-filmsim` + 开源 `FENESTRA/`）并自动完成独立核验（17/17 端到端集成测试通过）。
 - **配套离线验证**：CEVA-XM6 `dcli.exe` 51/51 PASS（`0-diff`）、0-Q-Spill 1,114 函数 0 spill、Host ASan+UBSan 全套及 6 套 ARM64/Unicorn 套件全通过（覆盖 `r7` 四项流畅度根修：XM6 锁前去竞争、反向 `Layer 0 → Live` 单通道共享、528 KiB 烘焙 LUT 与快门后 45MP 顺延）。
 
 > [!WARNING]
